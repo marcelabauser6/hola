@@ -1,5 +1,21 @@
-# Fantastic Chameleon 1.2.4 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.5 — Modo Prop Hunt
 
+> **1.2.5 — fidelidad de textura y Jade ya no te delata.**
+> - **Jade ya no muestra nada** al apuntar a un prop. Antes cantaba el nombre del jugador y sus
+>   corazones, que arruinaba la partida entera. Se resuelve con un plugin propio que usa el callback de
+>   raytrace de Jade para devolver nada sobre un jugador disfrazado.
+> - **Textura cara por cara.** Antes se repetía una sola imagen en las seis caras, así que un tronco
+>   descortezado salía con la veta lateral también arriba. Ahora cada cara lleva la suya, usando
+>   `PropModels.faceRects`, que da el reparto exacto del atlas.
+> - **Tono corregido.** Minecraft dibuja los bloques con las caras de arriba más claras y las laterales
+>   más oscuras; un prop es una entidad y no recibe ese sombreado, por eso se veía más claro que el
+>   bloque de al lado. Ahora ese sombreado se hornea en la textura (1.0 arriba, 0.8 y 0.6 los lados,
+>   0.5 abajo, los mismos valores que usa el juego).
+> - **Texturas de mob correctas.** Los modelos de criatura del mod usan los mismos desplazamientos de
+>   textura que los de Minecraft, así que ahora se copia el png del mob tal cual (y la lana de la oveja
+>   en su mitad inferior) en vez de estirar un recorte, que era lo que daba esa textura rara.
+> - **Los mobs suenan solos** cada 6-18 segundos, como los de verdad, además del gesto manual con V.
+>
 > **1.2.4 — movilidad completa, botón de colocar y gestos de criatura.**
 > - **Capturar ya no te fija.** Al tocar un bloque te transformás pero conservás movilidad completa:
 >   caminar, saltar y **escalar** igual que en Meccha.

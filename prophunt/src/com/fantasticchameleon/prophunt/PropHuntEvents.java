@@ -74,6 +74,8 @@ public final class PropHuntEvents {
          if (++tick % REFRESH_INTERVAL == 0) {
             for (ServerPlayer player : event.getServer().m_6846_().m_11314_()) {
                PropHunt.refresh(player);
+               // Las criaturas disfrazadas suenan por su cuenta cada tanto, como los mobs de verdad.
+               PropHuntActs.ambientTick(player);
             }
          }
       }

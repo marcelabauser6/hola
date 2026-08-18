@@ -31,6 +31,7 @@ import net.minecraft.sounds.SoundSource;
  */
 public final class PropHuntActs {
    private static final Map<UUID, Long> LAST_ACT = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> NEXT_AMBIENT = new ConcurrentHashMap<>();
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -38,6 +39,55 @@ public final class PropHuntActs {
 
    public static void handle(PropActPayload payload, ServerPlayer player) {
       act(player);
+   }
+
+   /**
+    * Sonido ambiental automatico de las criaturas.
+    *
+    * <p>Un animal que nunca suena se delata igual que uno que no se mueve: las criaturas de verdad
+    * balan y gruñen cada tanto por su cuenta. Esto lo hace por el jugador, sin quitarle el control, y a
+    * intervalos irregulares para que no parezca un metronomo.
+    */
+   public static void ambientTick(ServerPlayer player) {
+      Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
+      if (prop == null || prop < 0 || !PropShapes.followsLook(prop)) {
+         return;
+      }
+
+      SoundEvent sound = ambientSound(PropShapes.of(prop).key());
+      if (sound == null) {
+         return;
+      }
+
+      ServerLevel level = player.m_284548_();
+      Long next = NEXT_AMBIENT.get(player.m_20148_());
+      long now = level.m_46467_();
+      if (next == null) {
+         NEXT_AMBIENT.put(player.m_20148_(), now + schedule(level));
+         return;
+      }
+
+      if (now >= next) {
+         NEXT_AMBIENT.put(player.m_20148_(), now + schedule(level));
+         play(level, player, sound, 0.9F, 0.95F + level.m_213780_().m_188501_() * 0.1F);
+      }
+   }
+
+   /** Proximo sonido entre 6 y 18 segundos, como el ritmo ambiental de los mobs vanilla. */
+   private static long schedule(ServerLevel level) {
+      return 120L + (long)level.m_213780_().m_188503_(240);
+   }
+
+   private static SoundEvent ambientSound(String key) {
+      return switch (key) {
+         case "sheep" -> SoundEvents.f_12341_;
+         case "cow" -> SoundEvents.f_11830_;
+         case "pig" -> SoundEvents.f_12233_;
+         case "chicken" -> SoundEvents.f_11750_;
+         case "wolf" -> SoundEvents.f_12617_;
+         case "enderman" -> SoundEvents.f_11899_;
+         default -> null;
+      };
    }
 
    /** Ejecuta el gesto del prop que lleva puesto. */
