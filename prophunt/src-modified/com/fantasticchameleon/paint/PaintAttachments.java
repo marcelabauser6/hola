@@ -32,6 +32,14 @@ public final class PaintAttachments {
    public static final FantasticAttachment<Integer> PROP = FantasticAttachment.synced("prop", () -> -1, ByteBufCodecs.VAR_INT);
    public static final FantasticAttachment<Integer> PROP_VARIANT = FantasticAttachment.synced("prop_variant", () -> 0, ByteBufCodecs.VAR_INT);
    public static final FantasticAttachment<BodyCanvas> PROP_CANVAS = FantasticAttachment.synced("prop_canvas", () -> BodyCanvas.EMPTY, BodyCanvas.STREAM_CODEC);
+   /**
+    * Id del bloque que representa el prop, por ejemplo {@code minecraft:oak_planks}.
+    *
+    * <p>El servidor no tiene los pixeles de las texturas, solo el cliente. Guardando aqui de que
+    * bloque se trata, cada cliente puede generar la textura real por su cuenta: el disfraz sale
+    * identico al bloque tocado y los bots dejan de ser manchas de color.
+    */
+   public static final FantasticAttachment<String> PROP_SOURCE = FantasticAttachment.synced("prop_source", () -> "", ByteBufCodecs.stringUtf8(64));
    public static final FantasticAttachment<Long> KIT_LAST = FantasticAttachment.persistent("kit_last", () -> 0L, Codec.LONG, true);
    public static final FantasticAttachment<Boolean> SIZE_MINI = FantasticAttachment.persistent("size_mini", () -> Boolean.FALSE, Codec.BOOL, true);
    public static final FantasticAttachment<Boolean> STARTER_BRUSH = FantasticAttachment.persistent("starter_brush", () -> Boolean.FALSE, Codec.BOOL, true);
@@ -57,6 +65,7 @@ public final class PaintAttachments {
       PROP,
       PROP_VARIANT,
       PROP_CANVAS,
+      PROP_SOURCE,
       KIT_LAST,
       SIZE_MINI,
       STARTER_BRUSH,

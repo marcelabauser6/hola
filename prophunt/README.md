@@ -1,6 +1,21 @@
-# Fantastic Chameleon 1.2.2 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.3 — Modo Prop Hunt
 
-> **1.2.2 — se van los restos de Meccha en Prop Hunt.**
+> **1.2.3 — texturas reales, colocación centrada y un modo, una verdad.**
+> - Los props ahora llevan la **textura real del bloque**. El servidor guarda de qué bloque se trata
+>   (`PROP_SOURCE`) y cada cliente genera la imagen, porque los píxeles solo existen en el cliente.
+>   Adiós a las manchas de color.
+> - Los **bots** eligen un bloque real de una lista de escondites creíbles y se convierten en él, así
+>   que salen como bloques de verdad y no como vacas verdes.
+> - **Se arregló la raíz de varios síntomas a la vez:** había dos verdades sobre "estoy en Prop Hunt".
+>   La captura permitía al staff transformarse fuera de una sala, pero el centrado y el gateo de las
+>   GUIs exigían sala en modo Prop Hunt. Fuera de sala te transformabas **sin centrar y con los menús
+>   de Meccha encima**. Ahora todo se decide en un solo sitio y falla con aviso, no en silencio.
+> - Al tocar un bloque quedás **colocado**: centrado en la celda, alineado y fijado, como un bloque
+>   recién puesto.
+> - El HUD de pistas de Meccha (`Space mover / F pintar / R pose / Esc menú`) ya no aparece en Prop
+>   Hunt; ahora muestra las teclas que sí existen en este modo.
+>
+> **1.2.2 — se fueron los restos de Meccha en Prop Hunt.**
 > - La rueda de poses (**R**) ya no se abre en Prop Hunt: ahí las poses no tienen sentido, así que la
 >   tecla ahora **quita el disfraz**.
 > - El pintor (**F**) ya no aparece. Antes el gateo leía el paquete de salas, que puede llegar tarde o
