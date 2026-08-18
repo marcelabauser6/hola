@@ -1,0 +1,249 @@
+package com.fantasticchameleon.client;
+
+import com.fantasticchameleon.item.ArmorPaintHandler;
+import com.fantasticchameleon.network.ClimbPayload;
+import com.fantasticchameleon.network.CrawlPayload;
+import com.fantasticchameleon.network.LockPayload;
+import com.fantasticchameleon.network.PosePayload;
+import com.fantasticchameleon.network.ProvokePayload;
+import com.fantasticchameleon.paint.FrozenFrame;
+import com.fantasticchameleon.paint.PaintAttachments;
+import com.fantasticchameleon.platform.ClientNet;
+import com.fantasticchameleon.platform.Services;
+import com.fantasticchameleon.prophunt.PropHuntClient;
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.InputConstants.Key;
+import com.mojang.blaze3d.platform.InputConstants.Type;
+import java.util.List;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.player.Input;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.phys.Vec3;
+
+public final class LockControls {
+   public static KeyMapping poseWheelKey;
+   public static KeyMapping paintKey;
+   public static KeyMapping provokeKey;
+   public static KeyMapping crawlKey;
+   private static boolean climbJumpSent;
+   private static boolean climbSneakSent;
+   public static final String CATEGORY = "key.categories.fantastic_chameleon";
+   private static boolean paintWasDown;
+   private static boolean paintScreenWasOpen;
+   private static boolean spaceWasDown;
+   private static boolean sneakWasDown;
+   private static boolean wasPosing;
+   private static boolean wasLocked;
+   private static float lastScale = 1.0F;
+
+   private LockControls() {
+   }
+
+   private static boolean rawKeyDown(KeyMapping k) {
+      Key key = ClientAccessors.boundKey(k);
+      if (key.m_84868_() != Type.KEYSYM) {
+         return k.m_90857_();
+      } else {
+         int code = key.m_84873_();
+         return code >= 0 && InputConstants.m_84830_(Minecraft.m_91087_().m_91268_().m_85439_(), code);
+      }
+   }
+
+   public static List<KeyMapping> registerKeyMappings() {
+      poseWheelKey = new KeyMapping("key.fantastic_chameleon.pose", 82, "key.categories.fantastic_chameleon");
+      paintKey = new KeyMapping("key.fantastic_chameleon.paint", 70, "key.categories.fantastic_chameleon");
+      provokeKey = new KeyMapping("key.fantastic_chameleon.provoke", 71, "key.categories.fantastic_chameleon");
+      crawlKey = new KeyMapping("key.fantastic_chameleon.crawl", 67, "key.categories.fantastic_chameleon");
+      return List.of(poseWheelKey, paintKey, provokeKey, crawlKey);
+   }
+
+   public static void forceExitFromServer() {
+      Minecraft mc = Minecraft.m_91087_();
+      if (ClientShims.screen(mc) instanceof PaintModeScreen || ClientShims.screen(mc) instanceof PoseWheelScreen) {
+         mc.m_91152_(null);
+      }
+
+      exit(mc);
+   }
+
+   public static void lock(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         float bodyYaw = mc.f_91074_.f_20883_;
+         boolean freeze = !Services.PLATFORM.get(mc.f_91074_, PaintAttachments.POSING);
+         FrozenFrame frame = FrozenFrame.NONE;
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.LOCKED, true);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, true);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.LOCK_YAW, bodyYaw);
+         RotateGizmo.rememberLockYaw(bodyYaw);
+         if (freeze) {
+            frame = new FrozenFrame(
+               mc.f_91074_.m_6080_(),
+               mc.f_91074_.m_146909_(),
+               mc.f_91074_.f_267362_.m_267756_(),
+               mc.f_91074_.f_267362_.m_267731_(),
+               (float)mc.f_91074_.f_19797_
+            );
+            Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, -1);
+            Services.PLATFORM.set(mc.f_91074_, PaintAttachments.FROZEN_FRAME, frame);
+         }
+
+         ClientNet.sendToServer(new LockPayload(true, bodyYaw, freeze, frame));
+      }
+   }
+
+   public static void exit(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, false);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.LOCKED, false);
+         ClientNet.sendToServer(new LockPayload(false, mc.f_91074_.f_20883_, false, FrozenFrame.NONE));
+         ClientNet.sendToServer(new PosePayload(false, 0));
+         FreeCam.disable();
+         WorldBrush.exitPaintMode();
+         ClientPaintState.clearHidden();
+         ClientPaintState.setPaintGrid(0);
+         Gizmos.hide();
+      }
+   }
+
+   public static boolean onPauseScreenOpening(Screen newScreen) {
+      Minecraft mc = Minecraft.m_91087_();
+      if (!(newScreen instanceof PauseScreen) || ClientShims.screen(mc) != null) {
+         return false;
+      } else if (mc.f_91074_ == null) {
+         return false;
+      } else {
+         boolean locked = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
+         boolean posing = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.POSING);
+         if (FreeCam.active()) {
+            FreeCam.disable();
+            WorldBrush.exitPaintMode();
+            return true;
+         } else if (posing && !locked) {
+            lock(mc);
+            return true;
+         } else {
+            return false;
+         }
+      }
+   }
+
+   private static void syncShrink(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         float now = ArmorPaintHandler.scaleOf(mc.f_91074_);
+         if ((double)Math.abs(now - lastScale) > 1.0E-4) {
+            lastScale = now;
+            mc.f_91074_.m_6210_();
+         }
+      }
+   }
+
+   public static void onClientTick(Minecraft mc) {
+      syncShrink(mc);
+      if (paintKey != null) {
+         while (poseWheelKey.m_90859_()) {
+            if (mc.f_91074_ != null) {
+               mc.m_91152_(new PoseWheelScreen(ClientAccessors.boundKey(poseWheelKey).m_84873_()));
+            }
+         }
+
+         while (provokeKey.m_90859_()) {
+            if (mc.f_91074_ != null) {
+               ClientNet.sendToServer(ProvokePayload.INSTANCE);
+               ClientShims.overlay(Component.m_237115_("fantastic.hud.whistle"), true);
+            }
+         }
+
+         while (crawlKey.m_90859_()) {
+            if (mc.f_91074_ != null) {
+               ClientNet.sendToServer(CrawlPayload.INSTANCE);
+            }
+         }
+
+         boolean paintRawDown = rawKeyDown(paintKey);
+         if (paintRawDown && !paintWasDown && !paintScreenWasOpen && mc.f_91074_ != null && ClientShims.screen(mc) == null) {
+            if (!Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)) {
+               lock(mc);
+            }
+
+            // En Prop Hunt la tecla solo sirve para fijarse en el sitio: no hay pintura, asi que no se
+            // abre el editor de pintura ni la camara libre que lo acompana.
+            if (!PropHuntClient.isPropHuntRoom()) {
+               if (!FreeCam.active()) {
+                  FreeCam.enable();
+               }
+
+               WorldBrush.setPaintMode(true);
+               mc.m_91152_(new PaintModeScreen());
+            }
+         }
+
+         paintWasDown = paintRawDown;
+         paintScreenWasOpen = ClientShims.screen(mc) != null;
+         boolean space = mc.f_91074_ != null && InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
+         boolean sneak = mc.f_91066_ != null && mc.f_91066_.f_92090_.m_90857_();
+         boolean canRelease = ClientShims.screen(mc) == null
+            && mc.f_91074_ != null
+            && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
+            && !FreeCam.active();
+         if (canRelease && (space && !spaceWasDown || sneak && !sneakWasDown)) {
+            exit(mc);
+         }
+
+         if (mc.f_91074_ != null && (space != climbJumpSent || sneak != climbSneakSent)) {
+            climbJumpSent = space;
+            climbSneakSent = sneak;
+            ClientNet.sendToServer(new ClimbPayload(sneak, space));
+         }
+
+         spaceWasDown = space;
+         sneakWasDown = sneak;
+         FreeCam.tick();
+         BodyPaint.tick();
+         updatePoseState(mc);
+      }
+   }
+
+   private static void updatePoseState(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         boolean posing = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.POSING);
+         if (posing != wasPosing) {
+            mc.f_91074_.m_6210_();
+            wasPosing = posing;
+         }
+
+         boolean locked = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
+         if (locked) {
+            mc.f_91074_.m_20256_(Vec3.f_82478_);
+            mc.f_91074_.f_19789_ = 0.0F;
+            mc.f_91074_.f_19794_ = true;
+         } else if (wasLocked) {
+            mc.f_91074_.f_19794_ = false;
+         }
+
+         wasLocked = locked;
+      }
+   }
+
+   public static void freezeInputIfLocked(Input in) {
+      LocalPlayer p = Minecraft.m_91087_().f_91074_;
+      if (p != null && Services.PLATFORM.get(p, PaintAttachments.LOCKED)) {
+         in.f_108568_ = false;
+         in.f_108569_ = false;
+         in.f_108570_ = false;
+         in.f_108571_ = false;
+         in.f_108572_ = false;
+         in.f_108573_ = false;
+         in.f_108567_ = 0.0F;
+         in.f_108566_ = 0.0F;
+      }
+   }
+
+   public static boolean isLocalLocked() {
+      LocalPlayer p = Minecraft.m_91087_().f_91074_;
+      return p != null && Services.PLATFORM.get(p, PaintAttachments.LOCKED);
+   }
+}
