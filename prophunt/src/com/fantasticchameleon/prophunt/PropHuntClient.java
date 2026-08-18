@@ -4,11 +4,11 @@ import com.fantasticchameleon.client.AvatarState;
 import com.fantasticchameleon.client.BlockTexturePresets;
 import com.fantasticchameleon.client.ClientAccessors;
 import com.fantasticchameleon.client.Pixels;
-import com.fantasticchameleon.client.RoomMenu;
-import com.fantasticchameleon.network.RoomsPayload;
 import com.fantasticchameleon.network.SetPropCanvasPayload;
 import com.fantasticchameleon.paint.BodyCanvas;
+import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.ClientNet;
+import com.fantasticchameleon.platform.Services;
 import com.mojang.blaze3d.platform.NativeImage;
 import java.io.InputStream;
 import java.util.Optional;
@@ -49,15 +49,20 @@ public final class PropHuntClient {
    private PropHuntClient() {
    }
 
-   /** True si la sala del jugador local esta en modo Prop Hunt. */
-   public static boolean isPropHuntRoom() {
-      RoomsPayload data = RoomMenu.current;
-      if (data == null || data.yourRoom().isBlank()) {
+   /**
+    * True si el jugador local esta jugando en modo Prop Hunt.
+    *
+    * <p>Se lee del atributo sincronizado del propio jugador, no del paquete de salas: ese paquete
+    * puede llegar tarde o estar desactualizado, y entonces se abrian los menus del modo equivocado.
+    */
+   public static boolean isPropHunt() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      if (player == null) {
          return false;
       }
 
-      int[] cfg = data.config();
-      return cfg != null && cfg.length > PropHunt.CFG_INDEX && cfg[PropHunt.CFG_INDEX] == PropHunt.MODE_PROP_HUNT;
+      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      return mode != null && mode == PropHunt.MODE_PROP_HUNT;
    }
 
    /**

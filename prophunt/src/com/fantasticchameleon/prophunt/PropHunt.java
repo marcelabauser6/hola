@@ -2,6 +2,8 @@ package com.fantasticchameleon.prophunt;
 
 import com.fantasticchameleon.game.Room;
 import com.fantasticchameleon.game.Rooms;
+import com.fantasticchameleon.paint.PaintAttachments;
+import com.fantasticchameleon.platform.Services;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -57,5 +59,19 @@ public final class PropHunt {
 
    public static String nameKey(int mode) {
       return normalize(mode) == MODE_PROP_HUNT ? "fantastic.gamemode.prophunt" : "fantastic.gamemode.meccha";
+   }
+
+   /**
+    * Mantiene sincronizado el modo en el jugador para que el cliente pueda gatear sus menus.
+    *
+    * <p>Solo escribe cuando el valor cambia: {@code Services.PLATFORM.set} difunde el atributo cada
+    * vez que se llama, y esto se comprueba periodicamente.
+    */
+   public static void refresh(ServerPlayer player) {
+      int want = modeOf(player);
+      Integer have = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      if (have == null || have != want) {
+         Services.PLATFORM.set(player, PaintAttachments.GAME_MODE, want);
+      }
    }
 }

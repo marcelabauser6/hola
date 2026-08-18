@@ -1839,7 +1839,7 @@ public final class Room {
       this.seekers.remove(p.m_20148_());
       Services.PLATFORM.set(p, PaintAttachments.SIZE_MINI, true);
       if (DummyPlayer.isDummy(p.m_20148_())) {
-         DummyPlayer.dressAsHider(p);
+         DummyPlayer.dressAsHider(p, this.config.gameMode);
       } else {
          p.m_8061_(EquipmentSlot.HEAD, FantasticItems.roomGear(FantasticItems.CHAMELEON_HELMET.get()));
          p.m_8061_(EquipmentSlot.CHEST, FantasticItems.roomGear(FantasticItems.CHAMELEON_CHESTPLATE.get()));

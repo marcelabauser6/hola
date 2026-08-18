@@ -5,6 +5,7 @@ import com.fantasticchameleon.network.ClimbPayload;
 import com.fantasticchameleon.network.CrawlPayload;
 import com.fantasticchameleon.network.LockPayload;
 import com.fantasticchameleon.network.PosePayload;
+import com.fantasticchameleon.network.SetPropPayload;
 import com.fantasticchameleon.network.ProvokePayload;
 import com.fantasticchameleon.paint.FrozenFrame;
 import com.fantasticchameleon.paint.PaintAttachments;
@@ -146,7 +147,14 @@ public final class LockControls {
       if (paintKey != null) {
          while (poseWheelKey.m_90859_()) {
             if (mc.f_91074_ != null) {
-               mc.m_91152_(new PoseWheelScreen(ClientAccessors.boundKey(poseWheelKey).m_84873_()));
+               if (PropHuntClient.isPropHunt()) {
+                  // En Prop Hunt no hay poses ni rueda de formas: el disfraz se elige tocando el
+                  // mundo. La tecla se reutiliza para quitarselo, que si hace falta poder hacer.
+                  ClientNet.sendToServer(new SetPropPayload(-1, 0));
+                  ClientShims.overlay(Component.m_237115_("fantastic.prophunt.cleared"), true);
+               } else {
+                  mc.m_91152_(new PoseWheelScreen(ClientAccessors.boundKey(poseWheelKey).m_84873_()));
+               }
             }
          }
 
@@ -171,7 +179,7 @@ public final class LockControls {
 
             // En Prop Hunt la tecla solo sirve para fijarse en el sitio: no hay pintura, asi que no se
             // abre el editor de pintura ni la camara libre que lo acompana.
-            if (!PropHuntClient.isPropHuntRoom()) {
+            if (!PropHuntClient.isPropHunt()) {
                if (!FreeCam.active()) {
                   FreeCam.enable();
                }

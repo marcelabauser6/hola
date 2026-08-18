@@ -1,11 +1,17 @@
-# Fantastic Chameleon 1.2.1 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.2 — Modo Prop Hunt
 
-> **1.2.1 arregla que la transformación no funcionaba.** El mod ya cancelaba el clic derecho sobre
+> **1.2.2 — se van los restos de Meccha en Prop Hunt.**
+> - La rueda de poses (**R**) ya no se abre en Prop Hunt: ahí las poses no tienen sentido, así que la
+>   tecla ahora **quita el disfraz**.
+> - El pintor (**F**) ya no aparece. Antes el gateo leía el paquete de salas, que puede llegar tarde o
+>   estar desactualizado; ahora el modo viaja **por jugador** en un atributo sincronizado
+>   (`GAME_MODE`), así que el cliente siempre sabe en qué modo está.
+> - Los **dummies** se disfrazan de prop al azar en vez de quedarse posando como muñecos.
+>
+> **1.2.1 arregló que la transformación no funcionaba.** El mod ya cancelaba el clic derecho sobre
 > bloques mientras hay una ronda en marcha (solo dejaba puertas, trampillas, portones, botones y
 > palancas), justo cuando se juega al Prop Hunt. El listener nuevo escuchaba *después* de esa
 > cancelación y se salía sin hacer nada. Ahora corre a `EventPriority.HIGHEST`, antes de ese bloqueo.
-> Además el staff puede transformarse fuera de una sala para probar sin montar partida, y
-> `/fschameleon` config muestra el modo en chat.
 
 Añade un segundo modo de juego al mod, separado del clásico Meccha Chameleon.
 
@@ -19,8 +25,19 @@ El modo se elige por sala en la pestaña **Reglas** del editor (`/fschameleon`),
 1. El líder de la sala pone el modo en `Prop Hunt` (pestaña Reglas, primer botón).
 2. Con el set completo de armadura camaleón puesto, **clic derecho** a cualquier bloque o criatura para convertirte en eso.
 3. Te podés mover normalmente estando disfrazado.
-4. Al pulsar la tecla de fijado te quedás clavado en el sitio y el prop **se centra solo** en la celda del bloque, alineado con los ejes del mundo.
+4. Al pulsar **F** te quedás clavado en el sitio y el prop **se centra solo** en la celda del bloque, alineado con los ejes del mundo.
 5. Espacio o agacharse te libera para volver a moverte.
+6. **R** quita el disfraz.
+
+### Teclas por modo
+
+| Tecla | Meccha Chameleon | Prop Hunt |
+|---|---|---|
+| **F** | Fijarse + abrir el pintor | Solo fijarse y alinearse al grid |
+| **R** | Rueda de poses y formas | Quitar el disfraz |
+
+Los bots (`dummies`) también respetan el modo: posan y se pintan en Meccha, y se disfrazan de props de
+colores al azar en Prop Hunt.
 
 Los seekers no pueden transformarse.
 
