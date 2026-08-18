@@ -40,10 +40,12 @@ public final class PropHuntRules {
       // Se elige un bloque real del mundo y de ahi sale la forma, en vez de una forma al azar con un
       // color inventado. Asi el bot parece un bloque de verdad y no una mancha de color.
       Block block = randomBlock(dummy);
-      BlockPropMapper.Match match = BlockPropMapper.ofBlock(block.m_49966_());
+      net.minecraft.world.level.block.state.BlockState state = block.m_49966_();
+      BlockPropMapper.Match match = BlockPropMapper.ofBlock(state);
 
-      FantasticNetwork.applyProp(dummy, match.prop(), match.variant());
-      Services.PLATFORM.set(dummy, PaintAttachments.PROP_SOURCE, String.valueOf(BuiltInRegistries.f_256975_.m_7981_(block)));
+      FantasticNetwork.applyCapturedProp(
+         dummy, match.prop(), match.variant(), String.valueOf(BuiltInRegistries.f_256975_.m_7981_(block)), Block.m_49956_(state)
+      );
 
       // Los props de bloque se alinean con el mundo; los de criatura conservan su giro.
       if (!PropShapes.followsLook(match.prop())) {

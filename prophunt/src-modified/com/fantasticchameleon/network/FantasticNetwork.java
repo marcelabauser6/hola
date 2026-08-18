@@ -433,11 +433,33 @@ public final class FantasticNetwork {
    public static void clearProp(ServerPlayer player) {
       Services.PLATFORM.set(player, PaintAttachments.PROP, -1);
       Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, 0);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
+      Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
       Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, BodyCanvas.EMPTY);
       player.m_6210_();
    }
 
+   /**
+    * Aplica un prop elegido por la UI clásica. No debe heredar el bloque capturado anteriormente.
+    */
    public static void applyProp(ServerPlayer player, int propIdx, int variantIdx) {
+      Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
+      Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
+      applyPropInternal(player, propIdx, variantIdx);
+   }
+
+   /**
+    * Aplica un disfraz capturado publicando primero su estado exacto y PROP al final. Así los clientes
+    * nunca observan una forma nueva con los metadatos del disfraz anterior.
+    */
+   public static void applyCapturedProp(ServerPlayer player, int propIdx, int variantIdx, String sourceBlockId, int stateId) {
+      Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, sourceBlockId == null ? "" : sourceBlockId);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, stateId);
+      applyPropInternal(player, propIdx, variantIdx);
+   }
+
+   private static void applyPropInternal(ServerPlayer player, int propIdx, int variantIdx) {
       int prop = Math.floorMod(propIdx, PropShapes.PROPS.length);
       int variant = Math.floorMod(variantIdx, PropShapes.variantCount(prop));
       Integer wasProp = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
@@ -453,6 +475,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, variant);
       Services.PLATFORM.set(player, PaintAttachments.PROP, prop);
       if (wasProp == null || wasProp != prop) {
+         Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
          Services.PLATFORM.set(player, PaintAttachments.SIZE_MINI, Boolean.FALSE);
          ArmorPaintHandler.updateShrink(player);
       }

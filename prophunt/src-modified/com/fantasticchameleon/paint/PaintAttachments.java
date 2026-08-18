@@ -40,6 +40,15 @@ public final class PaintAttachments {
     * identico al bloque tocado y los bots dejan de ser manchas de color.
     */
    public static final FantasticAttachment<String> PROP_SOURCE = FantasticAttachment.synced("prop_source", () -> "", ByteBufCodecs.stringUtf8(64));
+   /**
+    * Id global del {@link net.minecraft.world.level.block.state.BlockState} exacto capturado.
+    *
+    * <p>A diferencia de {@link #PROP_SOURCE}, conserva propiedades visuales como axis, facing, half,
+    * shape, conexiones, edad y encendido. El valor -1 identifica props de criatura o datos antiguos.
+    */
+   public static final FantasticAttachment<Integer> PROP_STATE = FantasticAttachment.synced("prop_state", () -> -1, ByteBufCodecs.VAR_INT);
+   /** Tick de servidor del último gesto V, para animarlo de forma visible en todos los clientes. */
+   public static final FantasticAttachment<Long> PROP_ACT_TICK = FantasticAttachment.synced("prop_act_tick", () -> -1000L, ByteBufCodecs.LONG);
    public static final FantasticAttachment<Long> KIT_LAST = FantasticAttachment.persistent("kit_last", () -> 0L, Codec.LONG, true);
    public static final FantasticAttachment<Boolean> SIZE_MINI = FantasticAttachment.persistent("size_mini", () -> Boolean.FALSE, Codec.BOOL, true);
    public static final FantasticAttachment<Boolean> STARTER_BRUSH = FantasticAttachment.persistent("starter_brush", () -> Boolean.FALSE, Codec.BOOL, true);
@@ -66,6 +75,8 @@ public final class PaintAttachments {
       PROP_VARIANT,
       PROP_CANVAS,
       PROP_SOURCE,
+      PROP_STATE,
+      PROP_ACT_TICK,
       KIT_LAST,
       SIZE_MINI,
       STARTER_BRUSH,

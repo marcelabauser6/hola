@@ -47,7 +47,7 @@ public final class PropHuntCapture {
 
       Block block = state.m_60734_();
       BlockPropMapper.Match match = BlockPropMapper.ofBlock(state);
-      apply(player, match, String.valueOf(BuiltInRegistries.f_256975_.m_7981_(block)));
+      apply(player, match, String.valueOf(BuiltInRegistries.f_256975_.m_7981_(block)), Block.m_49956_(state));
       player.m_240418_(Component.m_237110_("fantastic.prophunt.became", new Object[]{block.m_49954_()}).m_130940_(ChatFormatting.GREEN), true);
       return true;
    }
@@ -68,7 +68,7 @@ public final class PropHuntCapture {
          return false;
       }
 
-      apply(player, match, "");
+      apply(player, match, "", -1);
       player.m_240418_(Component.m_237110_("fantastic.prophunt.became", new Object[]{target.m_7755_()}).m_130940_(ChatFormatting.GREEN), true);
       return true;
    }
@@ -80,9 +80,8 @@ public final class PropHuntCapture {
     * escalar como en el modo clasico (fijarse impide escalar, ver {@code Climb.heldInPlace}). Colocarse
     * es un acto aparte y deliberado, con la tecla de colocar.
     */
-   private static void apply(ServerPlayer player, BlockPropMapper.Match match, String sourceBlockId) {
-      FantasticNetwork.applyProp(player, match.prop(), match.variant());
-      Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, sourceBlockId);
+   private static void apply(ServerPlayer player, BlockPropMapper.Match match, String sourceBlockId, int stateId) {
+      FantasticNetwork.applyCapturedProp(player, match.prop(), match.variant(), sourceBlockId, stateId);
    }
 
    /**

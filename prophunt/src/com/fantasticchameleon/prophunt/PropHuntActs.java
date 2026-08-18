@@ -141,6 +141,7 @@ public final class PropHuntActs {
             return;
       }
 
+      Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, level.m_46467_());
       LAST_ACT.put(player.m_20148_(), level.m_46467_());
    }
 

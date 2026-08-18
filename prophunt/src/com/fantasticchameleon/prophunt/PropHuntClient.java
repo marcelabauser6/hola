@@ -2,6 +2,7 @@ package com.fantasticchameleon.prophunt;
 
 import com.fantasticchameleon.client.AvatarState;
 import com.fantasticchameleon.client.BlockTexturePresets;
+import com.fantasticchameleon.client.PropAvatarPreview;
 import com.fantasticchameleon.paint.BodyCanvas;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
@@ -14,9 +15,12 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -78,19 +82,21 @@ public final class PropHuntClient {
          }
 
          boolean creature = PropShapes.followsLook(prop);
-         String source = creature ? "" : String.valueOf(Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_SOURCE));
-         if (!creature && (source == null || source.isEmpty() || "null".equals(source))) {
+         BlockState state = creature ? null : stateFor(player);
+         if (!creature && state == null) {
             continue;
          }
 
-         // La clave incluye forma y variante porque el reparto de caras del atlas cambia con ellas.
+         // El id del estado incluye todas las propiedades visuales; evita reutilizar el atlas de otro
+         // eje, orientación o conexión del mismo bloque.
          int variant = AvatarState.propVariant(player);
-         String key = prop + ":" + variant + ":" + source;
+         int stateId = state == null ? -1 : Block.m_49956_(state);
+         String key = prop + ":" + variant + ":" + stateId;
          if (key.equals(APPLIED.get(player.m_20148_()))) {
             continue;
          }
 
-         BodyCanvas canvas = creature ? PropTextures.forMob(PropShapes.of(prop).key()) : blockCanvas(source, prop, variant);
+         BodyCanvas canvas = creature ? PropTextures.forMob(PropShapes.of(prop).key()) : blockCanvas(state, prop, variant);
          if (canvas != null) {
             Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, canvas);
             APPLIED.put(player.m_20148_(), key);
@@ -98,24 +104,47 @@ public final class PropHuntClient {
       }
    }
 
-   /** Lienzo del bloque con textura por cara, con cache porque construirlo cuesta. */
-   private static BodyCanvas blockCanvas(String blockId, int prop, int variant) {
-      String key = blockId + "|" + prop + "|" + variant;
+   /** Estado exacto sincronizado; PROP_SOURCE se conserva como fallback para mundos/paquetes antiguos. */
+   public static BlockState stateFor(Player player) {
+      if (player == Minecraft.m_91087_().f_91074_ && PropAvatarPreview.active()) {
+         return null;
+      }
+
+      Integer stateId = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_STATE);
+      if (stateId != null && stateId >= 0) {
+         BlockState state = Block.m_49803_(stateId);
+         if (state != null) {
+            return state;
+         }
+      }
+
+      String blockId = String.valueOf(Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_SOURCE));
+      if (blockId.isEmpty() || "null".equals(blockId)) {
+         return null;
+      }
+
+      try {
+         Block block = BuiltInRegistries.f_256975_.m_7745_(new ResourceLocation(blockId));
+         return block == null ? null : block.m_49966_();
+      } catch (Exception ignored) {
+         return null;
+      }
+   }
+
+   /** Lienzo del estado exacto con cache porque construirlo cuesta. */
+   private static BodyCanvas blockCanvas(BlockState state, int prop, int variant) {
+      int stateId = Block.m_49956_(state);
+      String key = stateId + "|" + prop + "|" + variant;
       BodyCanvas cached = BLOCK_CACHE.get(key);
       if (cached != null) {
          return cached;
       }
 
       try {
-         Block block = BuiltInRegistries.f_256975_.m_7745_(new ResourceLocation(blockId));
-         if (block == null) {
-            return null;
-         }
-
-         BodyCanvas built = PropTextures.forBlock(block.m_49966_(), prop, variant);
+         BodyCanvas built = PropTextures.forBlock(state, prop, variant);
          if (built == null) {
             // Ultimo recurso: la imagen plana que ya usaba el mod, mejor eso que un prop en blanco.
-            built = BlockTexturePresets.canvas(block);
+            built = BlockTexturePresets.canvas(state.m_60734_());
          }
 
          if (built != null) {
@@ -123,8 +152,27 @@ public final class PropHuntClient {
          }
 
          return built;
-      } catch (Exception var6) {
+      } catch (Exception ignored) {
          return null;
+      }
+   }
+
+   /** Invalida lienzos cuando cambian resource packs o modelos. */
+   public static void clearCaches() {
+      BLOCK_CACHE.clear();
+      APPLIED.clear();
+      PropTextures.clearCache();
+   }
+
+   /** Los listeners de recursos se registran en el bus MOD, separado del tick del bus Forge. */
+   @Mod.EventBusSubscriber(modid = "fantastic_chameleon", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
+   public static final class Reloads {
+      private Reloads() {
+      }
+
+      @SubscribeEvent
+      public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
+         event.registerReloadListener((ResourceManagerReloadListener)manager -> clearCaches());
       }
    }
 }

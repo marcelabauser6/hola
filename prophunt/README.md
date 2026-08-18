@@ -1,5 +1,18 @@
-# Fantastic Chameleon 1.2.5 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.6 — Modo Prop Hunt
 
+> **1.2.6 — estado exacto, render vanilla, criaturas animadas y Jade indistinguible.**
+> - El servidor sincroniza el **`BlockState` completo** (`PROP_STATE`), no solo el ID del bloque. Se
+>   conservan eje, orientación, mitad, forma, conexiones, edad, encendido y demás propiedades.
+> - Los props de bloque ya no reconstruyen un atlas aproximado: se dibujan con el mismo
+>   **`BlockRenderDispatcher`** que usa el mundo. Esto conserva quads, modelos multipart, capas,
+>   transparencia, tintes de bioma, iluminación ambiental y resource packs sin doble sombreado.
+> - Las criaturas ahora tienen animación visible: patas al caminar, cabeza siguiendo la mirada,
+>   alas de gallina, cola de lobo y gesto sincronizado con **V** (pastar, agitarse o sisear).
+> - Jade reemplaza el accessor de jugador por un **`BlockAccessor` del estado imitado**. El bloque
+>   falso muestra nombre, icono y mod como el verdadero; nunca muestra nombre ni corazones de jugador.
+> - Las rutas clásicas de Meccha y sus previews mantienen su renderer anterior y limpian cualquier
+>   estado capturado, para que los modos sigan separados y no reutilicen un disfraz obsoleto.
+>
 > **1.2.5 — fidelidad de textura y Jade ya no te delata.**
 > - **Jade ya no muestra nada** al apuntar a un prop. Antes cantaba el nombre del jugador y sus
 >   corazones, que arruinaba la partida entera. Se resuelve con un plugin propio que usa el callback de
@@ -102,8 +115,8 @@ colores al azar en Prop Hunt.
 
 Los seekers no pueden transformarse.
 
-Si sos staff (permiso nivel 2), podés transformarte **fuera de cualquier sala** para probar sin montar
-una partida. Dentro de una sala manda el modo de la sala.
+Las transformaciones solo se habilitan dentro de una sala activa en modo Prop Hunt; así el cliente,
+el centrado y las reglas de la partida comparten una única fuente de verdad.
 
 ### Si no te transformás
 
@@ -124,7 +137,8 @@ escaleras (recta/interior/exterior, normal e invertida, 4 orientaciones), valla,
 **Criaturas**: vaca, cerdo, oveja, gallina, lobo, creeper y enderman. Otras entidades avisan que
 todavía no tienen forma.
 
-La textura es la real: se lee el sprite del bloque o el PNG del mob.
+La apariencia del bloque es la real: se renderiza su `BakedModel` y `BlockState` exactos con el
+renderer vanilla. Las criaturas usan el PNG del resource pack y su modelo animado.
 
 ## Alineación al grid
 
@@ -172,11 +186,10 @@ pisar las herramientas de staff que ya escuchaban el clic derecho.
 
 - **24.135 blockstates** (todos los del juego) pasados por el mapeador dentro del runtime real de
   Forge: 0 fallos, ningún prop ni variant fuera de rango, ninguna excepción.
-- 17 comprobaciones puntuales de mapeo correctas, incluida la orientación
-  (`oak_stairs facing=east` → `facing=1`).
-- Servidor Forge 1.20.1-47.4.0 arrancado con el mod: carga limpia, 0 errores, apagado correcto.
-- El set de clases recompiladas coincide **exactamente** con el del JAR original: no se perdió ni se
-  añadió ninguna clase por accidente.
+- Compilación SRG Java 17 limpia de las clases modificadas; las clases insertadas coinciden por SHA-256
+  con las compiladas y el JAR no contiene entradas duplicadas ni clases de self-test.
+- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.6, tanto sin Jade como con
+  Jade 11.13.3; Jade descubrió y cargó `FantasticJadePlugin` sin errores.
 
 Lo que **no** se pudo probar aquí: el render en pantalla y la sensación en partida (hace falta un
 cliente gráfico), y Mohist en concreto (se probó en Forge puro). El código solo usa APIs estándar de

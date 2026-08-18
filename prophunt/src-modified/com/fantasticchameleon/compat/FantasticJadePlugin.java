@@ -1,8 +1,14 @@
 package com.fantasticchameleon.compat;
 
 import com.fantasticchameleon.client.AvatarState;
+import com.fantasticchameleon.prophunt.PropHuntClient;
+import com.fantasticchameleon.pose.PropShapes;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 import snownee.jade.api.Accessor;
 import snownee.jade.api.EntityAccessor;
 import snownee.jade.api.IWailaClientRegistration;
@@ -10,17 +16,11 @@ import snownee.jade.api.IWailaPlugin;
 import snownee.jade.api.WailaPlugin;
 
 /**
- * Integracion con Jade para no delatar a los jugadores disfrazados.
+ * Integración Jade que presenta un prop de bloque como el BlockState exacto que está imitando.
  *
- * <p>Jade muestra un recuadro con el nombre y los corazones de lo que apuntas. Sobre un prop eso
- * cantaba "Dummy2" con vida de jugador, que arruina la partida entera: el buscador no necesita ni
- * mirar bien, le sale el cartel.
- *
- * <p>Se resuelve con el callback de raytrace de Jade: cuando lo que se apunta es un jugador
- * disfrazado, se devuelve null y Jade no dibuja nada, como si ahi no hubiera ninguna entidad.
- *
- * <p>Esta clase solo la carga Jade a traves de su propio escaneo de anotaciones, asi que si Jade no
- * esta instalado nunca se toca y no pasa nada.
+ * <p>Ocultar todo el overlay también delataba el prop: el bloque verdadero sí tenía ficha y el falso
+ * no. El callback cambia el accessor de entidad/jugador por el accessor de bloque oficial de Jade, de
+ * modo que Jade ejecuta sus proveedores normales de nombre, icono, mod y propiedades para ese bloque.
  */
 @WailaPlugin("fantastic_chameleon")
 public class FantasticJadePlugin implements IWailaPlugin {
@@ -30,16 +30,45 @@ public class FantasticJadePlugin implements IWailaPlugin {
 
    @Override
    public void registerClient(IWailaClientRegistration registration) {
-      registration.addRayTraceCallback((hitResult, accessor, originalAccessor) -> hide(accessor) ? null : accessor);
+      registration.addRayTraceCallback((hitResult, accessor, originalAccessor) -> disguise(registration, hitResult, accessor, originalAccessor));
    }
 
-   /** True si el objetivo es un jugador con disfraz puesto. */
-   private static boolean hide(Accessor<?> accessor) {
-      if (!(accessor instanceof EntityAccessor entityAccessor)) {
-         return false;
+   private static Accessor<?> disguise(
+      IWailaClientRegistration registration,
+      net.minecraft.world.phys.HitResult hitResult,
+      Accessor<?> accessor,
+      Accessor<?> originalAccessor
+   ) {
+      // originalAccessor es inmutable a través de la cadena de callbacks de Jade; usarlo evita que el
+      // resultado dependa del orden de otros addons.
+      if (!(originalAccessor instanceof EntityAccessor entityAccessor)) {
+         return accessor;
       }
 
       Entity entity = entityAccessor.getEntity();
-      return entity instanceof Player player && AvatarState.fullyDisguised(player);
+      if (!(entity instanceof Player player) || !AvatarState.fullyDisguised(player)) {
+         return accessor;
+      }
+
+      int prop = AvatarState.prop(player);
+      if (prop < 0 || PropShapes.followsLook(prop)) {
+         // No existe una entidad mob real detrás del jugador: no permitir que Jade revele nombre,
+         // corazones ni tipo Player. Los props de bloque sí reciben ficha completa abajo.
+         return null;
+      }
+
+      BlockState state = PropHuntClient.stateFor(player);
+      if (state == null) {
+         return null;
+      }
+
+      BlockHitResult fakeHit = new BlockHitResult(hitResult.m_82450_(), Direction.UP, player.m_20183_(), false);
+      return registration.blockAccessor()
+         .blockState(state)
+         .hit(fakeHit)
+         // Nunca pedir datos del bloque real que casualmente esté bajo la posición del jugador.
+         .serverData(new CompoundTag())
+         .serverConnected(false)
+         .build();
    }
 }
