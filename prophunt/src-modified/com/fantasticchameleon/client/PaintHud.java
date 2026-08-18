@@ -75,6 +75,7 @@ public final class PaintHud {
                if (propHunt) {
                   hints.add(new String[]{"Right click", Component.m_237115_("fantastic.prophunt.hint_capture").getString()});
                   hints.add(new String[]{keyName(LockControls.paintKey, "F"), Component.m_237115_("fantastic.prophunt.hint_place").getString()});
+                  hints.add(new String[]{keyName(LockControls.actKey, "V"), Component.m_237115_("fantastic.prophunt.hint_act").getString()});
                   hints.add(new String[]{keyName(LockControls.poseWheelKey, "R"), Component.m_237115_("fantastic.prophunt.hint_clear").getString()});
                } else {
                   hints.add(new String[]{keyName(LockControls.paintKey, "F"), Component.m_237115_("fantastic.hint.hide_paint").getString()});

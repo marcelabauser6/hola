@@ -345,7 +345,10 @@ public final class FantasticNetwork {
             Integer propNow = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
             if (propNow != null && propNow >= 0 && PropHunt.isPropHunt(player)) {
                // Un prop tiene que quedar centrado en su celda, no pegado a la pared como la
-               // silueta pintada del modo clasico.
+               // silueta pintada del modo clasico. Y los props de bloque se colocan siempre a yaw 0:
+               // su orientacion real ya va dentro del variant, asi que girar el cuerpo ademas los
+               // dejaria torcidos respecto al mundo. Las criaturas si conservan hacia donde miran.
+               yaw = PropShapes.followsLook(propNow) ? yaw : 0.0F;
                PropGridSnap.snapToCell(player, yaw);
             } else {
                placeAgainstCover(player, yaw);

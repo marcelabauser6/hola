@@ -28,9 +28,9 @@ import net.minecraft.world.phys.Vec3;
  * sincronizacion), pero la unica forma de elegir un prop era abrir la rueda y escogerlo a mano. Aqui
  * el mundo es el catalogo: apuntas, click derecho y te convertis en eso.
  *
- * <p>Al capturar un bloque el jugador queda <b>colocado</b>: centrado en su celda, alineado con los
- * ejes y fijado en el sitio, igual que si acabaran de poner ese bloque ahi. Con espacio o agachandose
- * se suelta para volver a moverse (y para poder escalar, que estando fijado no se puede).
+ * <p>Capturar y colocarse son dos cosas distintas a proposito: al tocar el bloque te transformas pero
+ * conservas movilidad completa (incluida la escalada), y solo al pulsar la tecla de colocar quedas
+ * centrado en la celda, alineado y fijado, como un bloque recien puesto.
  */
 public final class PropHuntCapture {
    private static final Map<UUID, Long> LAST_HINT = new ConcurrentHashMap<>();
@@ -74,34 +74,15 @@ public final class PropHuntCapture {
    }
 
    /**
-    * Aplica forma, textura y colocacion.
+    * Aplica forma y textura del prop.
     *
-    * <p>Los props de bloque se alinean con los ejes del mundo: la orientacion real ya va dentro del
-    * variant (el modelo se construye rotado), asi que el cuerpo del jugador tiene que quedar a yaw 0
-    * para que las caras queden paralelas al grid. Los props de criatura si siguen la mirada, porque un
-    * animal mirando siempre al norte se ve raro.
-    *
-    * <p>Se fija al jugador (LOCKED) porque el render solo respeta el yaw alineado cuando esta fijado;
-    * sin eso el bloque giraria con el cuerpo y quedaria torcido.
+    * <p><b>Capturar no te fija.</b> Al tocar un bloque conservas movilidad completa: caminar, saltar y
+    * escalar como en el modo clasico (fijarse impide escalar, ver {@code Climb.heldInPlace}). Colocarse
+    * es un acto aparte y deliberado, con la tecla de colocar.
     */
    private static void apply(ServerPlayer player, BlockPropMapper.Match match, String sourceBlockId) {
       FantasticNetwork.applyProp(player, match.prop(), match.variant());
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, sourceBlockId);
-
-      boolean creature = PropShapes.followsLook(match.prop());
-      float yaw = creature ? Services.PLATFORM.get(player, PaintAttachments.LOCK_YAW) : 0.0F;
-      Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, PropGridSnap.snapYaw(yaw));
-      Services.PLATFORM.set(player, PaintAttachments.POSING, true);
-      Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
-
-      Vec3 target = PropGridSnap.cellCenter(player);
-      if (PropGridSnap.snapToCell(player, Services.PLATFORM.get(player, PaintAttachments.LOCK_YAW))) {
-         LockTick.reanchor(player, target);
-      } else {
-         LockTick.reanchor(player, player.m_20182_());
-      }
-
-      player.m_6210_();
    }
 
    /**

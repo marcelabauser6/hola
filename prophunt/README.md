@@ -1,5 +1,14 @@
-# Fantastic Chameleon 1.2.3 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.4 — Modo Prop Hunt
 
+> **1.2.4 — movilidad completa, botón de colocar y gestos de criatura.**
+> - **Capturar ya no te fija.** Al tocar un bloque te transformás pero conservás movilidad completa:
+>   caminar, saltar y **escalar** igual que en Meccha.
+> - **Colocarse es un acto aparte**: con **F** quedás centrado en la celda, alineado y fijado. Espacio o
+>   agacharse te suelta. Los props de bloque se colocan siempre a yaw 0, porque su orientación real ya
+>   va en el `variant` y girar el cuerpo además los dejaría torcidos.
+> - **Gestos de criatura** con **V**: la oveja pasta, la vaca muge, el creeper sisea. Cada mob tiene su
+>   sonido real y sus partículas, para poder imitar su comportamiento a voluntad sin perder el control.
+>
 > **1.2.3 — texturas reales, colocación centrada y un modo, una verdad.**
 > - Los props ahora llevan la **textura real del bloque**. El servidor guarda de qué bloque se trata
 >   (`PROP_SOURCE`) y cada cliente genera la imagen, porque los píxeles solo existen en el cliente.
@@ -48,8 +57,29 @@ El modo se elige por sala en la pestaña **Reglas** del editor (`/fschameleon`),
 
 | Tecla | Meccha Chameleon | Prop Hunt |
 |---|---|---|
-| **F** | Fijarse + abrir el pintor | Solo fijarse y alinearse al grid |
+| **Clic derecho** | — | Convertirte en el bloque o criatura |
+| **F** | Fijarse + abrir el pintor | **Colocarte**: centrado, alineado y fijo |
+| **Espacio / agacharse** | Soltarse | Soltarse y recuperar movilidad |
+| **V** | — | **Gesto de criatura** (pastar, mugir, sisear) |
 | **R** | Rueda de poses y formas | Quitar el disfraz |
+
+### Gestos por criatura (tecla V)
+
+| Prop | Gesto |
+|---|---|
+| Oveja, vaca, cerdo | Pastar: sonido del animal + partículas de hierba a sus pies |
+| Gallina | Cacareo + partículas |
+| Lobo | Ladrido + partículas |
+| Creeper | Siseo (sin explotar nada) |
+| Enderman | Sonido y partículas de portal |
+
+Los props de bloque no tienen gesto a propósito: un bloque que hace ruido te delata.
+
+### Importante sobre la escalada
+
+Escalar y estar colocado son incompatibles en el mod (`Climb.heldInPlace` lo impide, y funciona igual en
+Meccha). El flujo es: te transformás → te movés y escalás con libertad → cuando encontrás el sitio,
+**F** te coloca centrado.
 
 Los bots (`dummies`) también respetan el modo: posan y se pintan en Meccha, y se disfrazan de props de
 colores al azar en Prop Hunt.

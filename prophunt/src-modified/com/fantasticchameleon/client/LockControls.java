@@ -5,6 +5,7 @@ import com.fantasticchameleon.network.ClimbPayload;
 import com.fantasticchameleon.network.CrawlPayload;
 import com.fantasticchameleon.network.LockPayload;
 import com.fantasticchameleon.network.PosePayload;
+import com.fantasticchameleon.network.PropActPayload;
 import com.fantasticchameleon.network.SetPropPayload;
 import com.fantasticchameleon.network.ProvokePayload;
 import com.fantasticchameleon.paint.FrozenFrame;
@@ -27,6 +28,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class LockControls {
    public static KeyMapping poseWheelKey;
+   /** Gesto de criatura en Prop Hunt: pastar, mugir, sisear. */
+   public static KeyMapping actKey;
    public static KeyMapping paintKey;
    public static KeyMapping provokeKey;
    public static KeyMapping crawlKey;
@@ -56,10 +59,11 @@ public final class LockControls {
 
    public static List<KeyMapping> registerKeyMappings() {
       poseWheelKey = new KeyMapping("key.fantastic_chameleon.pose", 82, "key.categories.fantastic_chameleon");
+      actKey = new KeyMapping("key.fantastic_chameleon.act", 86, "key.categories.fantastic_chameleon");
       paintKey = new KeyMapping("key.fantastic_chameleon.paint", 70, "key.categories.fantastic_chameleon");
       provokeKey = new KeyMapping("key.fantastic_chameleon.provoke", 71, "key.categories.fantastic_chameleon");
       crawlKey = new KeyMapping("key.fantastic_chameleon.crawl", 67, "key.categories.fantastic_chameleon");
-      return List.of(poseWheelKey, paintKey, provokeKey, crawlKey);
+      return List.of(poseWheelKey, actKey, paintKey, provokeKey, crawlKey);
    }
 
    public static void forceExitFromServer() {
@@ -168,6 +172,13 @@ public final class LockControls {
          while (crawlKey.m_90859_()) {
             if (mc.f_91074_ != null) {
                ClientNet.sendToServer(CrawlPayload.INSTANCE);
+            }
+         }
+
+         while (actKey.m_90859_()) {
+            // Gesto de criatura: solo tiene sentido disfrazado en Prop Hunt.
+            if (mc.f_91074_ != null && PropHuntClient.isPropHunt()) {
+               ClientNet.sendToServer(PropActPayload.INSTANCE);
             }
          }
 
