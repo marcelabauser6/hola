@@ -3,6 +3,7 @@ package com.fantasticchameleon.prophunt;
 import com.fantasticchameleon.game.Room;
 import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.game.WorldPick;
+import com.fantasticchameleon.game.Perms;
 import com.fantasticchameleon.item.ChameleonArmor;
 import com.fantasticchameleon.network.FantasticNetwork;
 import com.fantasticchameleon.paint.PaintAttachments;
@@ -90,18 +91,24 @@ public final class PropHuntCapture {
       }
    }
 
-   /** Comprobaciones de contexto: modo, rol y que no haya otra herramienta en curso. */
+   /**
+    * Comprobaciones de contexto: modo, rol y que no haya una seleccion de mundo en curso.
+    *
+    * <p>Dentro de una sala manda el modo de la sala, y los seekers no se disfrazan. Fuera de sala se
+    * permite al staff, siguiendo la misma regla que ya usa el editor de props ({@code handleSetProp}
+    * acepta {@code op || estaEnSala}), para poder probar la transformacion sin montar una partida.
+    */
    public static boolean canTransform(ServerPlayer player) {
-      if (!PropHunt.isPropHunt(player)) {
-         return false;
-      }
-
       if (WorldPick.isPending(player)) {
          return false;
       }
 
       Room room = Rooms.roomOf(player);
-      return room == null || !room.isSeeker(player.m_20148_());
+      if (room == null) {
+         return Perms.isStaff(player);
+      }
+
+      return PropHunt.normalize(room.config().gameMode) == PropHunt.MODE_PROP_HUNT && !room.isSeeker(player.m_20148_());
    }
 
    /** Como {@link #canTransform} pero avisando al jugador de lo que le falta. */

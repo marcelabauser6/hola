@@ -1,4 +1,11 @@
-# Fantastic Chameleon 1.2.0 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.1 — Modo Prop Hunt
+
+> **1.2.1 arregla que la transformación no funcionaba.** El mod ya cancelaba el clic derecho sobre
+> bloques mientras hay una ronda en marcha (solo dejaba puertas, trampillas, portones, botones y
+> palancas), justo cuando se juega al Prop Hunt. El listener nuevo escuchaba *después* de esa
+> cancelación y se salía sin hacer nada. Ahora corre a `EventPriority.HIGHEST`, antes de ese bloqueo.
+> Además el staff puede transformarse fuera de una sala para probar sin montar partida, y
+> `/fschameleon` config muestra el modo en chat.
 
 Añade un segundo modo de juego al mod, separado del clásico Meccha Chameleon.
 
@@ -16,6 +23,18 @@ El modo se elige por sala en la pestaña **Reglas** del editor (`/fschameleon`),
 5. Espacio o agacharse te libera para volver a moverte.
 
 Los seekers no pueden transformarse.
+
+Si sos staff (permiso nivel 2), podés transformarte **fuera de cualquier sala** para probar sin montar
+una partida. Dentro de una sala manda el modo de la sala.
+
+### Si no te transformás
+
+- Te hace falta el **set completo de armadura camaleón**. Si no lo llevás, sale un aviso en rojo.
+- La sala tiene que estar en modo **Prop Hunt**. Comprobalo con `/fschameleon` (la última línea de la
+  config muestra el modo) o mirando el primer botón de la pestaña Reglas.
+- Los **seekers** no se disfrazan.
+- La **varita de arena**, la **escopeta** y el **pincel** conservan su función: si los llevás en la
+  mano, el clic derecho no transforma.
 
 ## Qué se puede imitar
 

@@ -60,17 +60,24 @@ public final class PropHuntClient {
       return cfg != null && cfg.length > PropHunt.CFG_INDEX && cfg[PropHunt.CFG_INDEX] == PropHunt.MODE_PROP_HUNT;
    }
 
+   /**
+    * Guardamos la textura de lo que se toca sin comprobar el modo aqui: el servidor es quien decide si
+    * hay transformacion, y el lienzo solo se envia si acabamos con un prop puesto. Asi tambien funciona
+    * cuando el staff prueba fuera de una sala, y en Meccha nunca se envia porque ahi no hay props.
+    */
    @SubscribeEvent
    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-      if (event.getLevel().m_5776_() && isPropHuntRoom()) {
+      if (event.getLevel().m_5776_()) {
          BlockState state = event.getLevel().m_8055_(event.getPos());
-         queue(canvasOfBlock(state));
+         if (!state.m_60795_()) {
+            queue(canvasOfBlock(state));
+         }
       }
    }
 
    @SubscribeEvent
    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-      if (event.getLevel().m_5776_() && isPropHuntRoom() && BlockPropMapper.ofEntity(event.getTarget()) != null) {
+      if (event.getLevel().m_5776_() && BlockPropMapper.ofEntity(event.getTarget()) != null) {
          queue(canvasOfEntity(event.getTarget()));
       }
    }

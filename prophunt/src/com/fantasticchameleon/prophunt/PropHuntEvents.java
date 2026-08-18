@@ -1,7 +1,11 @@
 package com.fantasticchameleon.prophunt;
 
+import com.fantasticchameleon.item.ArenaWandItem;
+import com.fantasticchameleon.item.FantasticItems;
+import com.fantasticchameleon.item.ShotgunItem;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
@@ -14,9 +18,14 @@ import net.minecraftforge.fml.common.Mod;
  * <p>Se registra por anotacion en lugar de tocar el entrypoint del mod, para no alterar el orden ni el
  * contenido de los listeners que ya existen.
  *
- * <p>Corre con prioridad baja a proposito: asi las herramientas de staff que ya escuchan este evento
- * (seleccion de esquinas de arena, varita, modo de picking) se resuelven antes y siguen funcionando
- * igual. Solo actuamos si nadie mas cancelo el evento.
+ * <p><b>Prioridad HIGHEST a proposito.</b> El mod cancela el click derecho sobre bloques mientras hay
+ * una ronda en marcha (solo deja puertas, trampillas, portones, botones y palancas), que es
+ * justamente cuando se juega al Prop Hunt. Si escuchasemos despues, el evento ya vendria cancelado y
+ * no habria forma de transformarse en plena partida. Por eso vamos primero y decidimos nosotros.
+ *
+ * <p>Para no pisar las herramientas que tambien usan el click derecho, se ignora el evento cuando el
+ * jugador lleva la varita de arena o la escopeta, o cuando hay una seleccion de mundo pendiente
+ * (esto ultimo lo comprueba {@link PropHuntCapture#canTransform}).
  */
 @Mod.EventBusSubscriber(modid = "fantastic_chameleon", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class PropHuntEvents {
@@ -24,24 +33,36 @@ public final class PropHuntEvents {
    private PropHuntEvents() {
    }
 
-   @SubscribeEvent(priority = EventPriority.LOW)
+   @SubscribeEvent(priority = EventPriority.HIGHEST)
    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-      if (!event.isCanceled() && event.getHand() == InteractionHand.MAIN_HAND && event.getEntity() instanceof ServerPlayer player) {
-         if (PropHuntCapture.canTransform(player)) {
-            BlockState state = event.getLevel().m_8055_(event.getPos());
-            if (!state.m_60795_() && PropHuntCapture.captureBlock(player, state)) {
-               event.setCanceled(true);
-            }
+      if (event.getHand() == InteractionHand.MAIN_HAND
+         && event.getEntity() instanceof ServerPlayer player
+         && !isToolInHand(event.getItemStack())
+         && PropHuntCapture.canTransform(player)) {
+         BlockState state = event.getLevel().m_8055_(event.getPos());
+         if (!state.m_60795_() && PropHuntCapture.captureBlock(player, state)) {
+            event.setCanceled(true);
          }
       }
    }
 
-   @SubscribeEvent(priority = EventPriority.LOW)
+   @SubscribeEvent(priority = EventPriority.HIGHEST)
    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-      if (!event.isCanceled() && event.getHand() == InteractionHand.MAIN_HAND && event.getEntity() instanceof ServerPlayer player) {
-         if (PropHuntCapture.canTransform(player) && PropHuntCapture.captureEntity(player, event.getTarget())) {
-            event.setCanceled(true);
-         }
+      if (event.getHand() == InteractionHand.MAIN_HAND
+         && event.getEntity() instanceof ServerPlayer player
+         && !isToolInHand(event.getItemStack())
+         && PropHuntCapture.canTransform(player)
+         && PropHuntCapture.captureEntity(player, event.getTarget())) {
+         event.setCanceled(true);
       }
+   }
+
+   /** Herramientas del mod que ya tienen su propio significado con click derecho. */
+   private static boolean isToolInHand(ItemStack stack) {
+      if (stack == null || stack.m_41619_()) {
+         return false;
+      }
+
+      return ArenaWandItem.is(stack) || stack.m_41720_() instanceof ShotgunItem || stack.m_150930_(FantasticItems.PAINT_BRUSH.get());
    }
 }

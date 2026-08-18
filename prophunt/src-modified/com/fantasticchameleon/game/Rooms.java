@@ -677,6 +677,11 @@ public final class Rooms {
             ),
             ChatFormatting.AQUA
          );
+         tell(
+            p,
+            Component.m_237115_("fantastic.ui.gamemode").m_130946_(": ").m_7220_(Component.m_237115_(PropHunt.nameKey(c.gameMode))),
+            ChatFormatting.AQUA
+         );
       }
    }
 
