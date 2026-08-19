@@ -46,6 +46,10 @@ public final class FantasticEditorScreen extends Screen {
    private int cursor;
    private String roomDraft = "";
    private String passDraft = "";
+   /** Botón de crear sala, para poder actualizar su estado sin reconstruir toda la pantalla. */
+   private Button createButton;
+   private RoomsPayload lastRooms;
+   private boolean lastInRoom;
    private String inviteDraft = "";
    private String arenaDraft = "";
    private String arenaDraftFor = "";
@@ -146,6 +150,7 @@ public final class FantasticEditorScreen extends Screen {
       this.topPos = (this.f_96544_ - this.panelHeight) / 2;
       this.labels.clear();
       this.zones.clear();
+      this.createButton = null;
       this.initHeader();
       this.initFooter();
       this.cursor = 0;
@@ -224,7 +229,32 @@ public final class FantasticEditorScreen extends Screen {
       }).m_252987_(this.leftPos + this.panelWidth - 158, y, 150, 18).m_257505_(Tooltip.m_257550_(Component.m_237115_("fantastic.ui.save.tip"))).m_253136_());
    }
 
+   /**
+    * Mantiene la interfaz viva entre reconstrucciones.
+    *
+    * <p>Los botones calculaban si estaban habilitados una única vez, al construir la pantalla. Como
+    * escribir en una caja de texto no la reconstruye, el botón de crear se quedaba deshabilitado y solo
+    * revivía al pulsar otra cosa que forzara el rebuild: de ahí la sensación de botones pegados que no
+    * responden. Y cuando llegaba el catálogo de salas del servidor, la pantalla seguía mostrando lo
+    * anterior porque nadie la refrescaba.
+    */
+   private void refreshLiveState() {
+      RoomsPayload data = RoomMenu.current;
+      boolean inRoom = data != null && !data.yourRoom().isBlank();
+      if (data != this.lastRooms || inRoom != this.lastInRoom) {
+         this.lastRooms = data;
+         this.lastInRoom = inRoom;
+         this.m_232761_();
+         return;
+      }
+
+      if (this.createButton != null) {
+         this.createButton.f_93623_ = !this.roomDraft.isBlank() && !inRoom;
+      }
+   }
+
    public void m_88315_(GuiGraphics g, int mouseX, int mouseY, float partial) {
+      this.refreshLiveState();
       this.m_280273_(g);
       FsGui.panel(g, this.leftPos, this.topPos, this.panelWidth, this.panelHeight);
       g.m_280509_(this.leftPos, this.topPos, this.leftPos + this.panelWidth, this.topPos + 20, -14408646);
@@ -410,6 +440,9 @@ public final class FantasticEditorScreen extends Screen {
          this.show(FantasticEditorScreen.Tab.PARTIDA);
       }, "fantastic.editor.create.tip");
       create.f_93623_ = !this.roomDraft.isBlank() && !inRoom;
+      // Se guarda para poder reevaluarlo cada frame: el estado se calculaba solo al construir la
+      // pantalla, así que escribir el nombre no habilitaba el botón y parecía que no se podía crear.
+      this.createButton = create;
       this.add(create);
       this.gap(6);
       if (inRoom) {

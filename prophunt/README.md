@@ -1,4 +1,22 @@
-# Fantastic Chameleon 1.2.14 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.15 — Prop Hunt y Meccha corregidos
+
+> **1.2.15 — el editor deja de quedarse pegado y el acople queda a ras del bloque.**
+> - **Botones del editor que no respondían.** Los botones calculaban si estaban habilitados **una sola
+>   vez**, al construir la pantalla. Escribir el nombre de la sala no la reconstruye, así que el botón
+>   Crear seguía deshabilitado hasta que otra acción forzara el rebuild: de ahí que hubiera que pulsar
+>   Guardar antes y que los botones parecieran pegados. Ahora el estado se reevalúa cada frame y la
+>   pantalla se reconstruye sola en cuanto llega el catálogo de salas del servidor.
+> - **Fijarse con F ahora acopla de verdad.** Solo se quedaba clavado donde estuvieras, así que si había
+>   geometría al lado la cámara acababa dentro del bloque, y como no se marcaba el acople tampoco se
+>   pasaba a tercera persona ni se eximía del guardia anti-clipping. Ahora F usa exactamente la misma
+>   colocación que el clic derecho: busca la pared contigua más cercana y pega el cuerpo a su superficie.
+> - **A ras de la superficie.** El hundimiento pasa a 0,15, la profundidad completa del torso, así que el
+>   centro del cuerpo queda justo en el plano de la superficie del bloque. Por eso la cámara pasa a
+>   tercera persona: en primera estaría literalmente dentro de la pared.
+> - La validación del acople ya no exige que la caja esté libre —el solape es deliberado— sino que haya
+>   hueco **hacia fuera**, para no acabar embutido entre dos paredes.
+>
+> **1.2.14 — ritmo del mob, acople en vallas y cristales, y sin rastros del disfraz anterior.**
 
 > **1.2.14 — ritmo del mob, acople en vallas y cristales, y sin rastros del disfraz anterior.**
 > - **Fuera la fila de teclas falsa.** Bajo el indicador de escondido había una fila con aspecto de

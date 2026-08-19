@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -98,7 +99,14 @@ public final class FantasticNetwork {
    public static final int FREEZE_POSE = -1;
    private static final Map<UUID, Vec3> SAFE_POS = new ConcurrentHashMap<>();
    /** Lo que el cuerpo se hunde en el bloque al acoplarse, para que no se vea una junta de aire. */
-   private static final double ATTACH_SINK = 0.09;
+   /**
+    * Cuánto se hunde el cuerpo en el bloque al acoplarse.
+    *
+    * <p>Con el valor igual a la profundidad del torso (0,15), el centro del cuerpo queda exactamente en
+    * el plano de la superficie: el disfraz se ve a ras del bloque, que es la idea del camuflaje pintado.
+    * Por eso la cámara pasa a tercera persona al acoplarse; en primera quedaría dentro de la pared.
+    */
+   private static final double ATTACH_SINK = 0.15;
 
    private FantasticNetwork() {
    }
@@ -448,29 +456,8 @@ public final class FantasticNetwork {
       // La superficie real del bloque, no el borde de su celda: una valla ocupa de 0,375 a 0,625 y un
       // panel de cristal es aún más fino, así que pegarse al borde de la celda dejaba al jugador
       // flotando en el aire y la comprobación de hueco no cuadraba. Se usa la caja del propio bloque.
-      AABB shape = state.m_60812_(player.m_9236_(), pos).m_83281_()
-         ? new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
-         : state.m_60812_(player.m_9236_(), pos).m_83215_();
-      double x = player.m_20185_();
-      double y = player.m_20186_();
-      double z = player.m_20189_();
-      switch (payload.face()) {
-         case EAST -> { x = (double)pos.m_123341_() + shape.f_82291_ + half; z = hit.f_82481_; }
-         case WEST -> { x = (double)pos.m_123341_() + shape.f_82288_ - half; z = hit.f_82481_; }
-         case SOUTH -> { z = (double)pos.m_123343_() + shape.f_82293_ + half; x = hit.f_82479_; }
-         case NORTH -> { z = (double)pos.m_123343_() + shape.f_82290_ - half; x = hit.f_82479_; }
-         // Encima del bloque se centra en la celda: con el punto exacto del rayo, clicar el borde
-         // dejaba media huella en voladizo.
-         case UP -> { x = (double)pos.m_123341_() + 0.5; y = (double)pos.m_123342_() + shape.f_82292_; z = (double)pos.m_123343_() + 0.5; }
-         default -> { restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame); return; }
-      }
-
-      Vec3 target = new Vec3(x, y, z);
-      Vec3 delta = target.m_82546_(player.m_20182_());
-      // Se valida con la caja encogida el ancho del solape intencionado: así se sigue rechazando
-      // quedar metido dentro de geometría, pero no el roce a propósito contra la cara clicada.
-      double tolerance = Math.min(0.24, Math.max(0.0, (double)player.m_20205_() * 0.5 - half) + 0.01);
-      if (!player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta).m_82406_(tolerance))) {
+      Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), half);
+      if (target == null || !outwardClear(player, payload.face(), target)) {
          restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame);
          player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
          return;
@@ -484,6 +471,57 @@ public final class FantasticNetwork {
       }
 
       immobilize(player, true);
+   }
+
+   /**
+    * Posición que deja el cuerpo a ras de la superficie del bloque.
+    *
+    * <p>Se usa la caja real del bloque y no el borde de su celda, porque una valla ocupa de 0,375 a
+    * 0,625 y un panel de cristal aún menos: pegarse al borde de la celda dejaba al jugador flotando.
+    */
+   private static Vec3 flushTarget(Player player, BlockPos pos, Direction face, Vec3 keep, double half) {
+      BlockState state = player.m_9236_().m_8055_(pos);
+      AABB shape = state.m_60812_(player.m_9236_(), pos).m_83281_()
+         ? new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+         : state.m_60812_(player.m_9236_(), pos).m_83215_();
+      double x = keep.f_82479_;
+      double y = keep.f_82480_;
+      double z = keep.f_82481_;
+      switch (face) {
+         case EAST -> x = (double)pos.m_123341_() + shape.f_82291_ + half;
+         case WEST -> x = (double)pos.m_123341_() + shape.f_82288_ - half;
+         case SOUTH -> z = (double)pos.m_123343_() + shape.f_82293_ + half;
+         case NORTH -> z = (double)pos.m_123343_() + shape.f_82290_ - half;
+         // Encima del bloque se centra en la celda: con el punto exacto del rayo, clicar el borde
+         // dejaba media huella en voladizo.
+         case UP -> {
+            x = (double)pos.m_123341_() + 0.5;
+            y = (double)pos.m_123342_() + shape.f_82292_;
+            z = (double)pos.m_123343_() + 0.5;
+         }
+         default -> {
+            return null;
+         }
+      }
+
+      return new Vec3(x, y, z);
+   }
+
+   /**
+    * Comprueba que hay sitio libre <b>hacia fuera</b> de la superficie.
+    *
+    * <p>El solape con el bloque al que te pegas es deliberado, así que no se puede exigir que la caja
+    * esté libre: se comprueba que exista hueco justo por delante, para no acabar embutido entre dos
+    * paredes.
+    */
+   private static boolean outwardClear(Player player, Direction face, Vec3 target) {
+      if (face == Direction.UP) {
+         return player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(target.m_82546_(player.m_20182_())));
+      }
+
+      Vec3 outward = new Vec3((double)face.m_122429_(), 0.0, (double)face.m_122431_()).m_82490_(0.35);
+      AABB probe = player.m_20191_().m_82383_(target.m_82546_(player.m_20182_()).m_82549_(outward)).m_82406_(0.02);
+      return player.m_9236_().m_45756_(player, probe);
    }
 
    /** Deja el acople sin efecto si el hueco no da, en vez de quedarse a medias con pose cambiada. */
@@ -630,8 +668,22 @@ public final class FantasticNetwork {
    private static void placeAgainstCover(Player player, float yaw) {
       int pose = Services.PLATFORM.get(player, PaintAttachments.POSE);
       if (player instanceof ServerPlayer sp && PropHunt.isMecchaRoom(sp)) {
-         // F puede fijar la pintura en la posicion actual, pero pegarse a una superficie solo ocurre
-         // mediante MecchaAttachPayload y la cara exacta clicada; nunca se elige otra pared cercana.
+         // Fijarse con la tecla usa la misma colocación que el acople con clic derecho: la pared
+         // contigua más cercana y el cuerpo a ras de su superficie. Antes solo se quedaba clavado donde
+         // estuviera, así que si había geometría al lado la cámara acababa dentro del bloque y, al no
+         // marcarse el acople, tampoco se pasaba a tercera persona ni se eximía del guardia.
+         Direction cover = nearestCover(sp);
+         if (cover != null) {
+            BlockPos block = sp.m_20183_().m_121945_(cover);
+            double half = Math.max(0.0, Math.abs(PoseDefs.def(0).clipBox()[0]) * (double)ArmorPaintHandler.scaleOf(sp) - ATTACH_SINK);
+            Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), half);
+            if (target != null && outwardClear(sp, cover.m_122424_(), target)) {
+               Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
+               LockTick.reanchor(sp, target);
+               return;
+            }
+         }
+
          LockTick.reanchor(sp, player.m_20182_());
          return;
       }
@@ -649,6 +701,30 @@ public final class FantasticNetwork {
       if (player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(target.m_82546_(player.m_20182_())))) {
          player.m_6021_(target.f_82479_, target.f_82480_, target.f_82481_);
       }
+   }
+
+   /** Dirección de la pared contigua más cercana al cuerpo, o null si no hay ninguna al lado. */
+   private static Direction nearestCover(ServerPlayer sp) {
+      BlockPos base = sp.m_20183_();
+      Direction best = null;
+      double bestGap = Double.MAX_VALUE;
+
+      for (Direction dir : new Direction[]{Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
+         BlockPos side = base.m_121945_(dir);
+         if (!isCover(sp, side.m_123341_(), side.m_123342_(), side.m_123343_())) {
+            continue;
+         }
+
+         double centre = dir.m_122434_() == Direction.Axis.X ? sp.m_20185_() : sp.m_20189_();
+         double plane = dir.m_122434_() == Direction.Axis.X ? (double)side.m_123341_() : (double)side.m_123343_();
+         double gap = Math.abs(centre - (plane + 0.5));
+         if (gap < bestGap) {
+            bestGap = gap;
+            best = dir;
+         }
+      }
+
+      return best;
    }
 
    private static boolean isCover(Player player, int x, int y, int z) {
