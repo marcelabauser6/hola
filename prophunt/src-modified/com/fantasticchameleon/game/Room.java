@@ -58,6 +58,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ClipContext.Block;
 import net.minecraft.world.level.ClipContext.Fluid;
 import net.minecraft.world.level.levelgen.Heightmap.Types;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.HitResult.Type;
@@ -1823,10 +1824,9 @@ public final class Room {
       }
    }
 
-   /** Solo las fases activas de una ronda delimitada protegen a sus participantes de mobs. */
+   /** La barrera contra mobs permanece activa durante toda la parte jugable, en ambos modos. */
    public boolean protectsFromWildMobs(UUID id) {
       return id != null
-         && PropHunt.normalize(this.config.gameMode) == PropHunt.MODE_PROP_HUNT
          && (this.hiders.contains(id) || this.seekers.contains(id))
          && !this.spectators.contains(id)
          && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
@@ -1835,6 +1835,36 @@ public final class Room {
    /** True si la sala tiene una arena delimitada con la que comparar posiciones. */
    public boolean hasArenaBounds() {
       return this.config.arenaSet;
+   }
+
+   /** Volumen físico de bloques de la arena: máximo exclusivo, como usa una AABB. */
+   public AABB arenaBounds() {
+      return new AABB(
+         (double)Math.min(this.config.ax1, this.config.ax2),
+         (double)Math.min(this.config.ay1, this.config.ay2),
+         (double)Math.min(this.config.az1, this.config.az2),
+         (double)Math.max(this.config.ax1, this.config.ax2) + 1.0,
+         (double)Math.max(this.config.ay1, this.config.ay2) + 1.0,
+         (double)Math.max(this.config.az1, this.config.az2) + 1.0
+      );
+   }
+
+   /** True mientras una arena delimitada debe actuar como barrera física para mobs. */
+   public boolean hasActiveMobBarrier() {
+      return this.config.arenaSet
+         && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
+   }
+
+   public String arenaDimension() {
+      return this.config.arenaDim;
+   }
+
+   /** Detecta cualquier parte de un mob dentro de una arena activa, no sólo la posición de sus pies. */
+   public boolean blocksWildMob(Entity entity) {
+      return this.hasActiveMobBarrier()
+         && entity != null
+         && entity.m_9236_().m_46472_().m_135782_().toString().equals(this.config.arenaDim)
+         && this.arenaBounds().m_82381_(entity.m_20191_());
    }
 
    /** Comprueba la misma caja y dimension usadas por el confinamiento de la arena. */

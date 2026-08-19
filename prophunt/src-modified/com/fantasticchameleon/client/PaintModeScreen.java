@@ -55,6 +55,7 @@ public final class PaintModeScreen extends Screen {
    private long lastSparkleMs;
    private static final int STRIP_H = 13;
    private static final int WBTN = 10;
+   private static final float MIN_PANEL_SCALE = 0.16F;
    private static final float DEFAULT_PANEL_SCALE = 1.0F;
    private static final float PICKER_SCALE = 0.9F;
    private static final float LEGEND_SCALE = 0.85F;
@@ -125,6 +126,9 @@ public final class PaintModeScreen extends Screen {
    private static final ClientPaintState.Tool[] TOOL_KEYS = new ClientPaintState.Tool[]{
       ClientPaintState.Tool.BRUSH, ClientPaintState.Tool.SPRAY, ClientPaintState.Tool.ERASER, ClientPaintState.Tool.TEXCROP
    };
+   private boolean compactLayoutActive;
+   private int compactAtWidth;
+   private int compactAtHeight;
    private boolean hudWasHidden;
    private boolean weHidTheHud;
 
@@ -160,6 +164,9 @@ public final class PaintModeScreen extends Screen {
    }
 
    private void resetLayout() {
+      this.compactLayoutActive = false;
+      this.compactAtWidth = 0;
+      this.compactAtHeight = 0;
       WindowLayouts.resetAll();
 
       for (PaintModeScreen.Panel p : this.panels()) {
@@ -230,12 +237,12 @@ public final class PaintModeScreen extends Screen {
       int gh = Minecraft.m_91087_().m_91268_().m_85446_();
       float u = ui();
       float needed = 190.0F * u * 0.9F + 8.0F + this.rightColumnAtFullScale(u);
-      float available = (float)Math.max(60, gw - 8);
+      float available = (float)Math.max(1, gw - 8);
       float widthFit = needed <= available ? 1.0F : available / needed;
       int[] wh = ControlHints.measureLegend(this.f_96547_, null, this.legendRows());
       int tallest = Math.max(Math.max(Math.max(this.pickerBottom(), mapBottom()), this.hideBottom()), 19 + wh[1]);
-      float heightFit = (float)Math.max(40, gh - 8) / ((float)tallest * u);
-      return Math.max(0.35F, Math.min(1.0F, Math.min(widthFit, heightFit)));
+      float heightFit = (float)Math.max(1, gh - 28) / ((float)tallest * u);
+      return Math.max(MIN_PANEL_SCALE, Math.min(1.0F, Math.min(widthFit, heightFit)));
    }
 
    private float rightColumnAtFullScale(float u) {
@@ -307,26 +314,100 @@ public final class PaintModeScreen extends Screen {
       return rawX >= left && rawX < right && rawY >= top && rawY < bottom;
    }
 
+   private float maxScaleFor(PaintModeScreen.Panel p, int maxW, int maxH) {
+      float u = ui();
+      float byWidth = (float)Math.max(1, maxW) / ((float)this.panelWidth(p) * u);
+      float localH = (float)this.panelHeight(p);
+      float byHeight = localH <= (float)STRIP_H
+         ? 2.0F
+         : (((float)Math.max(1, maxH) / u) - (float)STRIP_H) / (localH - (float)STRIP_H);
+      return Math.max(0.01F, Math.min(byWidth, byHeight));
+   }
+
+   private boolean panelsOverlap(PaintModeScreen.Panel a, PaintModeScreen.Panel b) {
+      if (a.min || b.min) return false;
+      int aw = this.panelScreenWidth(a), ah = this.panelScreenHeight(a);
+      int bw = this.panelScreenWidth(b), bh = this.panelScreenHeight(b);
+      return a.offX < b.offX + bw && a.offX + aw > b.offX && a.offY < b.offY + bh && a.offY + ah > b.offY;
+   }
+
+   /**
+    * En espacio reducido se conserva la paleta y una sola ventana secundaria. Ambas se empaquetan en
+    * regiones disjuntas; las demás quedan como pestañas. Un clamp por ventana no podía garantizarlo:
+    * al reducir la resolución todas acababan contra el mismo borde y se superponían.
+    */
+   private void compactLayout(int gw, int gh) {
+      if (!this.compactLayoutActive) {
+         this.compactAtWidth = gw;
+         this.compactAtHeight = gh;
+      }
+      this.compactLayoutActive = true;
+      PaintModeScreen.Panel secondary = null;
+      for (PaintModeScreen.Panel p : new PaintModeScreen.Panel[]{this.mapPanel, this.hidePanel, this.legendPanel}) {
+         if (!p.min && secondary == null) secondary = p;
+         else if (!p.min) p.min = true;
+      }
+
+      int usableW = Math.max(1, gw - 12);
+      int usableH = Math.max(1, gh - 32);
+      if (secondary != null) {
+         float combined = (float)usableW / (ui() * (float)(this.panelWidth(this.pickerPanel) + this.panelWidth(secondary)));
+         float scale = Math.min(Math.min(this.pickerPanel.scale, secondary.scale), combined);
+         scale = Math.min(scale, this.maxScaleFor(this.pickerPanel, usableW, usableH));
+         scale = Math.min(scale, this.maxScaleFor(secondary, usableW, usableH));
+         if (scale >= MIN_PANEL_SCALE) {
+            this.pickerPanel.scale = scale;
+            secondary.scale = scale;
+            this.pickerPanel.offX = 4;
+            this.pickerPanel.offY = 4;
+            secondary.offX = gw - 4 - this.panelScreenWidth(secondary);
+            secondary.offY = 4;
+            return;
+         }
+         secondary.min = true;
+      }
+
+      this.pickerPanel.scale = Math.min(this.pickerPanel.scale, this.maxScaleFor(this.pickerPanel, usableW, usableH));
+      this.pickerPanel.scale = Math.max(0.08F, this.pickerPanel.scale);
+      this.pickerPanel.offX = Math.max(0, (gw - this.panelScreenWidth(this.pickerPanel)) / 2);
+      this.pickerPanel.offY = 4;
+   }
+
    private void ensurePlaced() {
       int gw = Minecraft.m_91087_().m_91268_().m_85445_();
       int gh = Minecraft.m_91087_().m_91268_().m_85446_();
-      float u = ui();
 
       for (PaintModeScreen.Panel p : this.panels()) {
-         if (!p.placed) {
-            this.placeDefault(p);
-         }
+         if (!p.placed) this.placeDefault(p);
+         int usableH = Math.max(1, gh - 28);
+         float limit = this.maxScaleFor(p, Math.max(1, gw - 8), usableH);
+         p.scale = Math.min(p.scale, limit);
+         if (p == this.pickerPanel) p.scale = Math.max(0.08F, p.scale);
+         else if (p.scale < MIN_PANEL_SCALE) p.min = true;
+         else p.scale = Math.max(MIN_PANEL_SCALE, p.scale);
 
-         // Se limita el rectángulo completo, no sólo una esquina de 24 px. También se reduce una
-         // escala persistida de otra resolución antes de colocarla.
-         float fitW = (float)Math.max(24, gw - 8) / ((float)this.panelWidth(p) * u);
-         float fitH = (float)Math.max(24, gh - 8) / ((float)this.panelHeight(p) * u + 13.0F * u * (1.0F - p.scale));
-         p.scale = Math.max(0.35F, Math.min(p.scale, Math.min(fitW, fitH)));
-         int sw = Math.min(gw, this.panelScreenWidth(p));
-         int sh = Math.min(gh, this.panelScreenHeight(p));
+         int sw = this.panelScreenWidth(p);
+         int sh = this.panelScreenHeight(p);
          p.offX = Math.max(0, Math.min(p.offX, Math.max(0, gw - sw)));
-         p.offY = Math.max(0, Math.min(p.offY, Math.max(0, gh - sh)));
+         p.offY = Math.max(0, Math.min(p.offY, Math.max(0, usableH - sh)));
       }
+
+      // El modo compacto debe sobrevivir a su propio reflow: después de separar los paneles ya no hay
+      // solape que lo vuelva a detectar. Sólo se abandona al ampliar de verdad la ventana o resetear.
+      if (this.compactLayoutActive && (gw >= this.compactAtWidth + 80 || gh >= this.compactAtHeight + 60)) {
+         this.compactLayoutActive = false;
+      }
+      boolean overlap = false;
+      PaintModeScreen.Panel[] all = this.panels();
+      for (int i = 0; i < all.length && !overlap; i++) {
+         for (int j = i + 1; j < all.length; j++) {
+            if (this.panelsOverlap(all[i], all[j])) {
+               overlap = true;
+               break;
+            }
+         }
+      }
+      if (overlap || this.compactLayoutActive) this.compactLayout(gw, gh);
    }
 
    private void resetPanel(PaintModeScreen.Panel p) {
@@ -411,7 +492,7 @@ public final class PaintModeScreen extends Screen {
       if (btn >= 0) {
          switch (btn) {
             case 0:
-               p.scale = Math.max(0.35F, p.scale - 0.1F);
+               p.scale = Math.max(MIN_PANEL_SCALE, p.scale - 0.1F);
                p.save();
                break;
             case 1:
@@ -455,6 +536,13 @@ public final class PaintModeScreen extends Screen {
 
       for (PaintModeScreen.Panel p : new PaintModeScreen.Panel[]{this.mapPanel, this.legendPanel, this.hidePanel}) {
          if (p.min && rawX >= (double)(gw - 14) && rawY >= (double)p.tabY && rawY < (double)(p.tabY + this.tabH(p))) {
+            // En modo compacto sólo se abre una secundaria a la vez; de otro modo el panel recién
+            // abierto reaparecía exactamente encima del mapa que ya estaba visible.
+            if (this.compactLayoutActive) {
+               for (PaintModeScreen.Panel other : new PaintModeScreen.Panel[]{this.mapPanel, this.legendPanel, this.hidePanel}) {
+                  if (other != p) other.min = true;
+               }
+            }
             p.min = false;
             p.save();
             return true;
@@ -1818,7 +1906,7 @@ public final class PaintModeScreen extends Screen {
          this.tabY = tabY;
          if (WindowLayouts.has(key)) {
             WindowLayouts.Layout l = WindowLayouts.get(key);
-            this.scale = Math.max(0.35F, Math.min(2.0F, l.scale));
+            this.scale = Math.max(MIN_PANEL_SCALE, Math.min(2.0F, l.scale));
             this.offX = l.offX;
             this.offY = l.offY;
             this.min = canMin && l.min;

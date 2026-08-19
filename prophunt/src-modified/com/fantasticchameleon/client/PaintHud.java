@@ -32,19 +32,23 @@ public final class PaintHud {
             int cx = mc.m_91268_().m_85445_() / 2;
             if (locked && FreeCam.active() && !WorldBrush.paintMode()) {
                drawViewfinderCorners(graphics, mc);
+               boolean compactHud = RoundBar.inRound();
                List<String[]> fcHints = new ArrayList<>();
-               fcHints.add(new String[]{"F", Component.m_237115_("fantastic.hint.paint").getString()});
-               fcHints.add(new String[]{"Esc", Component.m_237115_("fantastic.hint.leave").getString()});
+               fcHints.add(new String[]{"F", compactHud ? "" : Component.m_237115_("fantastic.hint.paint").getString()});
+               fcHints.add(new String[]{"Esc", compactHud ? "" : Component.m_237115_("fantastic.hint.leave").getString()});
                if (FreeCam.canCycle()) {
-                  fcHints.add(new String[]{"[ / ]", Component.m_237115_("fantastic.hint.switch").getString()});
+                  fcHints.add(new String[]{"[ / ]", compactHud ? "" : Component.m_237115_("fantastic.hint.switch").getString()});
                }
 
-               int fcY = RoundBar.bottom() + 4;
+               // PaintHud se dibuja antes que RoundBar; bottom() todavía puede ser el del frame
+               // anterior. El suelo de 46 cubre la barra de dos filas y, usando sólo keycaps durante
+               // la ronda, la fila tampoco invade la tarjeta de sala de la izquierda.
+               int fcY = compactHud ? Math.max(RoundBar.bottom(), 46) + 4 : RoundBar.bottom() + 4;
                ControlHints.rowCentered(graphics, mc.f_91062_, cx, fcY, fcHints);
                String fcWatched = FreeCam.watchedName();
                if (fcWatched != null) {
                   String fcLabel = Component.m_237110_("fantastic.freecam.spectating", new Object[]{fcWatched}).getString();
-                  Gfx.text(graphics, mc.f_91062_, fcLabel, cx - mc.f_91062_.m_92895_(fcLabel) / 2, fcY + 12, -8875);
+                  Gfx.text(graphics, mc.f_91062_, fcLabel, cx - mc.f_91062_.m_92895_(fcLabel) / 2, fcY + 16, -8875);
                }
             } else if (locked && !FreeCam.active()) {
                // Debajo de la barra de ronda: arriba fijo se solapaba con las cabezas y el reloj. El

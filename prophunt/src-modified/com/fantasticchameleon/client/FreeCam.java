@@ -62,12 +62,17 @@ public final class FreeCam {
       // Pegado a una pared, "detrás" mira justo hacia el sólido. La cámara debe empezar en el lado
       // exterior, delante del cuerpo, y mirar de vuelta al ancla.
       Integer faceId = Services.PLATFORM.getOrNull(player, PaintAttachments.ATTACH_FACE);
+      Direction face = faceId != null && faceId >= 0 && faceId < Direction.values().length
+         ? Direction.m_122376_(faceId)
+         : null;
       Vec3 direction;
-      if (attached && faceId != null && faceId >= 0 && faceId < Direction.values().length) {
-         Direction face = Direction.m_122376_(faceId);
-         direction = new Vec3((double)face.m_122429_(), (double)face.m_122430_(), (double)face.m_122431_());
+      if (attached && face != null && face != Direction.UP && face != Direction.DOWN) {
+         // Sólo una normal horizontal define un lado útil de cámara. Prop Hunt usa UP para indicar
+         // apoyo en el suelo; tratarla como offset mandaba la cámara cuatro bloques hacia arriba y
+         // la dejaba mirando verticalmente hacia abajo.
+         direction = new Vec3((double)face.m_122429_(), 0.0, (double)face.m_122431_());
       } else {
-         direction = player.m_20252_(1.0F).m_82490_(attached ? 1.0 : -1.0);
+         direction = horizontalBehind(player);
       }
       double distance = 4.0;
       HitResult hit = player.m_9236_().m_45547_(
@@ -88,6 +93,16 @@ public final class FreeCam {
       if (attached) {
          aimAtAnchor(player);
       }
+   }
+
+   private static Vec3 horizontalBehind(LocalPlayer player) {
+      Vec3 look = player.m_20252_(1.0F);
+      Vec3 flat = new Vec3(look.f_82479_, 0.0, look.f_82481_);
+      if (flat.m_82556_() < 1.0E-6) {
+         double yaw = Math.toRadians((double)player.m_146908_());
+         flat = new Vec3(-Math.sin(yaw), 0.0, Math.cos(yaw));
+      }
+      return flat.m_82541_().m_82490_(-1.0);
    }
 
    public static void disable() {

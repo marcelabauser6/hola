@@ -39,7 +39,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -83,6 +82,7 @@ public final class FantasticNetwork {
     * esperado por el controlador del jugador. Se conserva la relación real entre atributos, con un
     * límite defensivo sólo para criaturas acuáticas/voladoras cuyo atributo no representa caminar.
     */
+   private static final double BODY_SURFACE_OFFSET = 0.04;
    private static final double VANILLA_LAND_REFERENCE = 0.23;
    private static final double MIN_MOB_RATIO = 0.75;
    private static final double MAX_MOB_RATIO = 1.35;
@@ -359,6 +359,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.POSING, false);
       Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
       Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, -1);
       Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
       LockTick.clearTilt(player);
       if (player instanceof ServerPlayer bp) {
@@ -453,14 +454,15 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, yaw);
       Services.PLATFORM.set(player, PaintAttachments.POSING, true);
       Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
-      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, true);
       Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, payload.face().m_122411_());
+      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, true);
       LockTick.clearTilt(player);
       player.m_6210_();
 
-      // El plano central del cuerpo se alinea con la superficie, tal como se ve en la textura. Así
-      // desaparece la geometría que sobresalía; la colisión de cámara se resuelve de forma separada.
-      double surfaceOffset = 0.0;
+      // El origen queda apenas fuera de la superficie para que Minecraft tome luz del aire y la capa
+      // pintada conserve sus colores. El torso sigue parcialmente embebido: 0,04 es menor que su
+      // semiprofundidad visual, así que entra un poco más que en 1.2.17 sin volverse negro.
+      double surfaceOffset = BODY_SURFACE_OFFSET * (double)ArmorPaintHandler.scaleOf(player);
       Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), surfaceOffset);
       if (target == null || !outwardClear(player, payload.face(), target)) {
          restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame);
@@ -541,6 +543,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.LOCK_ROLL, roll);
       Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, frame);
       Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, -1);
       player.m_6210_();
    }
 
@@ -572,6 +575,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
       Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
       Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, -1);
       LockTick.clearTilt(player);
       LockTick.release(player);
       immobilize(player, false);
@@ -649,6 +653,7 @@ public final class FantasticNetwork {
             boolean capturedEntity = entityNow != null && entityNow.present();
             // Cada intento empieza sin acople; las ramas exitosas lo marcan después de validar geometría.
             Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+            Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, -1);
             if (PropHunt.isPropHunt(player) && (propNow != null && propNow >= 0 || capturedEntity)) {
                // Un prop tiene que quedar centrado en su celda, no pegado a la pared como la
                // silueta pintada del modo clasico. Los bloques mantienen la orientacion de su
@@ -662,8 +667,8 @@ public final class FantasticNetwork {
                }
                // El grid snap de Prop Hunt también es un acople confirmado: habilita freecam y la
                // excepción deliberada del guardia hasta que se desacople.
-               Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.TRUE);
                Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, Direction.UP.m_122411_());
+               Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.TRUE);
             } else {
                placeAgainstCover(player, yaw);
             }
@@ -686,10 +691,12 @@ public final class FantasticNetwork {
          Direction cover = nearestCover(sp);
          if (cover != null) {
             BlockPos block = sp.m_20183_().m_121945_(cover);
-            Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), 0.0);
+            Vec3 target = flushTarget(
+               sp, block, cover.m_122424_(), sp.m_20182_(), BODY_SURFACE_OFFSET * (double)ArmorPaintHandler.scaleOf(sp)
+            );
             if (target != null && outwardClear(sp, cover.m_122424_(), target)) {
-               Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
                Services.PLATFORM.set(sp, PaintAttachments.ATTACH_FACE, cover.m_122424_().m_122411_());
+               Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
                LockTick.reanchor(sp, target);
                return;
             }

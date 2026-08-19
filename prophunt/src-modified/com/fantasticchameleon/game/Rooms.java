@@ -106,6 +106,8 @@ public final class Rooms {
    private static final int OFFLINE_GRACE_TICKS = 1200;
    private static final Map<UUID, Integer> OFFLINE_TICKS = new HashMap<>();
    private static final Map<UUID, Integer> WELCOME_DELAY = new HashMap<>();
+   private static long barrierCacheTick = Long.MIN_VALUE;
+   private static Map<String, List<Room>> barrierRoomsByDimension = Map.of();
 
    private Rooms() {
    }
@@ -133,6 +135,28 @@ public final class Rooms {
       }
 
       return name;
+   }
+
+   /** Primera arena activa cuyo volumen está siendo invadido por la entidad. */
+   public static Room blockingArena(Entity entity) {
+      if (entity == null || entity.m_9236_().f_46443_) return null;
+      long tick = entity.m_9236_().m_46467_();
+      if (tick != barrierCacheTick) {
+         Map<String, List<Room>> byDimension = new HashMap<>();
+         for (Room room : ROOMS.values()) {
+            if (room.hasActiveMobBarrier()) {
+               byDimension.computeIfAbsent(room.arenaDimension(), ignored -> new ArrayList<>()).add(room);
+            }
+         }
+         barrierRoomsByDimension = byDimension;
+         barrierCacheTick = tick;
+      }
+
+      String dimension = entity.m_9236_().m_46472_().m_135782_().toString();
+      for (Room room : barrierRoomsByDimension.getOrDefault(dimension, List.of())) {
+         if (room.blocksWildMob(entity)) return room;
+      }
+      return null;
    }
 
    public static Room roomOf(ServerPlayer p) {
@@ -1632,6 +1656,8 @@ public final class Rooms {
       LAST_ACTION_TICK.clear();
       PUSH_AT.clear();
       PUSH_PENDING.clear();
+      barrierCacheTick = Long.MIN_VALUE;
+      barrierRoomsByDimension = Map.of();
       seq = 0;
    }
 

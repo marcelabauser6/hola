@@ -1,3 +1,20 @@
+# Fantastic Chameleon 1.2.19 — freecam, pintura, mobs y GUI corregidos
+
+> **1.2.19 — correcciones posteriores a 1.2.18.**
+> - **Freecam de Prop Hunt horizontal.** El apoyo `UP` ya no manda la cámara sobre el jugador mirando
+>   hacia abajo; arranca detrás del prop y conserva la colisión exterior.
+> - **Meccha pintado y más embebido.** El origen queda 0,04×escala fuera de la superficie para tomar la
+>   luz del aire, mientras el torso sigue parcialmente dentro del bloque. Recupera el blanco y cualquier
+>   pintura sin volver a dejar un hueco visible.
+> - **Zona cerrada a mobs durante la partida.** En ambos modos se borran objetivos y se cancelan ataque,
+>   daño y proyectiles con dueño mob. Cualquier mob cuya caja entre en una arena activa es devuelto al
+>   exterior y pierde ruta, velocidad y objetivo.
+> - **GUI compacta sin solapes.** Al reducir la ventana se muestran paleta y una secundaria en regiones
+>   separadas; mapa, partes y teclas se alternan mediante pestañas. Al ampliar vuelve el comportamiento
+>   independiente. Los controles de freecam se compactan bajo el marcador.
+> - **Piernas a velocidad normal.** El tick visual del mob ya no suma una fase adicional por su posición
+>   artificial; la marcha avanza una sola vez con la misma distancia server-side que dispara los pasos.
+>
 # Fantastic Chameleon 1.2.18 — movimiento, cámara, interfaz y poses corregidos
 
 > **1.2.18 — una sola medida de movimiento, acople estable y todas las interfaces utilizables.**

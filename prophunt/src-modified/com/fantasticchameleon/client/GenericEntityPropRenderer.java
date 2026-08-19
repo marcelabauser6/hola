@@ -160,10 +160,14 @@ public final class GenericEntityPropRenderer {
             // posiciones interpoladas de cada cliente dejaron de ser una segunda fuente de fase.
             float walk = AvatarState.propMotion(owner).speed();
 
+            // El dummy no debe aportar una segunda distancia: se coloca primero y sus coordenadas
+            // anterior/actual quedan iguales. Su tick conserva alas, cola e IA visual, pero la marcha
+            // empieza en cero y no avanza fase por el reposicionamiento artificial.
+            living.m_20343_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_());
             living.f_19790_ = living.m_20185_();
             living.f_19791_ = living.m_20186_();
             living.f_19792_ = living.m_20189_();
-            living.m_20343_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_());
+            living.f_267362_.m_267771_(0.0F);
             living.f_19797_ = owner.f_19797_;
             // Suelo y caída se copian ANTES del tick porque son justo lo que leen las animaciones de
             // vuelo y aleteo: la gallina bate las alas al saltar o caer y las tiene quietas al andar.
