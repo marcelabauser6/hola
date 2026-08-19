@@ -74,7 +74,7 @@ public final class FantasticNetwork {
    public static final int FREEZE_POSE = -1;
    private static final Map<UUID, Vec3> SAFE_POS = new ConcurrentHashMap<>();
    /** Lo que el cuerpo se hunde en el bloque al acoplarse, para que no se vea una junta de aire. */
-   private static final double ATTACH_SINK = 0.05;
+   private static final double ATTACH_SINK = 0.09;
 
    private FantasticNetwork() {
    }

@@ -1,4 +1,22 @@
-# Fantastic Chameleon 1.2.12 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.13 — Prop Hunt y Meccha corregidos
+
+> **1.2.13 — patas que paran, cámara detrás al pegarse y ningún mob mudo.**
+> - **Las patas ya no andan solas.** Reproducido en el servidor: dejando que el modelo calculara su propia
+>   marcha, su velocidad subía a 1.0 y **no bajaba nunca**, así que las patas seguían andando con el
+>   jugador parado. Ahora la velocidad la impone el desplazamiento real del jugador después del tick.
+>   Medido: **0,0 quieto · 0,84 andando · 0,0 en el mismo tick al parar**.
+> - **Al pegarte a un bloque la cámara pasa a tercera persona** y vuelve a lo que tuvieras al soltarte.
+>   Estar adherido implica que el cuerpo toca el bloque, así que en primera persona la cámara quedaba
+>   dentro de la pared; lo que interesa ver es tu propio cuerpo pegado, y eso se ve desde atrás.
+> - **Un poco más pegado:** el cuerpo se hunde 0,09 en el bloque en lugar de 0,05.
+> - **Ningún mob vanilla se queda sin sonido.** Auditados los **76 tipos vivos** del juego: antes 4 no
+>   tenían voz (araña de cueva, gigante, pez globo y llama mercante) porque en vanilla reutilizan los
+>   sonidos de su pariente o su id no coincide con el nombre de sus sonidos. Ahora **0 mudos**. Los pasos
+>   usan el sonido propio del tipo y, si no tiene, el del bloque pisado, igual que hace el juego.
+> - **Menos tirón al iniciar la ronda:** al empezar, todos se transforman en el mismo tick; ahora se
+>   construyen como máximo 2 texturas y 2 modelos por tick, y el resto entra en los siguientes.
+>
+> **1.2.12 — el freeze era mío, patas fluidas y pasos de mob.**
 
 > **1.2.12 — el freeze era mío, patas fluidas de verdad y pasos de mob.**
 > - **El congelamiento al pulsar F era un fallo mío de la versión anterior.** Sobrescribí

@@ -110,19 +110,66 @@ public final class PropHuntActs {
       return snapshot != null && snapshot.present() ? capturedSound(snapshot.typeId()) : null;
    }
 
+   /** Cobertura de sonido de un tipo, para poder auditarla sin adivinar. */
+   public static boolean hasVoice(String typeId) {
+      return capturedSound(typeId) != null;
+   }
+
+   /** True si el tipo tiene sonido propio de movimiento; si no, se usa el del bloque pisado. */
+   public static boolean hasStepSound(String typeId) {
+      return stepSound(typeId) != null;
+   }
+
    /** Resuelve y memoriza el sonido ambiental del tipo capturado por convención de registro. */
    private static SoundEvent capturedSound(String typeId) {
       return CAPTURED_VOICE.computeIfAbsent(typeId, PropHuntActs::resolveVoice).orElse(null);
    }
 
+   /**
+    * Voz preferida por convención de nombres, en orden de "qué suena cuando el bicho está tranquilo".
+    *
+    * <p>No todos los mobs tienen {@code .ambient}: un slime hace {@code .squish}, un ghast
+    * {@code .moan}, un guardián {@code .attack}. Por eso la lista es larga y, si aun así no encaja
+    * ninguna, se busca en el registro cualquier sonido del tipo que no sea de daño, muerte o pasos.
+    */
+   private static final String[] VOICE_SUFFIXES = {
+      ".ambient", ".idle", ".say", ".ambient.land", ".growl", ".breathe", ".moan", ".squish", ".purr",
+      ".chirp", ".hiss", ".roar", ".whine", ".pant", ".sniff", ".scream", ".celebrate", ".jump", ".flop"
+   };
+
+   /** Nunca se usan como voz de reposo: delatarían al jugador con un sonido que no toca. */
+   private static final String[] VOICE_EXCLUDED = {
+      ".hurt", ".death", ".step", ".eat", ".drink", ".explode", ".shoot", ".throw", ".splash", ".swim",
+      ".land", ".break", ".place", ".shear", ".milk", ".plop", ".equip", ".unequip", ".saddle", ".armor",
+      ".converted", ".cure", ".infect", ".teleport", ".shake", ".dash", ".spit", ".sneeze", ".fall",
+      ".attack", ".charge", ".flap", ".retreat", ".warning", ".disappeared", ".reappeared", ".trade"
+   };
+
    private static Optional<SoundEvent> resolveVoice(String typeId) {
       try {
          ResourceLocation type = new ResourceLocation(typeId);
-         // Sin ".flop": ese es el sonido de un pez fuera del agua, no su ruido normal.
-         for (String suffix : new String[]{".ambient", ".idle", ".say", ".ambient.land", ".growl", ".breathe"}) {
-            SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), "entity." + type.m_135815_() + suffix));
-            if (found != null) {
-               return Optional.of(found);
+         for (String path : candidates(type.m_135815_())) {
+            String prefix = "entity." + path;
+            for (String suffix : VOICE_SUFFIXES) {
+               SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), prefix + suffix));
+               if (found != null) {
+                  return Optional.of(found);
+               }
+            }
+
+            // Cualquier sonido registrado para ese nombre que no esté vetado. Así no se queda mudo un
+            // mob cuyo sonido no siga ninguna convención de nombres.
+            ResourceLocation fallback = null;
+            for (ResourceLocation id : BuiltInRegistries.f_256894_.m_6566_()) {
+               if (id.m_135827_().equals(type.m_135827_()) && id.m_135815_().startsWith(prefix + ".") && !excluded(id.m_135815_())) {
+                  if (fallback == null || id.m_135815_().length() < fallback.m_135815_().length()) {
+                     fallback = id;
+                  }
+               }
+            }
+
+            if (fallback != null) {
+               return Optional.ofNullable(BuiltInRegistries.f_256894_.m_7745_(fallback));
             }
          }
       } catch (RuntimeException ignored) {
@@ -130,6 +177,35 @@ public final class PropHuntActs {
       }
 
       return Optional.empty();
+   }
+
+   /**
+    * Nombres bajo los que buscar los sonidos de un tipo.
+    *
+    * <p>Varios mobs vanilla no tienen sonidos propios y reutilizan los de su pariente: la araña de cueva
+    * usa los de la araña y la llama mercante los de la llama. Y algún id no coincide con el nombre de sus
+    * sonidos: la entidad es {@code pufferfish} pero sus sonidos son {@code entity.puffer_fish.*}. Sin
+    * esto, esos mobs se quedaban mudos aunque en el juego real sí suenan.
+    */
+   private static String[] candidates(String path) {
+      String related = path.indexOf('_') > 0 ? path.substring(path.indexOf('_') + 1) : path;
+      return switch (path) {
+         case "pufferfish" -> new String[]{path, "puffer_fish"};
+         case "giant" -> new String[]{path, "zombie"};
+         case "snow_golem" -> new String[]{path, "snowman"};
+         case "mooshroom" -> new String[]{path, "cow"};
+         default -> path.equals(related) ? new String[]{path} : new String[]{path, related};
+      };
+   }
+
+   private static boolean excluded(String path) {
+      for (String bad : VOICE_EXCLUDED) {
+         if (path.endsWith(bad)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private static SoundEvent ambientSound(String key) {
@@ -193,11 +269,21 @@ public final class PropHuntActs {
       return STEP_VOICE.computeIfAbsent(typeId, id -> {
          try {
             ResourceLocation type = new ResourceLocation(id);
-            SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), "entity." + type.m_135815_() + ".step"));
-            return found == null ? Optional.<SoundEvent>empty() : Optional.of(found);
+            // Un slime no tiene ".step" pero sí ".squish", y un mob que salta usa ".jump": son sus
+            // sonidos de movimiento reales. Si no hay ninguno, el sonido lo pone el bloque pisado.
+            for (String path : candidates(type.m_135815_())) {
+               for (String suffix : new String[]{".step", ".squish", ".jump"}) {
+                  SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), "entity." + path + suffix));
+                  if (found != null) {
+                     return Optional.of(found);
+                  }
+               }
+            }
          } catch (RuntimeException ignored) {
-            return Optional.<SoundEvent>empty();
+            // Sin sonido propio: se cae al del bloque.
          }
+
+         return Optional.<SoundEvent>empty();
       }).orElse(null);
    }
 

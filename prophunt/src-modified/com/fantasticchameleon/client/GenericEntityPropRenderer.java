@@ -33,6 +33,9 @@ public final class GenericEntityPropRenderer {
    private static final int CACHE_MAX = 64;
    private static final Map<UUID, Entry> CACHE = new LinkedHashMap<>(16, 0.75F, true);
    private static final ThreadLocal<Boolean> RENDERING = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   private static final int MAX_CREATIONS_PER_TICK = 2;
+   private static long creationTick = Long.MIN_VALUE;
+   private static int creationsThisTick;
    private static ClientLevel cachedLevel;
 
    private GenericEntityPropRenderer() {
@@ -62,6 +65,14 @@ public final class GenericEntityPropRenderer {
 
       Entry entry = CACHE.get(player.m_20148_());
       if (entry == null || !entry.snapshot.equals(snapshot)) {
+         // Al empezar la ronda todos los escondidos reciben su disfraz en el mismo tick, y construir
+         // una entidad desde su NBT no es gratis. Se limitan a dos por tick: el resto entra en los
+         // siguientes frames, que es imperceptible, en vez de provocar un tirón al arrancar la partida.
+         if (!allowCreation()) {
+            event.setCanceled(true);
+            return;
+         }
+
          entry = create(level, player.m_20148_(), snapshot);
          if (entry == null) {
             // Fallo cerrado: nunca revelar el modelo humano mientras servidor e hitbox siguen siendo
@@ -69,6 +80,8 @@ public final class GenericEntityPropRenderer {
             event.setCanceled(true);
             return;
          }
+         entry.prevX = player.m_20185_();
+         entry.prevZ = player.m_20189_();
          CACHE.put(player.m_20148_(), entry);
          trim();
       }
@@ -142,13 +155,13 @@ public final class GenericEntityPropRenderer {
          if (owner == null) {
             CACHE.remove(cached.getKey());
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
-            // La clave de que las patas vayan fluidas: se le da al modelo el MISMO desplazamiento por
-            // tick que el jugador (posición anterior -> posición actual) y se deja que su propio tick
-            // calcule la animación de marcha una sola vez, como cualquier mob del mundo.
-            //
-            // Antes se le imponía la marcha a mano después del tick, así que la animación se actualizaba
-            // dos veces por tick: el avance de las patas se duplicaba y la velocidad parpadeaba, que es
-            // lo que se veía como pasos a tirones.
+            // Desplazamiento real del jugador en este tick, con la misma fórmula que usa el juego.
+            double dx = owner.m_20185_() - entry.prevX;
+            double dz = owner.m_20189_() - entry.prevZ;
+            entry.prevX = owner.m_20185_();
+            entry.prevZ = owner.m_20189_();
+            float walk = (float)Math.min(1.0, Math.sqrt(dx * dx + dz * dz) * 4.0);
+
             living.f_19790_ = living.m_20185_();
             living.f_19791_ = living.m_20186_();
             living.f_19792_ = living.m_20189_();
@@ -159,6 +172,13 @@ public final class GenericEntityPropRenderer {
             living.m_6853_(owner.m_20096_());
             living.f_19789_ = owner.f_19789_;
             animate(entry, living, owner);
+
+            // Y aquí manda el jugador, no el muñeco. Medido en el servidor: dejando que el modelo
+            // calculara su propia marcha, la velocidad subía a 1.0 y NO bajaba nunca, así que las patas
+            // seguían andando con el jugador parado. Imponer la velocidad después del tick (sin avanzar
+            // la fase, que ya la avanzó el tick) hace que las patas anden cuando andas y paren cuando
+            // paras, sin depender de lo que el modelo crea que está haciendo.
+            living.f_267362_.m_267771_(walk);
          }
       }
    }
@@ -177,7 +197,9 @@ public final class GenericEntityPropRenderer {
          living.m_20242_(true);
          // Se conserva la componente vertical del jugador: es la que distingue "en el aire" de "en el
          // suelo" para las animaciones de vuelo y aleteo.
-         living.m_20256_(new Vec3(0.0, owner.m_20184_().f_82480_, 0.0));
+         // Sin velocidad propia: el modelo no debe desplazarse por su cuenta, solo animarse. Lo que
+         // distingue "en el aire" de "en el suelo" para el aleteo ya se le copia con el estado de suelo.
+         living.m_20256_(Vec3.f_82478_);
          living.m_20011_(new AABB(living.m_20182_(), living.m_20182_()));
          living.m_8119_();
       } catch (RuntimeException | LinkageError ex) {
@@ -209,6 +231,22 @@ public final class GenericEntityPropRenderer {
       }
    }
 
+   /** Como máximo dos modelos nuevos por tick de cliente, para no concentrar el coste al empezar. */
+   private static boolean allowCreation() {
+      long now = Minecraft.m_91087_().f_91074_ == null ? 0L : (long)Minecraft.m_91087_().f_91074_.f_19797_;
+      if (now != creationTick) {
+         creationTick = now;
+         creationsThisTick = 0;
+      }
+
+      if (creationsThisTick >= MAX_CREATIONS_PER_TICK) {
+         return false;
+      }
+
+      creationsThisTick++;
+      return true;
+   }
+
    private static void trim() {
       while (CACHE.size() > CACHE_MAX) {
          Iterator<UUID> it = CACHE.keySet().iterator();
@@ -221,6 +259,8 @@ public final class GenericEntityPropRenderer {
       final EntityPropSnapshot snapshot;
       final Entity entity;
       boolean tickable = true;
+      double prevX;
+      double prevZ;
 
       Entry(EntityPropSnapshot snapshot, Entity entity) {
          this.snapshot = snapshot;

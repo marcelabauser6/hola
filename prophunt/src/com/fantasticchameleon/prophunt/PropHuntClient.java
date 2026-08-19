@@ -48,6 +48,7 @@ public final class PropHuntClient {
    private static final Map<UUID, String> APPLIED = new HashMap<>();
    private static final Map<UUID, VisualState> VISUAL_STATES = new HashMap<>();
    private static final int REFRESH_TICKS = 5;
+   private static final int MAX_CANVAS_PER_TICK = 2;
    private static int tickCounter;
 
    private PropHuntClient() {
@@ -130,6 +131,7 @@ public final class PropHuntClient {
       }
 
       boolean periodic = tickCounter % REFRESH_TICKS == 0;
+      int built = 0;
       for (Player player : level.m_6907_()) {
          int prop = AvatarState.prop(player);
          if (prop < 0) {
@@ -158,8 +160,16 @@ public final class PropHuntClient {
             continue;
          }
 
+         // Generar la imagen de un prop cuesta lo suyo, y al empezar la ronda todos se transforman a la
+         // vez. Se limita a dos por tick: los demás entran en los ticks siguientes sin que se note, en
+         // lugar de juntar todo el coste en el primer tick de la partida.
+         if (built >= MAX_CANVAS_PER_TICK) {
+            break;
+         }
+
          BodyCanvas canvas = creature ? PropTextures.forMob(PropShapes.of(prop).key()) : blockCanvas(state, prop, variant);
          if (canvas != null) {
+            built++;
             Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, canvas);
             APPLIED.put(player.m_20148_(), key);
          }
