@@ -402,6 +402,18 @@ public final class PaintModeScreen extends Screen {
       return false;
    }
 
+   /**
+    * El pintor no pausa la partida.
+    *
+    * <p>Por defecto una pantalla pausa el servidor integrado, así que al pulsar F en un mundo local se
+    * detenía todo —mobs y jugadores incluidos— hasta cerrarla. En un modo de escondidas eso es fatal:
+    * el escondido congelaba la ronda entera mientras se pintaba.
+    */
+   @Override
+   public boolean m_6913_() {
+      return false;
+   }
+
    public boolean isInGameUi() {
       return true;
    }

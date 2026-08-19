@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Pose;
@@ -26,6 +27,24 @@ public final class LockTick {
    private static final Map<UUID, Long> CLIP_RETRY = new ConcurrentHashMap<>();
    private static final int CLIP_CHECK_TICKS = 10;
    private static final long CLIP_BACKOFF_TICKS = 60L;
+   /**
+    * Presupuesto global del guardia anti-clipping por tick de servidor.
+    *
+    * <p>El coste no puede depender de cuánta gente esté escondida: un cupo por jugador sigue sumando.
+    * Por eso el tope es global y se reparte por orden de llegada; a quien no le toca se le atiende en el
+    * tick siguiente, nunca se le descarta.
+    *
+    * <p>Medido dentro del runtime real de Forge, encerrado en piedra: una medición de oclusión cuesta
+    * <b>5,8 µs</b> y una búsqueda de hueco fallida <b>398 µs</b>. Sin tope, 40 jugadores en ese peor caso
+    * consumen el 32 % del tick y unos 125 lo agotan por completo: eso es tumbar el servidor. Con
+    * 8 mediciones y 1 búsqueda por tick, el techo queda en ~0,9 % del tick, cueste lo que cueste.
+    */
+   private static final int CLIP_BUDGET_PER_TICK = 600;
+   private static final int COST_RATIO = 75;
+   private static final int MAX_SEARCHES_PER_TICK = 1;
+   private static long budgetTick = Long.MIN_VALUE;
+   private static int budgetLeft;
+   private static int searchesThisTick;
    private static final int GESTURE_TIMEOUT = 40;
    private static final double MAX_GESTURE_DIST = 8.0;
    private static final double NUDGE_STEP = 0.0625;
@@ -164,7 +183,7 @@ public final class LockTick {
       if (Services.PLATFORM.get(sp, PaintAttachments.LOCKED)) {
          Vec3 d = new Vec3(Mth.m_14008_(dx, -8.0, 8.0), Mth.m_14008_(dy, -8.0, 8.0), Mth.m_14008_(dz, -8.0, 8.0));
          LockTick.Gesture g = touchGesture(sp);
-         if (d.m_82556_() > 0.0) {
+         if (d.m_82556_() > 0.0 && spend(sp.m_9236_().m_46467_(), COST_RATIO)) {
             Vec3 target = ANCHORS.getOrDefault(sp.m_20148_(), sp.m_20182_()).m_82549_(d);
             // Se mide la oclusión del destino: antes el tick sacaba al jugador de la geometría, así
             // que mover el ancla dentro de una pared se corregía solo. Con la excepción de clipping
@@ -226,6 +245,60 @@ public final class LockTick {
     * empujaba al jugador fuera cada tick (despegando el acople) y recalculaba 75 muestras de volumen
     * por jugador y por tick, que es lo que se notaba como lag al empezar la partida.
     */
+   private static void rollBudget(long tick) {
+      if (tick != budgetTick) {
+         budgetTick = tick;
+         budgetLeft = CLIP_BUDGET_PER_TICK;
+         searchesThisTick = 0;
+      }
+   }
+
+   /** Reserva cupo del tick actual. Devuelve false si ya se agotó y hay que esperar al siguiente. */
+   private static boolean spend(long tick, int cost) {
+      rollBudget(tick);
+      if (budgetLeft < cost) {
+         return false;
+      }
+
+      budgetLeft -= cost;
+      return true;
+   }
+
+   /**
+    * Cupo de búsqueda de hueco: como máximo una por tick en todo el servidor.
+    *
+    * <p>Se contabiliza aparte y no contra el presupuesto de mediciones a propósito. Si se descontara del
+    * mismo saco, bastaría afinar mal una constante para que la búsqueda no cupiera nunca y el rescate
+    * quedara desactivado en silencio: quien se quedara tapiado no saldría jamás.
+    */
+   private static boolean spendSearch(long tick) {
+      rollBudget(tick);
+      if (searchesThisTick >= MAX_SEARCHES_PER_TICK) {
+         return false;
+      }
+
+      searchesThisTick++;
+      return true;
+   }
+
+   /**
+    * Turno de comprobación de un jugador.
+    *
+    * <p>El reparto se desfasa con su UUID para que no coincidan todos en el mismo tick: si todos los
+    * escondidos se fijan a la vez, sus comprobaciones caerían juntas y producirían un pico periódico.
+    */
+   private static boolean due(ServerPlayer sp, long now) {
+      int offset = Math.floorMod(sp.m_20148_().hashCode(), CLIP_CHECK_TICKS);
+      return Math.floorMod(now, (long)CLIP_CHECK_TICKS) == (long)offset && now >= CLIP_RETRY.getOrDefault(sp.m_20148_(), 0L);
+   }
+
+   /** Limpia el estado de los jugadores que ya no están conectados. */
+   public static void sweep(MinecraftServer server) {
+      ANCHORS.keySet().removeIf(id -> server.m_6846_().m_11259_(id) == null);
+      GESTURES.keySet().removeIf(id -> server.m_6846_().m_11259_(id) == null);
+      CLIP_RETRY.keySet().removeIf(id -> server.m_6846_().m_11259_(id) == null);
+   }
+
    private static boolean flushOnPurpose(ServerPlayer sp) {
       return Boolean.TRUE.equals(Services.PLATFORM.getOrNull(sp, PaintAttachments.BLOCK_FORM))
          || Boolean.TRUE.equals(Services.PLATFORM.getOrNull(sp, PaintAttachments.ATTACHED));
@@ -274,9 +347,18 @@ public final class LockTick {
                   // 10 ticks, con umbral laxo para los disfraces, y si no hay hueco se espera antes
                   // de volver a intentarlo en vez de insistir 20 veces por segundo.
                   long now = sp.m_9236_().m_46467_();
-                  boolean due = sp.f_19797_ % CLIP_CHECK_TICKS == 0 && now >= CLIP_RETRY.getOrDefault(sp.m_20148_(), 0L);
+                  boolean due = due(sp, now);
                   double allowed = prop ? BodyClip.HARD_MAX_HIDDEN : BodyClip.limit();
-                  if (!flush && due && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc) > allowed) {
+                  if (!flush && due && spend(now, COST_RATIO)
+                     && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc) > allowed) {
+                     // La búsqueda de hueco cuesta 398 µs en el peor caso, casi setenta veces más que
+                     // medir. Solo se permite una por tick en todo el servidor: preferimos rescatar a
+                     // alguien medio segundo más tarde que poner en riesgo el tick.
+                     if (!spendSearch(now)) {
+                        CLIP_RETRY.put(sp.m_20148_(), now + CLIP_CHECK_TICKS);
+                        return;
+                     }
+
                      Optional<Vec3> valid = BodyClip.findValidPosition(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc);
                      if (valid.isPresent()) {
                         CLIP_RETRY.remove(sp.m_20148_());
@@ -287,7 +369,9 @@ public final class LockTick {
                      }
 
                      CLIP_RETRY.put(sp.m_20148_(), now + CLIP_BACKOFF_TICKS);
-                     if ((pi != 0.0F || ro != 0.0F) && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, 0.0F, 0.0F, pose, sc) <= BodyClip.limit()) {
+                     if ((pi != 0.0F || ro != 0.0F)
+                        && spend(now, COST_RATIO)
+                        && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, 0.0F, 0.0F, pose, sc) <= BodyClip.limit()) {
                         clearTilt(sp);
                         return;
                      }

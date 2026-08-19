@@ -237,6 +237,9 @@ public final class FantasticNetwork {
       ACTION_LAST.keySet().removeIf(id -> server.m_6846_().m_11259_(id) == null);
       WorldPick.sweep(server);
       Climb.sweep(server);
+      // Anclas, gestos y esperas del guardia también se limpian: si no, cada desconexión con el
+      // disfraz puesto dejaba una entrada viva para siempre.
+      LockTick.sweep(server);
    }
 
    private static boolean throttled(Player player, int slot) {

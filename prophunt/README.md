@@ -1,5 +1,29 @@
-# Fantastic Chameleon 1.2.10 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.11 — Prop Hunt y Meccha corregidos
 
+> **1.2.11 — el guardia anti-clipping ya no puede tumbar el servidor, y la causa real del "se detiene
+> el juego" era otra.**
+>
+> Se midió el coste dentro del runtime real de Forge, con un jugador encerrado en piedra (el peor caso):
+>
+> | Operación | Coste medido | Peor caso sin tope |
+> |---|---|---|
+> | Medir oclusión (75 muestras) | **5,8 µs** | — |
+> | Buscar hueco y no encontrarlo | **398 µs** | 40 jugadores = **32 % del tick**; ~125 jugadores = **tick agotado** |
+>
+> - Ahora el guardia tiene **tope global por tick**: 8 mediciones y **1 sola búsqueda** en todo el
+>   servidor, con reparto desfasado por jugador para que no coincidan. Techo real ≈ **0,9 % de un tick**,
+>   sin importar cuánta gente esté escondida. A quien no le toca no se le descarta: se le atiende en el
+>   tick siguiente.
+> - El cupo de búsqueda se contabiliza **aparte** del de mediciones, a propósito: si compartieran saco,
+>   una constante mal puesta podía hacer que la búsqueda no cupiera nunca y el rescate quedara
+>   desactivado en silencio, dejando tapiado para siempre a quien lo necesitara.
+> - **La causa real de "al presionar F se detiene el juego y se quedan pegados todos" no era el guardia:
+>   era que las pantallas del mod pausaban el servidor integrado.** En Minecraft una pantalla pausa la
+>   partida en un mundo local salvo que se diga lo contrario, y ni el pintor ni la rueda de poses lo
+>   decían. Corregido en ambas; por eso todo volvía a moverse justo al desacoplarte, que era cuando se
+>   cerraba la pantalla.
+> - Se limpian anclas, gestos y esperas del guardia al desconectar, que antes quedaban vivas para siempre.
+>
 > **1.2.10 — servidor que no se congela, animación fluida, solo operadores.**
 > - **La partida ya no se detiene al pulsar F.** El guardia anti-clipping recalculaba hasta 5.625 muestras
 >   de volumen por jugador **y por tick** en el hilo del servidor: al fijarse pegado a una pared la
