@@ -163,6 +163,7 @@ public final class LockControls {
          boolean locked = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
          boolean posing = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.POSING);
          if (FreeCam.active()) {
+            MecchaClientEvents.suppressFreeCam();
             FreeCam.disable();
             WorldBrush.exitPaintMode();
             return true;
@@ -265,8 +266,7 @@ public final class LockControls {
          boolean releaseScreen = ClientShims.screen(mc) == null || ClientShims.screen(mc) instanceof PropHuntLockedScreen;
          boolean canRelease = releaseScreen
             && mc.f_91074_ != null
-            && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
-            && !FreeCam.active();
+            && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
          if (canRelease && (space && !spaceWasDown || sneak && !sneakWasDown)) {
             if (PropHuntClient.isPropHunt()) {
                detach(mc);

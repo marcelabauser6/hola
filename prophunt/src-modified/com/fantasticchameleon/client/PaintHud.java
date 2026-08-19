@@ -36,7 +36,7 @@ public final class PaintHud {
                fcHints.add(new String[]{"F", Component.m_237115_("fantastic.hint.paint").getString()});
                fcHints.add(new String[]{"Esc", Component.m_237115_("fantastic.hint.leave").getString()});
                if (FreeCam.canCycle()) {
-                  fcHints.add(new String[]{"L/R click", Component.m_237115_("fantastic.hint.switch").getString()});
+                  fcHints.add(new String[]{"[ / ]", Component.m_237115_("fantastic.hint.switch").getString()});
                }
 
                int fcY = RoundBar.bottom() + 4;

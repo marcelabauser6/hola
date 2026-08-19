@@ -24,6 +24,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -104,7 +106,11 @@ public final class PropHuntCapture {
          return null;
       }
 
-      return new EntityPropSnapshot(typeId, tag, living.m_20205_(), living.m_20206_(), living.m_20192_());
+      AttributeInstance movement = living.m_21051_(Attributes.f_22279_);
+      float movementSpeed = movement == null ? 0.0F : (float)movement.m_22115_();
+      return new EntityPropSnapshot(
+         typeId, tag, living.m_20205_(), living.m_20206_(), living.m_20192_(), movementSpeed
+      );
    }
 
    private static int encodedSize(CompoundTag tag) {

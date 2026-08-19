@@ -1,5 +1,27 @@
-# Fantastic Chameleon 1.2.17 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.18 — movimiento, cámara, interfaz y poses corregidos
 
+> **1.2.18 — una sola medida de movimiento, acople estable y todas las interfaces utilizables.**
+> - **Movimiento y pasos sincronizados.** El servidor mide la distancia cada tick una sola vez; esa
+>   medida controla tanto la velocidad de las patas como los pasos cada 0,6 bloques. Inicio y parada se
+>   publican inmediatamente y el movimiento sostenido a 10 Hz, sin colas de sonido ni acumuladores
+>   distintos por cliente.
+> - **Velocidad fiel al mob capturado.** Se usa el atributo `movementSpeed` de la criatura real con
+>   referencia vanilla 0,23 y un límite defensivo 0,75×–1,35×, sin tablas manuales ni la compresión de
+>   1.2.17.
+> - **Jade ya no tapa el HUD durante la ronda.** Se oculta por callback y por configuración, se conserva
+>   la preferencia previa del jugador y se restaura exactamente al terminar o desconectarse.
+> - **Acople y cámara libre corregidos.** Prop Hunt marca el ancla de forma explícita; la cámara parte de
+>   la normal exterior de la cara, admite suelo, paredes y techo, evita geometría con ocho rayos desde un
+>   origen común y permite cambiar de observado con `[`/`]`. Espacio o agacharse siempre desacoplan.
+> - **Meccha se alinea con la geometría real.** El plano central del cuerpo queda en la superficie del
+>   bloque, también en vallas y paneles, y la altura se calcula desde el `VoxelShape` real.
+> - **Pintor y editor utilizables en ventanas pequeñas.** Los paneles escalan por ancho y alto, quedan
+>   completamente dentro de pantalla y consumen sólo su interior visible. Crear, Invitar y Renombrar
+>   reaccionan al texto sin reconstruir widgets desde `render`.
+> - **30 poses humanas seleccionables.** Los IDs 0–30 se validan desde una fuente canónica, con el ID 8
+>   reservado por compatibilidad. Se añadieron las páginas Sentadas/Gestos en los ocho idiomas; una pose
+>   sólo se aplica si cabe y un rechazo conserva el estado anterior.
+>
 > **1.2.17 — ritmo jugable, patas que sí animan, vista libre al pegarse y munición activada.**
 > - **La velocidad ya no es un castigo.** Los mobs reales son entre 4 y 1,5 veces más lentos que un
 >   jugador andando (vaca 0,25x, gallina 0,70x), y jugar así es arrastrarse. Se conserva el **orden real**

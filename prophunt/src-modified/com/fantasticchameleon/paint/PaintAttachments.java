@@ -51,6 +51,10 @@ public final class PaintAttachments {
    public static final FantasticAttachment<EntityPropSnapshot> ENTITY_PROP = FantasticAttachment.synced(
       "entity_prop", () -> EntityPropSnapshot.NONE, EntityPropSnapshot.STREAM_CODEC
    );
+   /** Velocidad de marcha derivada de la misma distancia server-side que dispara los pasos. */
+   public static final FantasticAttachment<PropMotionState> PROP_MOTION = FantasticAttachment.synced(
+      "prop_motion", () -> PropMotionState.IDLE, PropMotionState.STREAM_CODEC
+   );
    /** Tick de servidor del último gesto V, para animarlo de forma visible en todos los clientes. */
    public static final FantasticAttachment<Long> PROP_ACT_TICK = FantasticAttachment.synced("prop_act_tick", () -> -1000L, ByteBufCodecs.LONG);
    /**
@@ -62,6 +66,8 @@ public final class PaintAttachments {
     * como deliberada se arregla el acople y desaparece ese coste.
     */
    public static final FantasticAttachment<Boolean> ATTACHED = FantasticAttachment.synced("attached", () -> Boolean.FALSE, ByteBufCodecs.BOOL);
+   /** Normal exterior de la cara adherida; -1 cuando no existe una superficie concreta. */
+   public static final FantasticAttachment<Integer> ATTACH_FACE = FantasticAttachment.synced("attach_face", () -> -1, ByteBufCodecs.VAR_INT);
    public static final FantasticAttachment<Long> KIT_LAST = FantasticAttachment.persistent("kit_last", () -> 0L, Codec.LONG, true);
    public static final FantasticAttachment<Boolean> SIZE_MINI = FantasticAttachment.persistent("size_mini", () -> Boolean.FALSE, Codec.BOOL, true);
    public static final FantasticAttachment<Boolean> STARTER_BRUSH = FantasticAttachment.persistent("starter_brush", () -> Boolean.FALSE, Codec.BOOL, true);
@@ -90,8 +96,10 @@ public final class PaintAttachments {
       PROP_SOURCE,
       PROP_STATE,
       ENTITY_PROP,
+      PROP_MOTION,
       PROP_ACT_TICK,
       ATTACHED,
+      ATTACH_FACE,
       KIT_LAST,
       SIZE_MINI,
       STARTER_BRUSH,

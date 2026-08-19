@@ -24,8 +24,8 @@ import net.minecraftforge.fml.common.Mod;
 /** Intercepta el clic de acople sólo cuando el cliente sabe que es un hider Meccha activo. */
 @Mod.EventBusSubscriber(modid = "fantastic_chameleon", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class MecchaClientEvents {
-   private static boolean attachedView;
-   private static CameraType previousView;
+   private static boolean cameraWanted;
+   private static boolean userSuppressed;
 
    private MecchaClientEvents() {
    }
@@ -71,31 +71,43 @@ public final class MecchaClientEvents {
 
       Minecraft mc = Minecraft.m_91087_();
       if (mc.f_91074_ == null || mc.f_91066_ == null) {
-         attachedView = false;
-         return;
-      }
-
-      boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.ATTACHED));
-      if (attached && !attachedView) {
-         // Vista libre al quedar pegado: la cámara sale del cuerpo y puedes rodearte para comprobar cómo
-         // te ve el que busca. Con tercera persona fija seguía metiéndose en el bloque.
-         previousView = mc.f_91066_.m_92176_();
-         if (!FreeCam.active()) {
-            FreeCam.enable();
-         }
-
-         attachedView = true;
-      } else if (!attached && attachedView) {
+         cameraWanted = false;
+         userSuppressed = false;
          if (FreeCam.active()) {
             FreeCam.disable();
          }
-
-         mc.f_91066_.m_92157_(previousView == null ? CameraType.FIRST_PERSON : previousView);
-         previousView = null;
-         attachedView = false;
+         JadeOverlay.restore();
+         return;
       }
 
+      boolean locked = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.LOCKED));
+      boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.ATTACHED));
+      boolean want = locked && (attached || WorldBrush.paintMode());
+      if (want && !cameraWanted) {
+         // Nuevo acople confirmado: cualquier supresión de la sesión anterior deja de aplicar.
+         userSuppressed = false;
+      }
+
+      if (want && !userSuppressed) {
+         // Se reintenta mientras falte: ATTACHED y LOCKED viajan por paquetes separados y antes se
+         // perdía para siempre la activación si llegaban en el orden opuesto.
+         if (!FreeCam.active()) {
+            FreeCam.enable();
+         }
+      } else if (!want && FreeCam.active()) {
+         FreeCam.disable();
+      }
+
+      if (!want) {
+         userSuppressed = false;
+      }
+      cameraWanted = want;
       JadeOverlay.updateForRound();
+   }
+
+   /** Mantiene la cámara apagada al pulsar Esc hasta que el jugador se desacople. */
+   public static void suppressFreeCam() {
+      userSuppressed = true;
    }
 
    private static boolean isTool(ItemStack stack) {

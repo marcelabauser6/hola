@@ -2,9 +2,11 @@ package com.fantasticchameleon.prophunt;
 
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -53,12 +55,35 @@ public final class PropGridSnap {
       return false;
    }
 
-   /** Centro horizontal de la celda que ocupa el jugador, a la altura del suelo de esa celda. */
+   /** Centro horizontal de la celda apoyado en la superficie de colisión real bajo ese centro. */
    public static Vec3 cellCenter(Player player) {
       int bx = Mth.m_14107_(player.m_20185_());
-      int by = Mth.m_14107_(player.m_20186_());
       int bz = Mth.m_14107_(player.m_20189_());
-      return new Vec3((double)bx + 0.5, (double)by, (double)bz + 0.5);
+      return new Vec3((double)bx + 0.5, supportY(player, bx, bz), (double)bz + 0.5);
+   }
+
+   /**
+    * Resuelve la caja del VoxelShape que cubre exactamente x/z=0.5. Esto mantiene al prop sobre
+    * losas, escaleras, vallas y nieve en vez de forzarlo al Y entero de la celda.
+    */
+   private static double supportY(Player player, int bx, int bz) {
+      double current = player.m_20186_();
+      double best = Double.NEGATIVE_INFINITY;
+      int highest = Mth.m_14107_(current + 0.75);
+      int lowest = Mth.m_14107_(current - 1.75);
+      for (int by = highest; by >= lowest; by--) {
+         BlockPos pos = new BlockPos(bx, by, bz);
+         for (AABB box : player.m_9236_().m_8055_(pos).m_60812_(player.m_9236_(), pos).m_83299_()) {
+            if (0.5 >= box.f_82288_ && 0.5 <= box.f_82291_ && 0.5 >= box.f_82290_ && 0.5 <= box.f_82293_) {
+               double top = (double)by + box.f_82292_;
+               if (top <= current + 0.75 && top > best) {
+                  best = top;
+               }
+            }
+         }
+      }
+
+      return Double.isFinite(best) ? best : (double)Mth.m_14107_(current);
    }
 
    /** True si el jugador cabe con su hitbox actual en la posicion destino. */

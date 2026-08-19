@@ -21,6 +21,7 @@ import com.fantasticchameleon.paint.BodyPart;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.FrozenFrame;
 import com.fantasticchameleon.paint.PaintAttachments;
+import com.fantasticchameleon.paint.PropMotionState;
 import com.fantasticchameleon.paint.SkinRegions;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.BodyClip;
@@ -78,54 +79,17 @@ public final class FantasticNetwork {
    /** Modificador de velocidad que adopta el ritmo de la criatura imitada. */
    public static final ResourceLocation PROP_SPEED_ID = new ResourceLocation("fantastic_chameleon", "prop_speed");
    /**
-    * Ritmo real de cada mob, medido en el servidor, como fracción de la velocidad de un jugador andando
-    * (0,2158 bloques por tick).
-    *
-    * <p>Se midió haciendo caminar a los mobs por un suelo despejado durante 160 ticks. El dato importante
-    * es que <b>todos</b> son más lentos que un jugador: una vaca va a la cuarta parte y una araña, de las
-    * más rápidas, a dos tercios. Antes se estimaba a partir del atributo de velocidad tomando el zombi
-    * como equivalente a un jugador, y eso estaba mal.
-    *
-    * <p>Solo están los que se pudieron medir aislados y con fiabilidad. Para el resto se estima desde su
-    * atributo con la pendiente del zombi, acotada al rango observado.
+    * Referencia locomotora vanilla: el zombi (atributo 0,23) camina aproximadamente al ritmo base
+    * esperado por el controlador del jugador. Se conserva la relación real entre atributos, con un
+    * límite defensivo sólo para criaturas acuáticas/voladoras cuyo atributo no representa caminar.
     */
-   private static final Map<String, Double> MEASURED_GAIT = Map.of(
-      "minecraft:zombie", 0.35,
-      "minecraft:cow", 0.25,
-      "minecraft:chicken", 0.70,
-      "minecraft:spider", 0.68,
-      "minecraft:creeper", 0.61,
-      "minecraft:slime", 0.26,
-      "minecraft:enderman", 0.58
-   );
-   /** Pendiente atributo -> ritmo, calibrada con el zombi medido (0,23 de atributo = 0,35 de ritmo). */
-   private static final double GAIT_PER_ATTRIBUTE = 0.35 / 0.23;
-   private static final double MIN_SPEED_RATIO = 0.25;
-   private static final double MAX_SPEED_RATIO = 0.80;
-   /**
-    * Rango jugable al que se traslada el ritmo medido.
-    *
-    * <p>Los mobs de verdad son entre cuatro y una vez y media más lentos que un jugador andando, y jugar
-    * así es insufrible: te pasas la partida arrastrándote. Se conserva el <b>orden</b> real —la vaca es la
-    * más lenta y la gallina la más rápida— pero comprimido a un margen que se puede jugar, de forma que
-    * se note la diferencia entre disfraces sin volverse un castigo.
-    */
-   private static final double PLAYABLE_MIN = 0.80;
-   private static final double PLAYABLE_MAX = 1.05;
-   private static final Map<String, Double> MOB_SPEED = new ConcurrentHashMap<>();
+   private static final double VANILLA_LAND_REFERENCE = 0.23;
+   private static final double MIN_MOB_RATIO = 0.75;
+   private static final double MAX_MOB_RATIO = 1.35;
    public static final int POSE_COUNT = PoseDefs.count();
    public static final int BLOCK_POSE = 8;
    public static final int FREEZE_POSE = -1;
    private static final Map<UUID, Vec3> SAFE_POS = new ConcurrentHashMap<>();
-   /** Lo que el cuerpo se hunde en el bloque al acoplarse, para que no se vea una junta de aire. */
-   /**
-    * Media profundidad del torso, en bloques: el modelo tiene 4 píxeles de fondo, o sea 0,25.
-    *
-    * <p>Este es el desplazamiento correcto para quedar pegado: la espalda toca exactamente la superficie
-    * del bloque y el cuerpo no se mete dentro. Antes se hundía el cuerpo entero hasta el plano de la
-    * superficie, y por eso también en tercera persona se veía metido en el bloque.
-    */
-   private static final double BODY_HALF_DEPTH = 0.06;
 
    private FantasticNetwork() {
    }
@@ -316,51 +280,78 @@ public final class FantasticNetwork {
    }
 
    public static void handlePose(PosePayload payload, ServerPlayer player) {
-      if (!throttled(player, 1)) {
-         if (payload.posing() && PropHunt.isPropHunt(player)) {
-            // Prop Hunt no usa poses humanas. Validarlo aquí impide que un cliente modificado
-            // adopte una hitbox pequeña de Meccha como seeker, espectador o hider.
-            resetPose(player);
-            Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
+      if (throttled(player, 1)) {
+         int currentPose = Services.PLATFORM.get(player, PaintAttachments.POSE);
+         boolean currentPosing = Services.PLATFORM.get(player, PaintAttachments.POSING);
+         if (payload.posing() && (!currentPosing || payload.pose() != currentPose)) {
+            rejectPose(player, "fantastic.pose.not_available");
+         }
+         return;
+      }
+
+      if (payload.posing() && PropHunt.isPropHunt(player)) {
+         // Rechazar la solicitud no debe borrar el disfraz de Prop Hunt.
+         rejectPose(player, "fantastic.prophunt.mode_only");
+         return;
+      }
+
+      if (!payload.posing()) {
+         resetPose(player);
+         return;
+      }
+
+      int newPose = payload.pose();
+      if (!PoseDefs.selectable(newPose)) {
+         rejectPose(player, "fantastic.pose.not_available");
+         return;
+      }
+
+      Integer wornProp = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
+      if (wornProp != null && wornProp >= 0) {
+         rejectPose(player, "fantastic.pose.leave_prop");
+         return;
+      }
+
+      if (Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.BLOCK_FORM))) {
+         Rooms.leaveBlockPose(player);
+      }
+
+      boolean locked = Services.PLATFORM.get(player, PaintAttachments.LOCKED);
+      Vec3 anchor = null;
+      if (GlobalSettings.clipGuard() && locked) {
+         float yaw = Services.PLATFORM.get(player, PaintAttachments.LOCK_YAW);
+         Optional<Vec3> valid = BodyClip.findValidPosition(
+            player.m_9236_(), player.m_20182_(), yaw, LockTick.pitchOf(player), LockTick.rollOf(player),
+            newPose, (double)ArmorPaintHandler.scaleOf(player)
+         );
+         if (valid.isEmpty()) {
+            rejectPose(player, "fantastic.pose.tight");
             return;
          }
-
-         if (!payload.posing()) {
-            resetPose(player);
-         } else {
-            Integer wornProp = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
-            if (wornProp == null || wornProp < 0) {
-               int newPose = Math.floorMod(payload.pose(), POSE_COUNT);
-               if (newPose != 8) {
-                  if (Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.BLOCK_FORM))) {
-                     Rooms.leaveBlockPose(player);
-                  }
-
-                  if (GlobalSettings.clipGuard() && Services.PLATFORM.get(player, PaintAttachments.LOCKED)) {
-                     float yaw = Services.PLATFORM.get(player, PaintAttachments.LOCK_YAW);
-                     Optional<Vec3> valid = BodyClip.findValidPosition(
-                        player.m_9236_(), player.m_20182_(), yaw, LockTick.pitchOf(player), LockTick.rollOf(player), newPose, 1.0
-                     );
-                     if (valid.isPresent()) {
-                        Vec3 v = valid.get();
-                        player.m_6021_(v.f_82479_, v.f_82480_, v.f_82481_);
-                     } else {
-                        player.m_5661_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
-                     }
-                  }
-
-                  if (!Services.PLATFORM.get(player, PaintAttachments.POSING) && !Services.PLATFORM.get(player, PaintAttachments.LOCKED)) {
-                     SAFE_POS.put(player.m_20148_(), player.m_20182_());
-                  }
-
-                  Services.PLATFORM.set(player, PaintAttachments.POSING, true);
-                  Services.PLATFORM.set(player, PaintAttachments.POSE, newPose);
-                  player.m_6210_();
-                  FantasticAdvancements.award(player, "pose");
-               }
-            }
-         }
+         anchor = valid.get();
       }
+
+      if (!Services.PLATFORM.get(player, PaintAttachments.POSING) && !locked) {
+         SAFE_POS.put(player.m_20148_(), player.m_20182_());
+      }
+
+      Services.PLATFORM.set(player, PaintAttachments.POSING, true);
+      Services.PLATFORM.set(player, PaintAttachments.POSE, newPose);
+      player.m_6210_();
+      if (anchor != null) {
+         // Cambiar pose y ancla es una sola transición. Antes LockTick conservaba el ancla vieja y
+         // devolvía al jugador en el tick siguiente, haciendo parecer que la pose no se aplicaba.
+         LockTick.reanchor(player, anchor);
+      }
+      FantasticAdvancements.award(player, "pose");
+   }
+
+   private static void rejectPose(ServerPlayer player, String messageKey) {
+      // La rueda actualiza optimistamente el cliente; reafirmar ambos valores autoritativos evita que
+      // se quede mostrando una pose que el servidor rechazó.
+      Services.PLATFORM.set(player, PaintAttachments.POSING, Services.PLATFORM.get(player, PaintAttachments.POSING));
+      Services.PLATFORM.set(player, PaintAttachments.POSE, Services.PLATFORM.get(player, PaintAttachments.POSE));
+      player.m_240418_(Component.m_237115_(messageKey).m_130940_(ChatFormatting.YELLOW), true);
    }
 
    public static void resetPose(Player player) {
@@ -463,18 +454,14 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.POSING, true);
       Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
       Services.PLATFORM.set(player, PaintAttachments.ATTACHED, true);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, payload.face().m_122411_());
       LockTick.clearTilt(player);
       player.m_6210_();
 
-      // Pegado de verdad: se mide el cuerpo que se ve, no la hitbox. El torso solo tiene 0,15 de
-      // fondo mientras la caja mide 0,3 de medio ancho, así que separar por la caja dejaba un hueco
-      // visible de 0,15 contra la pared. El solape de hitbox resultante es deliberado y está cubierto
-      // por la excepción ATTACHED.
-      double half = BODY_HALF_DEPTH * (double)ArmorPaintHandler.scaleOf(player);
-      // La superficie real del bloque, no el borde de su celda: una valla ocupa de 0,375 a 0,625 y un
-      // panel de cristal es aún más fino, así que pegarse al borde de la celda dejaba al jugador
-      // flotando en el aire y la comprobación de hueco no cuadraba. Se usa la caja del propio bloque.
-      Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), half);
+      // El plano central del cuerpo se alinea con la superficie, tal como se ve en la textura. Así
+      // desaparece la geometría que sobresalía; la colisión de cámara se resuelve de forma separada.
+      double surfaceOffset = 0.0;
+      Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), surfaceOffset);
       if (target == null || !outwardClear(player, payload.face(), target)) {
          restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame);
          player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
@@ -660,6 +647,8 @@ public final class FantasticNetwork {
             Integer propNow = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
             EntityPropSnapshot entityNow = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
             boolean capturedEntity = entityNow != null && entityNow.present();
+            // Cada intento empieza sin acople; las ramas exitosas lo marcan después de validar geometría.
+            Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
             if (PropHunt.isPropHunt(player) && (propNow != null && propNow >= 0 || capturedEntity)) {
                // Un prop tiene que quedar centrado en su celda, no pegado a la pared como la
                // silueta pintada del modo clasico. Los bloques mantienen la orientacion de su
@@ -671,6 +660,10 @@ public final class FantasticNetwork {
                   player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
                   return;
                }
+               // El grid snap de Prop Hunt también es un acople confirmado: habilita freecam y la
+               // excepción deliberada del guardia hasta que se desacople.
+               Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.TRUE);
+               Services.PLATFORM.set(player, PaintAttachments.ATTACH_FACE, Direction.UP.m_122411_());
             } else {
                placeAgainstCover(player, yaw);
             }
@@ -693,10 +686,10 @@ public final class FantasticNetwork {
          Direction cover = nearestCover(sp);
          if (cover != null) {
             BlockPos block = sp.m_20183_().m_121945_(cover);
-            double half = BODY_HALF_DEPTH * (double)ArmorPaintHandler.scaleOf(sp);
-            Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), half);
+            Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), 0.0);
             if (target != null && outwardClear(sp, cover.m_122424_(), target)) {
                Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
+               Services.PLATFORM.set(sp, PaintAttachments.ATTACH_FACE, cover.m_122424_().m_122411_());
                LockTick.reanchor(sp, target);
                return;
             }
@@ -802,37 +795,23 @@ public final class FantasticNetwork {
    }
 
    /**
-    * El disfraz se mueve al ritmo del bicho: una vaca va más lenta que tú y una araña más rápida.
-    *
-    * <p>La velocidad base de los mobs no está en la misma escala que la del jugador, así que se traduce
-    * tomando el zombi como referencia —se mueve casi igual que un jugador andando— y se acota, porque los
-    * que saltan o nadan usan ese valor de otra manera.
+    * Adopta la relación de velocidad del atributo de la criatura capturada, sin tablas medidas ni una
+    * segunda compresión arbitraria. El dato sale de la instancia real (incluida su variante/NBT).
     */
-   private static void applyMobSpeed(ServerPlayer player, String typeId) {
+   private static void applyMobSpeed(ServerPlayer player, float capturedSpeed) {
       AttributeInstance speed = player.m_21051_(Attributes.f_22279_);
       if (speed == null) {
          return;
       }
 
       Attr.remove(speed, PROP_SPEED_ID);
-      Double measured = MEASURED_GAIT.get(typeId);
-      double ratio;
-      if (measured != null) {
-         ratio = measured;
-      } else {
-         double base = mobSpeed(player, typeId);
-         if (base <= 0.0) {
-            return;
-         }
-
-         ratio = Mth.m_14008_(base * GAIT_PER_ATTRIBUTE, MIN_SPEED_RATIO, MAX_SPEED_RATIO);
+      if (!Float.isFinite(capturedSpeed) || capturedSpeed <= 0.0F) {
+         return;
       }
 
-      double span = MAX_SPEED_RATIO - MIN_SPEED_RATIO;
-      double normalised = span <= 0.0 ? 1.0 : (Mth.m_14008_(ratio, MIN_SPEED_RATIO, MAX_SPEED_RATIO) - MIN_SPEED_RATIO) / span;
-      double playable = PLAYABLE_MIN + normalised * (PLAYABLE_MAX - PLAYABLE_MIN);
-      if (Math.abs(playable - 1.0) > 0.01) {
-         speed.m_22118_(Attr.modifier(PROP_SPEED_ID, playable - 1.0, Operation.MULTIPLY_TOTAL));
+      double ratio = Mth.m_14008_(capturedSpeed / VANILLA_LAND_REFERENCE, MIN_MOB_RATIO, MAX_MOB_RATIO);
+      if (Math.abs(ratio - 1.0) > 0.01) {
+         speed.m_22118_(Attr.modifier(PROP_SPEED_ID, ratio - 1.0, Operation.MULTIPLY_TOTAL));
       }
    }
 
@@ -844,30 +823,6 @@ public final class FantasticNetwork {
       }
    }
 
-   /** Velocidad base del tipo, leída una sola vez por tipo de una instancia desechable. */
-   private static double mobSpeed(ServerPlayer player, String typeId) {
-      return MOB_SPEED.computeIfAbsent(typeId, id -> {
-         try {
-            EntityType<?> type = BuiltInRegistries.f_256780_.m_7745_(new ResourceLocation(id));
-            if (type == null) {
-               return 0.0;
-            }
-
-            Entity probe = type.m_20615_(player.m_284548_());
-            if (!(probe instanceof LivingEntity living)) {
-               return 0.0;
-            }
-
-            AttributeInstance attr = living.m_21051_(Attributes.f_22279_);
-            double value = attr == null ? 0.0 : attr.m_22115_();
-            probe.m_146870_();
-            return value;
-         } catch (RuntimeException ignored) {
-            return 0.0;
-         }
-      });
-   }
-
    public static void clearProp(ServerPlayer player) {
       clearMobSpeed(player);
       Services.PLATFORM.set(player, PaintAttachments.PROP, -1);
@@ -875,6 +830,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
       Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
       Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, EntityPropSnapshot.NONE);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, PropMotionState.IDLE);
       Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
       Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, BodyCanvas.EMPTY);
       player.m_6210_();
@@ -885,6 +841,7 @@ public final class FantasticNetwork {
     */
    public static void applyProp(ServerPlayer player, int propIdx, int variantIdx) {
       Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, EntityPropSnapshot.NONE);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, PropMotionState.IDLE);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
       Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
       applyPropInternal(player, propIdx, variantIdx);
@@ -915,9 +872,10 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, BodyCanvas.EMPTY);
       Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
       Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, snapshot);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, PropMotionState.IDLE);
       Services.PLATFORM.set(player, PaintAttachments.SIZE_MINI, Boolean.FALSE);
       ArmorPaintHandler.updateShrink(player);
-      applyMobSpeed(player, snapshot.typeId());
+      applyMobSpeed(player, snapshot.movementSpeed());
       player.m_6210_();
       FantasticAdvancements.award(player, "block");
    }

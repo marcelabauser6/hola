@@ -5,10 +5,13 @@ import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.network.PropActPayload;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.PaintAttachments;
+import com.fantasticchameleon.paint.PropMotionState;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.PropShapes;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
@@ -42,9 +45,10 @@ public final class PropHuntActs {
    private static final Map<UUID, Long> NEXT_AMBIENT = new ConcurrentHashMap<>();
    private static final Map<String, Optional<SoundEvent>> CAPTURED_VOICE = new ConcurrentHashMap<>();
    private static final Map<String, Optional<SoundEvent>> STEP_VOICE = new ConcurrentHashMap<>();
-   private static final Map<UUID, double[]> STEP = new ConcurrentHashMap<>();
-   /** Un paso cada 0,6 bloques recorridos: la cadencia con la que se oyen los mobs al andar. */
+   private static final Map<UUID, Motion> MOTION = new ConcurrentHashMap<>();
+   /** Distancia física entre pasos; la misma medición determina también la velocidad de las patas. */
    private static final double STEP_DISTANCE = 0.6;
+   private static final double TELEPORT_DISTANCE = 1.5;
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -230,33 +234,69 @@ public final class PropHuntActs {
     * del tipo capturado ({@code entity.<tipo>.step}); si ese tipo no tiene uno, se usa el del bloque que
     * se pisa, que es exactamente lo que hacen los mobs sin sonido propio.
     */
-   public static void stepTick(ServerPlayer player) {
+   /**
+    * Actualiza una sola vez por tick la marcha autoritativa de la criatura imitada.
+    *
+    * <p>La distancia de aquí alimenta simultáneamente la velocidad que reciben los renderers y el
+    * umbral de sonido. No existe ya un segundo acumulador cliente ni un muestreo de un segundo que
+    * pueda dejar pasos en cola después de detenerse.
+    */
+   public static void motionTick(ServerPlayer player) {
       EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
-      if (snapshot == null || !snapshot.present() || player.m_5833_()) {
-         STEP.remove(player.m_20148_());
+      Room room = Rooms.roomOf(player);
+      if (snapshot == null || !snapshot.present() || player.m_5833_() || room == null || !room.canUseProp(player.m_20148_())) {
+         Motion removed = MOTION.remove(player.m_20148_());
+         PropMotionState current = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_MOTION);
+         if (removed != null || current != null && current.speed() != 0.0F) {
+            Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, PropMotionState.IDLE);
+         }
          return;
       }
 
-      double[] state = STEP.get(player.m_20148_());
-      if (state == null) {
-         state = new double[]{0.0, player.m_20185_(), player.m_20189_()};
-         STEP.put(player.m_20148_(), state);
-      }
-
-      double dx = player.m_20185_() - state[1];
-      double dz = player.m_20189_() - state[2];
-      state[1] = player.m_20185_();
-      state[2] = player.m_20189_();
-      // Misma fórmula que usa el juego para decidir cuándo suena un paso: acumula la distancia recorrida
-      // multiplicada por 0,6 y suena al llegar a 1. Con eso el ritmo coincide con el de cualquier mob en
-      // vez de ser una cadencia inventada. La distancia se acumula también en el aire (no suena, pero no
-      // se pierde), porque al caminar se deja de tocar el suelo constantemente.
-      state[0] = state[0] + Math.sqrt(dx * dx + dz * dz) * 0.6;
-      if (state[0] < 1.0 || !player.m_20096_()) {
+      Motion state = MOTION.get(player.m_20148_());
+      int signature = snapshot.hashCode();
+      if (state == null || state.snapshotSignature != signature) {
+         state = new Motion(signature, player.m_20185_(), player.m_20189_());
+         MOTION.put(player.m_20148_(), state);
+         Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, PropMotionState.IDLE);
          return;
       }
 
-      state[0] = state[0] - 1.0;
+      double dx = player.m_20185_() - state.x;
+      double dz = player.m_20189_() - state.z;
+      state.x = player.m_20185_();
+      state.z = player.m_20189_();
+      double distance = Math.sqrt(dx * dx + dz * dz);
+      if (!Double.isFinite(distance) || distance > TELEPORT_DISTANCE) {
+         state.stepDistance = 0.0;
+         distance = 0.0;
+      }
+
+      float walk = (float)Math.min(1.0, distance * 4.0);
+      boolean starting = walk > 0.0F && state.lastSpeed == 0.0F;
+      boolean stopping = walk == 0.0F && state.lastSpeed > 0.0F;
+      state.ticksSinceSync++;
+      // Inicio y parada se publican en el mismo tick; durante marcha bastan 10 Hz porque el renderer
+      // conserva la velocidad entre muestras. Así se evita una difusión cuadrática a 20 Hz.
+      if (starting || stopping || walk > 0.0F && state.ticksSinceSync >= 2) {
+         Services.PLATFORM.set(player, PaintAttachments.PROP_MOTION, new PropMotionState(walk));
+         state.ticksSinceSync = 0;
+      }
+      state.lastSpeed = walk;
+
+      if (!player.m_20096_() || distance <= 0.0) {
+         return;
+      }
+
+      state.stepDistance += distance;
+      int emitted = 0;
+      while (state.stepDistance >= STEP_DISTANCE && emitted++ < 2) {
+         state.stepDistance -= STEP_DISTANCE;
+         playStep(player, snapshot);
+      }
+   }
+
+   private static void playStep(ServerPlayer player, EntityPropSnapshot snapshot) {
       ServerLevel level = player.m_284548_();
       BlockPos below = player.m_20183_().m_7495_();
       SoundType ground = level.m_8055_(below).m_60827_();
@@ -394,5 +434,31 @@ public final class PropHuntActs {
    private static boolean throttled(ServerPlayer player) {
       Long last = LAST_ACT.get(player.m_20148_());
       return last != null && player.m_9236_().m_46467_() - last < COOLDOWN;
+   }
+
+   /** Elimina todo estado por jugador que ya no está conectado; se ejecuta con el refresco de sala. */
+   public static void sweep(Iterable<ServerPlayer> players) {
+      Set<UUID> online = new HashSet<>();
+      for (ServerPlayer player : players) {
+         online.add(player.m_20148_());
+      }
+      MOTION.keySet().removeIf(id -> !online.contains(id));
+      LAST_ACT.keySet().removeIf(id -> !online.contains(id));
+      NEXT_AMBIENT.keySet().removeIf(id -> !online.contains(id));
+   }
+
+   private static final class Motion {
+      final int snapshotSignature;
+      double x;
+      double z;
+      double stepDistance;
+      float lastSpeed;
+      int ticksSinceSync;
+
+      Motion(int snapshotSignature, double x, double z) {
+         this.snapshotSignature = snapshotSignature;
+         this.x = x;
+         this.z = z;
+      }
    }
 }

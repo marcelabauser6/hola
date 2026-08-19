@@ -14,9 +14,9 @@ import net.minecraft.network.FriendlyByteBuf;
  * el equipo o variante de la captura anterior. Las dimensiones se calculan en el servidor y se usan
  * tambien para la hitbox del jugador disfrazado.
  */
-public record EntityPropSnapshot(String typeId, CompoundTag tag, float width, float height, float eyeHeight) {
+public record EntityPropSnapshot(String typeId, CompoundTag tag, float width, float height, float eyeHeight, float movementSpeed) {
    public static final int MAX_NBT_BYTES = 65536;
-   public static final EntityPropSnapshot NONE = new EntityPropSnapshot("", new CompoundTag(), 0.6F, 1.8F, 1.62F);
+   public static final EntityPropSnapshot NONE = new EntityPropSnapshot("", new CompoundTag(), 0.6F, 1.8F, 1.62F, 0.0F);
 
    public static final StreamCodec<ByteBuf, EntityPropSnapshot> STREAM_CODEC = StreamCodec.of(
       EntityPropSnapshot::encode,
@@ -29,6 +29,7 @@ public record EntityPropSnapshot(String typeId, CompoundTag tag, float width, fl
       width = validDimension(width, 0.6F);
       height = validDimension(height, 1.8F);
       eyeHeight = validEye(eyeHeight, height);
+      movementSpeed = Float.isFinite(movementSpeed) && movementSpeed > 0.0F && movementSpeed <= 4.0F ? movementSpeed : 0.0F;
    }
 
    public boolean present() {
@@ -46,6 +47,7 @@ public record EntityPropSnapshot(String typeId, CompoundTag tag, float width, fl
       raw.writeFloat(value.width);
       raw.writeFloat(value.height);
       raw.writeFloat(value.eyeHeight);
+      raw.writeFloat(value.movementSpeed);
    }
 
    private static EntityPropSnapshot decode(ByteBuf raw) {
@@ -55,7 +57,8 @@ public record EntityPropSnapshot(String typeId, CompoundTag tag, float width, fl
       float width = raw.readFloat();
       float height = raw.readFloat();
       float eye = raw.readFloat();
-      return new EntityPropSnapshot(type, tag, width, height, eye);
+      float movementSpeed = raw.readFloat();
+      return new EntityPropSnapshot(type, tag, width, height, eye, movementSpeed);
    }
 
    private static float validDimension(float value, float fallback) {

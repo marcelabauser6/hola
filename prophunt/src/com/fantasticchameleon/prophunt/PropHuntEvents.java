@@ -71,14 +71,18 @@ public final class PropHuntEvents {
    @SubscribeEvent
    public static void onServerTick(TickEvent.ServerTickEvent event) {
       if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
-         if (++tick % REFRESH_INTERVAL == 0) {
-            for (ServerPlayer player : event.getServer().m_6846_().m_11314_()) {
+         tick++;
+         for (ServerPlayer player : event.getServer().m_6846_().m_11314_()) {
+            // Movimiento y pasos comparten esta medición por tick. No volver a meterla dentro del
+            // refresco de 20 ticks: ésa era la causa del segundo de retraso y de los pasos en cola.
+            PropHuntActs.motionTick(player);
+            if (tick % REFRESH_INTERVAL == 0) {
                PropHunt.refresh(player);
-               // Las criaturas disfrazadas suenan por su cuenta cada tanto, como los mobs de verdad.
                PropHuntActs.ambientTick(player);
-               // Y hacen ruido al andar: una araña o un zombi en silencio delatan el disfraz.
-               PropHuntActs.stepTick(player);
             }
+         }
+         if (tick % REFRESH_INTERVAL == 0) {
+            PropHuntActs.sweep(event.getServer().m_6846_().m_11314_());
          }
       }
    }

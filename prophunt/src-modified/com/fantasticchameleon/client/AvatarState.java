@@ -5,6 +5,7 @@ import com.fantasticchameleon.item.ChameleonArmor;
 import com.fantasticchameleon.paint.BodyCanvas;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.FrozenFrame;
+import com.fantasticchameleon.paint.PropMotionState;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.PropShapes;
@@ -178,6 +179,11 @@ public final class AvatarState {
    public static EntityPropSnapshot entityProp(Player player) {
       EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
       return snapshot == null ? EntityPropSnapshot.NONE : snapshot;
+   }
+
+   public static PropMotionState propMotion(Player player) {
+      PropMotionState motion = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_MOTION);
+      return motion == null ? PropMotionState.IDLE : motion;
    }
 
    public static boolean fullyDisguised(Player player) {

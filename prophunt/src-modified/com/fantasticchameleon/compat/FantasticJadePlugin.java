@@ -1,6 +1,7 @@
 package com.fantasticchameleon.compat;
 
 import com.fantasticchameleon.client.AvatarState;
+import com.fantasticchameleon.client.RoundBar;
 import com.fantasticchameleon.prophunt.PropHuntClient;
 import com.fantasticchameleon.pose.PropShapes;
 import net.minecraft.core.Direction;
@@ -39,6 +40,12 @@ public class FantasticJadePlugin implements IWailaPlugin {
       Accessor<?> accessor,
       Accessor<?> originalAccessor
    ) {
+      // Durante la ronda no se entrega ningún accessor: no sólo se oculta el jugador disfrazado,
+      // también desaparece la ficha de bloques que se dibujaba encima del marcador.
+      if (RoundBar.inRound()) {
+         return null;
+      }
+
       // originalAccessor es inmutable a través de la cadena de callbacks de Jade; usarlo evita que el
       // resultado dependa del orden de otros addons.
       if (!(originalAccessor instanceof EntityAccessor entityAccessor)) {

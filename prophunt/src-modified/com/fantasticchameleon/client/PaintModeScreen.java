@@ -227,10 +227,15 @@ public final class PaintModeScreen extends Screen {
 
    private float fitScale() {
       int gw = Minecraft.m_91087_().m_91268_().m_85445_();
+      int gh = Minecraft.m_91087_().m_91268_().m_85446_();
       float u = ui();
       float needed = 190.0F * u * 0.9F + 8.0F + this.rightColumnAtFullScale(u);
-      float available = (float)Math.max(80, gw - 8);
-      return needed <= available ? 1.0F : Math.max(0.5F, available / needed);
+      float available = (float)Math.max(60, gw - 8);
+      float widthFit = needed <= available ? 1.0F : available / needed;
+      int[] wh = ControlHints.measureLegend(this.f_96547_, null, this.legendRows());
+      int tallest = Math.max(Math.max(Math.max(this.pickerBottom(), mapBottom()), this.hideBottom()), 19 + wh[1]);
+      float heightFit = (float)Math.max(40, gh - 8) / ((float)tallest * u);
+      return Math.max(0.35F, Math.min(1.0F, Math.min(widthFit, heightFit)));
    }
 
    private float rightColumnAtFullScale(float u) {
@@ -243,17 +248,84 @@ public final class PaintModeScreen extends Screen {
       return p == this.pickerPanel ? 0.9F * fit : (p == this.legendPanel ? 0.85F : 1.0F) * fit;
    }
 
+   private int pickerBottom() {
+      return Math.max(this.picker.bottom(), LAYER_Y + 14) + 4;
+   }
+
+   private int panelWidth(PaintModeScreen.Panel p) {
+      if (p == this.pickerPanel) {
+         return 182;
+      }
+      if (p == this.mapPanel) {
+         return MAP_SIZE + 8;
+      }
+      if (p == this.hidePanel) {
+         return this.hideW();
+      }
+      return ControlHints.measureLegend(this.f_96547_, null, this.legendRows())[0] + 8;
+   }
+
+   private int panelHeight(PaintModeScreen.Panel p) {
+      if (p == this.pickerPanel) {
+         return this.pickerBottom();
+      }
+      if (p == this.mapPanel) {
+         return mapBottom();
+      }
+      if (p == this.hidePanel) {
+         return this.hideBottom();
+      }
+      return 19 + ControlHints.measureLegend(this.f_96547_, null, this.legendRows())[1];
+   }
+
+   private int panelScreenWidth(PaintModeScreen.Panel p) {
+      return Math.max(1, (int)Math.ceil((double)this.panelWidth(p) * (double)p.eff()));
+   }
+
+   private int panelScreenHeight(PaintModeScreen.Panel p) {
+      return Math.max(1, (int)Math.ceil(
+         (double)this.panelHeight(p) * (double)p.eff() + 13.0 * (double)ui() * (1.0 - (double)p.scale)
+      ));
+   }
+
+   private int panelFrameX1(PaintModeScreen.Panel p) {
+      return p == this.pickerPanel ? 4 : 0;
+   }
+
+   private int panelFrameY1(PaintModeScreen.Panel p) {
+      return p == this.pickerPanel ? 6 : 2;
+   }
+
+   private boolean panelContains(PaintModeScreen.Panel p, double rawX, double rawY) {
+      if (p.min) {
+         return false;
+      }
+      double left = (double)p.offX + (double)this.panelFrameX1(p) * (double)p.eff();
+      double top = (double)p.offY + (double)this.panelFrameY1(p) * (double)p.eff();
+      double right = (double)p.offX + (double)this.panelWidth(p) * (double)p.eff();
+      double bottom = (double)p.offY + (double)this.panelScreenHeight(p);
+      return rawX >= left && rawX < right && rawY >= top && rawY < bottom;
+   }
+
    private void ensurePlaced() {
       int gw = Minecraft.m_91087_().m_91268_().m_85445_();
       int gh = Minecraft.m_91087_().m_91268_().m_85446_();
+      float u = ui();
 
       for (PaintModeScreen.Panel p : this.panels()) {
          if (!p.placed) {
             this.placeDefault(p);
          }
 
-         p.offX = Math.max(0, Math.min(p.offX, gw - 24));
-         p.offY = Math.max(0, Math.min(p.offY, gh - 24));
+         // Se limita el rectángulo completo, no sólo una esquina de 24 px. También se reduce una
+         // escala persistida de otra resolución antes de colocarla.
+         float fitW = (float)Math.max(24, gw - 8) / ((float)this.panelWidth(p) * u);
+         float fitH = (float)Math.max(24, gh - 8) / ((float)this.panelHeight(p) * u + 13.0F * u * (1.0F - p.scale));
+         p.scale = Math.max(0.35F, Math.min(p.scale, Math.min(fitW, fitH)));
+         int sw = Math.min(gw, this.panelScreenWidth(p));
+         int sh = Math.min(gh, this.panelScreenHeight(p));
+         p.offX = Math.max(0, Math.min(p.offX, Math.max(0, gw - sw)));
+         p.offY = Math.max(0, Math.min(p.offY, Math.max(0, gh - sh)));
       }
    }
 
@@ -339,7 +411,7 @@ public final class PaintModeScreen extends Screen {
       if (btn >= 0) {
          switch (btn) {
             case 0:
-               p.scale = Math.max(0.5F, p.scale - 0.1F);
+               p.scale = Math.max(0.35F, p.scale - 0.1F);
                p.save();
                break;
             case 1:
@@ -434,12 +506,10 @@ public final class PaintModeScreen extends Screen {
          boolean overMap = mapVisible && this.mapContains(p2x, p2y);
          boolean overPicker = this.picker.contains(p1x, p1y);
          boolean overNudge = this.nudgeContains(p1x, p1y);
-         boolean overPanels = overPicker
-            || overNudge
-            || this.onBorder(this.pickerPanel, 4, 6, 182, pickerBottom, (double)mouseX, (double)mouseY)
-            || mapVisible && this.onBorder(this.mapPanel, 0, 2, MAP_SIZE + 8, mapBottom(), (double)mouseX, (double)mouseY)
-            || !this.legendPanel.min && this.onBorder(this.legendPanel, 0, 2, legWh[0] + 8, 17 + legWh[1] + 2, (double)mouseX, (double)mouseY)
-            || hideVisible && this.hideContains(p4x, p4y);
+         boolean overPanels = this.panelContains(this.pickerPanel, (double)mouseX, (double)mouseY)
+            || mapVisible && this.panelContains(this.mapPanel, (double)mouseX, (double)mouseY)
+            || !this.legendPanel.min && this.panelContains(this.legendPanel, (double)mouseX, (double)mouseY)
+            || hideVisible && this.panelContains(this.hidePanel, (double)mouseX, (double)mouseY);
          boolean spaceDown = InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          boolean textureTool = ClientPaintState.isTextureTool(ClientPaintState.tool());
          if (!textureTool && !overMap && !overPanels) {
@@ -1573,6 +1643,13 @@ public final class PaintModeScreen extends Screen {
                this.paintMap(p2x, p2y);
                this.mapPainting = true;
                return true;
+            } else if (this.panelContains(this.pickerPanel, event.x(), event.y())
+               || mapShown && this.panelContains(this.mapPanel, event.x(), event.y())
+               || !this.legendPanel.min && this.panelContains(this.legendPanel, event.x(), event.y())
+               || hideShown && this.panelContains(this.hidePanel, event.x(), event.y())) {
+               // El interior visible de una ventana consume el clic aunque sea un hueco: antes esos
+               // huecos pintaban el mundo o activaban la pipeta detrás del panel.
+               return true;
             } else if (event.button() == 0 && !BodyPaint.hasCursor() && MoveGizmo.press(event.x(), event.y())) {
                return true;
             } else if (event.button() == 0 && !BodyPaint.hasCursor() && RotateGizmo.press(event.x(), event.y())) {
@@ -1597,6 +1674,7 @@ public final class PaintModeScreen extends Screen {
          if (p.dragging) {
             p.offX = p.offX + (int)Math.round(dragX);
             p.offY = p.offY + (int)Math.round(dragY);
+            this.ensurePlaced();
             return true;
          }
       }
@@ -1740,7 +1818,7 @@ public final class PaintModeScreen extends Screen {
          this.tabY = tabY;
          if (WindowLayouts.has(key)) {
             WindowLayouts.Layout l = WindowLayouts.get(key);
-            this.scale = Math.max(0.5F, Math.min(2.0F, l.scale));
+            this.scale = Math.max(0.35F, Math.min(2.0F, l.scale));
             this.offX = l.offX;
             this.offY = l.offY;
             this.min = canMin && l.min;

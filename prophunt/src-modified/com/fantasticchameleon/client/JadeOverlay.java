@@ -1,88 +1,113 @@
 package com.fantasticchameleon.client;
 
 import java.lang.reflect.Method;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent.LoggingOut;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
- * Apaga la ficha de Jade mientras hay una ronda en marcha, y la devuelve al terminar.
+ * Apaga la ficha completa de Jade mientras hay una ronda en marcha y restaura exactamente la
+ * preferencia que tenía el usuario al salir.
  *
- * <p>La ficha de Jade se dibuja arriba en el centro, justo encima del marcador de la ronda, y lo tapaba.
- * Durante la partida no aporta nada y estorba, así que se apaga para todos los que jueguen.
- *
- * <p>Se hace por reflexión a propósito: Jade es opcional y no forma parte de las dependencias con las que
- * se compila este mod, de modo que no puede referenciarse su API directamente sin obligar a tenerlo
- * instalado. Si no está, o si cambia su API, esto no hace nada y el resto sigue funcionando igual.
+ * <p>Jade es opcional, por eso la configuración se consulta por reflexión. A diferencia de la
+ * implementación anterior, un intento temprano fallido no desactiva esta integración para siempre:
+ * se limpia la caché y se vuelve a resolver cuando Jade ya terminó de inicializarse.
  */
+@Mod.EventBusSubscriber(modid = "fantastic_chameleon", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class JadeOverlay {
-   private static Boolean available;
    private static Method setDisplayTooltip;
+   private static Method shouldDisplayTooltip;
    private static Object general;
+   private static Boolean previousDisplay;
    private static boolean hidden;
 
    private JadeOverlay() {
    }
 
    public static void updateForRound() {
-      boolean inRound = RoundBar.inRound();
-      if (inRound == hidden) {
+      if (RoundBar.inRound()) {
+         hide();
+      } else {
+         restore();
+      }
+   }
+
+   private static void hide() {
+      if (hidden || !resolve()) {
          return;
       }
 
-      if (apply(!inRound)) {
-         hidden = inRound;
+      try {
+         previousDisplay = (Boolean)shouldDisplayTooltip.invoke(general);
+         setDisplayTooltip.invoke(general, false);
+         hidden = true;
+      } catch (ReflectiveOperationException | RuntimeException ignored) {
+         clearResolution();
       }
    }
 
-   /** Devuelve la ficha al estado normal; se llama al salir de la partida o del mundo. */
+   /** Devuelve la opción de Jade al valor anterior, también al desconectar en mitad de una ronda. */
    public static void restore() {
-      if (hidden && apply(true)) {
-         hidden = false;
+      if (!hidden) {
+         return;
       }
-   }
 
-   private static boolean apply(boolean show) {
       if (!resolve()) {
-         return false;
+         // El plugin ya no puede dibujar tras abandonar el mundo; se conserva el intento para el
+         // siguiente tick/login en vez de inventar un valor de configuración.
+         return;
       }
 
       try {
-         setDisplayTooltip.invoke(general, show);
-         return true;
+         setDisplayTooltip.invoke(general, previousDisplay == null || previousDisplay);
+         hidden = false;
+         previousDisplay = null;
       } catch (ReflectiveOperationException | RuntimeException ignored) {
-         available = Boolean.FALSE;
-         return false;
+         clearResolution();
       }
+   }
+
+   @SubscribeEvent
+   public static void onLoggingOut(LoggingOut event) {
+      restore();
    }
 
    private static boolean resolve() {
-      if (available != null) {
-         return available;
+      if (general != null && setDisplayTooltip != null && shouldDisplayTooltip != null) {
+         return true;
       }
 
-      available = Boolean.FALSE;
       try {
          Class<?> config = Class.forName("snownee.jade.api.config.IWailaConfig");
          Object instance = config.getMethod("get").invoke(null);
-         Object generalConfig = null;
+         Object resolvedGeneral = null;
          for (String getter : new String[]{"getGeneral", "general"}) {
             try {
-               generalConfig = config.getMethod(getter).invoke(instance);
+               resolvedGeneral = config.getMethod(getter).invoke(instance);
                break;
             } catch (NoSuchMethodException ignored) {
-               // Se prueba el siguiente nombre.
+               // Compatibilidad entre revisiones de Jade 11.
             }
          }
 
-         if (generalConfig == null) {
+         if (resolvedGeneral == null) {
             return false;
          }
 
-         general = generalConfig;
-         setDisplayTooltip = generalConfig.getClass().getMethod("setDisplayTooltip", boolean.class);
-         available = Boolean.TRUE;
+         general = resolvedGeneral;
+         setDisplayTooltip = resolvedGeneral.getClass().getMethod("setDisplayTooltip", boolean.class);
+         shouldDisplayTooltip = resolvedGeneral.getClass().getMethod("shouldDisplayTooltip");
+         return true;
       } catch (ReflectiveOperationException | RuntimeException ignored) {
-         // Jade no está instalado o su API cambió: no se toca nada.
+         clearResolution();
+         return false;
       }
+   }
 
-      return available;
+   private static void clearResolution() {
+      general = null;
+      setDisplayTooltip = null;
+      shouldDisplayTooltip = null;
    }
 }

@@ -46,8 +46,11 @@ public final class FantasticEditorScreen extends Screen {
    private int cursor;
    private String roomDraft = "";
    private String passDraft = "";
-   /** Botón de crear sala, para poder actualizar su estado sin reconstruir toda la pantalla. */
+   /** Botones reactivos; su estado cambia sin reconstruir ni perder foco/cursor. */
    private Button createButton;
+   private Button inviteButton;
+   private Button renameButton;
+   private String renameTarget = "";
    private RoomsPayload lastRooms;
    private boolean lastInRoom;
    private String inviteDraft = "";
@@ -151,6 +154,11 @@ public final class FantasticEditorScreen extends Screen {
       this.labels.clear();
       this.zones.clear();
       this.createButton = null;
+      this.inviteButton = null;
+      this.renameButton = null;
+      RoomsPayload currentRooms = RoomMenu.current;
+      this.lastRooms = currentRooms;
+      this.lastInRoom = currentRooms != null && !currentRooms.yourRoom().isBlank();
       this.initHeader();
       this.initFooter();
       this.cursor = 0;
@@ -180,7 +188,6 @@ public final class FantasticEditorScreen extends Screen {
       int maxScroll = Math.max(0, this.contentHeight - this.bodyH());
       if (this.scroll > maxScroll) {
          this.scroll = maxScroll;
-         this.m_232761_();
       }
    }
 
@@ -229,27 +236,20 @@ public final class FantasticEditorScreen extends Screen {
       }).m_252987_(this.leftPos + this.panelWidth - 158, y, 150, 18).m_257505_(Tooltip.m_257550_(Component.m_237115_("fantastic.ui.save.tip"))).m_253136_());
    }
 
-   /**
-    * Mantiene la interfaz viva entre reconstrucciones.
-    *
-    * <p>Los botones calculaban si estaban habilitados una única vez, al construir la pantalla. Como
-    * escribir en una caja de texto no la reconstruye, el botón de crear se quedaba deshabilitado y solo
-    * revivía al pulsar otra cosa que forzara el rebuild: de ahí la sensación de botones pegados que no
-    * responden. Y cuando llegaba el catálogo de salas del servidor, la pantalla seguía mostrando lo
-    * anterior porque nadie la refrescaba.
-    */
+   /** Actualiza estados simples sin mutar la lista de widgets durante render. */
    private void refreshLiveState() {
       RoomsPayload data = RoomMenu.current;
       boolean inRoom = data != null && !data.yourRoom().isBlank();
-      if (data != this.lastRooms || inRoom != this.lastInRoom) {
-         this.lastRooms = data;
-         this.lastInRoom = inRoom;
-         this.m_232761_();
-         return;
-      }
-
+      this.lastRooms = data;
+      this.lastInRoom = inRoom;
       if (this.createButton != null) {
          this.createButton.f_93623_ = !this.roomDraft.isBlank() && !inRoom;
+      }
+      if (this.inviteButton != null) {
+         this.inviteButton.f_93623_ = !this.inviteDraft.isBlank() && inRoom;
+      }
+      if (this.renameButton != null) {
+         this.renameButton.f_93623_ = !this.arenaDraft.isBlank() && !this.arenaDraft.equalsIgnoreCase(this.renameTarget);
       }
    }
 
@@ -430,10 +430,21 @@ public final class FantasticEditorScreen extends Screen {
       RoomsPayload data = RoomMenu.current;
       boolean inRoom = data != null && !data.yourRoom().isBlank();
       int half = (w - 6) / 2;
-      int y = this.y();
-      this.field(x, y, half - 74, "fantastic.editor.room_name", this.roomDraft, s -> this.roomDraft = s, 24);
-      this.field(x + half - 68, y, half - 68, "fantastic.editor.room_pass", this.passDraft, s -> this.passDraft = s, 24);
-      Button create = this.btn(x + w - 68, y, 68, Component.m_237115_("fantastic.editor.create"), () -> {
+      int createX;
+      int createY;
+      if (w < 260) {
+         int nameY = this.y();
+         this.field(x, nameY, w, "fantastic.editor.room_name", this.roomDraft, s -> this.roomDraft = s, 24);
+         createY = this.y();
+         this.field(x, createY, Math.max(48, w - 74), "fantastic.editor.room_pass", this.passDraft, s -> this.passDraft = s, 24);
+         createX = x + w - 68;
+      } else {
+         createY = this.y();
+         this.field(x, createY, Math.max(48, half - 74), "fantastic.editor.room_name", this.roomDraft, s -> this.roomDraft = s, 24);
+         this.field(x + half - 68, createY, Math.max(48, half - 68), "fantastic.editor.room_pass", this.passDraft, s -> this.passDraft = s, 24);
+         createX = x + w - 68;
+      }
+      Button create = this.btn(createX, createY, 68, Component.m_237115_("fantastic.editor.create"), () -> {
          EditorNet.send("room.create", this.roomDraft, this.passDraft);
          this.roomDraft = "";
          this.passDraft = "";
@@ -651,6 +662,7 @@ public final class FantasticEditorScreen extends Screen {
             this.inviteDraft = "";
          }, "fantastic.ui.invite.tip");
          invite.f_93623_ = !this.inviteDraft.isBlank();
+         this.inviteButton = invite;
          this.add(invite);
          int y4 = this.y();
          this.add(
@@ -915,6 +927,8 @@ public final class FantasticEditorScreen extends Screen {
             "fantastic.ui.arena_rename.tip"
          );
          rename.f_93623_ = !this.arenaDraft.isBlank() && !this.arenaDraft.equalsIgnoreCase(target);
+         this.renameButton = rename;
+         this.renameTarget = target;
          this.add(rename);
          int cy = this.y();
          this.pickBtn(x, cy, third, "fantastic.editor.corner_1", "ARENA_CORNER_1", target, "fantastic.editor.corner_1.tip");

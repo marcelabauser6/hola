@@ -80,8 +80,6 @@ public final class GenericEntityPropRenderer {
             event.setCanceled(true);
             return;
          }
-         entry.prevX = player.m_20185_();
-         entry.prevZ = player.m_20189_();
          CACHE.put(player.m_20148_(), entry);
          trim();
       }
@@ -158,12 +156,9 @@ public final class GenericEntityPropRenderer {
          if (owner == null || !AvatarState.entityProp(owner).equals(entry.snapshot)) {
             CACHE.remove(cached.getKey());
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
-            // Desplazamiento real del jugador en este tick, con la misma fórmula que usa el juego.
-            double dx = owner.m_20185_() - entry.prevX;
-            double dz = owner.m_20189_() - entry.prevZ;
-            entry.prevX = owner.m_20185_();
-            entry.prevZ = owner.m_20189_();
-            float walk = (float)Math.min(1.0, Math.sqrt(dx * dx + dz * dz) * 4.0);
+            // La velocidad llega de la medición autoritativa que también dispara los pasos. Las
+            // posiciones interpoladas de cada cliente dejaron de ser una segunda fuente de fase.
+            float walk = AvatarState.propMotion(owner).speed();
 
             living.f_19790_ = living.m_20185_();
             living.f_19791_ = living.m_20186_();
@@ -266,8 +261,6 @@ public final class GenericEntityPropRenderer {
       final EntityPropSnapshot snapshot;
       final Entity entity;
       boolean tickable = true;
-      double prevX;
-      double prevZ;
 
       Entry(EntityPropSnapshot snapshot, Entity entity) {
          this.snapshot = snapshot;
