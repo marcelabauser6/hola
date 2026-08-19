@@ -102,6 +102,16 @@ public final class FantasticNetwork {
    private static final double GAIT_PER_ATTRIBUTE = 0.35 / 0.23;
    private static final double MIN_SPEED_RATIO = 0.25;
    private static final double MAX_SPEED_RATIO = 0.80;
+   /**
+    * Rango jugable al que se traslada el ritmo medido.
+    *
+    * <p>Los mobs de verdad son entre cuatro y una vez y media más lentos que un jugador andando, y jugar
+    * así es insufrible: te pasas la partida arrastrándote. Se conserva el <b>orden</b> real —la vaca es la
+    * más lenta y la gallina la más rápida— pero comprimido a un margen que se puede jugar, de forma que
+    * se note la diferencia entre disfraces sin volverse un castigo.
+    */
+   private static final double PLAYABLE_MIN = 0.80;
+   private static final double PLAYABLE_MAX = 1.05;
    private static final Map<String, Double> MOB_SPEED = new ConcurrentHashMap<>();
    public static final int POSE_COUNT = PoseDefs.count();
    public static final int BLOCK_POSE = 8;
@@ -115,7 +125,7 @@ public final class FantasticNetwork {
     * del bloque y el cuerpo no se mete dentro. Antes se hundía el cuerpo entero hasta el plano de la
     * superficie, y por eso también en tercera persona se veía metido en el bloque.
     */
-   private static final double BODY_HALF_DEPTH = 0.125;
+   private static final double BODY_HALF_DEPTH = 0.06;
 
    private FantasticNetwork() {
    }
@@ -818,8 +828,11 @@ public final class FantasticNetwork {
          ratio = Mth.m_14008_(base * GAIT_PER_ATTRIBUTE, MIN_SPEED_RATIO, MAX_SPEED_RATIO);
       }
 
-      if (Math.abs(ratio - 1.0) > 0.01) {
-         speed.m_22118_(Attr.modifier(PROP_SPEED_ID, ratio - 1.0, Operation.MULTIPLY_TOTAL));
+      double span = MAX_SPEED_RATIO - MIN_SPEED_RATIO;
+      double normalised = span <= 0.0 ? 1.0 : (Mth.m_14008_(ratio, MIN_SPEED_RATIO, MAX_SPEED_RATIO) - MIN_SPEED_RATIO) / span;
+      double playable = PLAYABLE_MIN + normalised * (PLAYABLE_MAX - PLAYABLE_MIN);
+      if (Math.abs(playable - 1.0) > 0.01) {
+         speed.m_22118_(Attr.modifier(PROP_SPEED_ID, playable - 1.0, Operation.MULTIPLY_TOTAL));
       }
    }
 

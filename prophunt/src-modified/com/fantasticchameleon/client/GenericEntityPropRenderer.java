@@ -181,7 +181,11 @@ public final class GenericEntityPropRenderer {
             // seguían andando con el jugador parado. Imponer la velocidad después del tick (sin avanzar
             // la fase, que ya la avanzó el tick) hace que las patas anden cuando andas y paren cuando
             // paras, sin depender de lo que el modelo crea que está haciendo.
-            living.f_267362_.m_267771_(walk);
+            // update y no setSpeed: setSpeed fija la velocidad pero NO avanza la fase de la animación, y
+            // como el propio modelo no se desplaza (su posición la imponemos nosotros), su delta es cero
+            // y la fase se quedaba congelada: las piernas parecían trabadas aunque la velocidad dijera
+            // que iba andando. update fija la velocidad y avanza la fase, una sola vez por tick.
+            living.f_267362_.m_267566_(walk, 1.0F);
          }
       }
    }

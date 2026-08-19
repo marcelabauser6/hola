@@ -77,14 +77,25 @@ public final class MecchaClientEvents {
 
       boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.ATTACHED));
       if (attached && !attachedView) {
+         // Vista libre al quedar pegado: la cámara sale del cuerpo y puedes rodearte para comprobar cómo
+         // te ve el que busca. Con tercera persona fija seguía metiéndose en el bloque.
          previousView = mc.f_91066_.m_92176_();
-         mc.f_91066_.m_92157_(CameraType.THIRD_PERSON_BACK);
+         if (!FreeCam.active()) {
+            FreeCam.enable();
+         }
+
          attachedView = true;
       } else if (!attached && attachedView) {
+         if (FreeCam.active()) {
+            FreeCam.disable();
+         }
+
          mc.f_91066_.m_92157_(previousView == null ? CameraType.FIRST_PERSON : previousView);
          previousView = null;
          attachedView = false;
       }
+
+      JadeOverlay.updateForRound();
    }
 
    private static boolean isTool(ItemStack stack) {

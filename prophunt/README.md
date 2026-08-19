@@ -1,4 +1,27 @@
-# Fantastic Chameleon 1.2.16 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.17 — Prop Hunt y Meccha corregidos
+
+> **1.2.17 — ritmo jugable, patas que sí animan, vista libre al pegarse y munición activada.**
+> - **La velocidad ya no es un castigo.** Los mobs reales son entre 4 y 1,5 veces más lentos que un
+>   jugador andando (vaca 0,25x, gallina 0,70x), y jugar así es arrastrarse. Se conserva el **orden real**
+>   —la vaca sigue siendo la más lenta y la gallina la más rápida— pero comprimido al margen jugable
+>   0,80x–1,05x, así que se nota la diferencia entre disfraces sin que ninguno sea insufrible.
+> - **Patas arregladas de raíz.** Se fijaba la velocidad de la animación con `setSpeed`, que **no avanza la
+>   fase**; como el modelo no se desplaza por sí mismo (su posición la imponemos nosotros), la fase se
+>   quedaba congelada y las piernas parecían trabadas. Ahora se usa `update`, que fija velocidad y avanza
+>   fase, una sola vez por tick.
+> - **Vista libre al pegarse a un bloque,** en Meccha y en Prop Hunt: la cámara sale del cuerpo y puedes
+>   rodearte para ver cómo te ve el que busca. Sustituye a la tercera persona fija, que seguía metiéndose
+>   en el bloque.
+> - **El muñeco entra más en el bloque** (desplazamiento 0,06 en lugar de 0,125), que con vista libre ya no
+>   tiene contrapartida.
+> - **Regla de munición activada.** Ya existía en el mod pero venía en 0, es decir infinita, así que nunca
+>   se veía. Ahora los cazadores empiezan con **8 disparos**: fallar gasta uno, acertar lo devuelve, y
+>   cuando ningún cazador tiene munición **ganan los camaleones**. Se ajusta en la pestaña Reglas (`ammo`),
+>   y con 0 vuelve a ser infinita.
+> - **La ficha de Jade se apaga durante la ronda** para todo el que juegue, porque se dibuja encima del
+>   marcador y lo tapaba. Al terminar se restaura.
+>
+> **1.2.16 — ritmo medido de verdad, pasos con la cadencia del juego y nada de daño en la zona.**
 
 > **1.2.16 — ritmo medido de verdad, pasos con la cadencia del juego y nada de daño en la zona.**
 >

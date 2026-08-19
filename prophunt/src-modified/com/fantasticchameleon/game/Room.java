@@ -2021,7 +2021,15 @@ public final class Room {
       public int maxRoom = 16;
       public int filters;
       public int textureBrush = 1;
-      public int ammoLimit;
+      /**
+       * Disparos por cazador. Al agotarlos todos, ganan los camaleones.
+       *
+       * <p>La regla ya existía en el mod pero venía desactivada (0 = munición infinita), así que nunca
+       * se llegaba a ver. Ahora arranca en 8: fallar gasta un disparo, acertar lo devuelve, y cuando
+       * ningún cazador tiene munición la ronda termina a favor de los escondidos. Sigue siendo
+       * configurable en la pestaña Reglas; con 0 vuelve a ser infinita.
+       */
+      public int ammoLimit = 8;
       public int shotCooldown = 30;
       public int shotPenalty = 1;
       public int sightSlow = 1;
