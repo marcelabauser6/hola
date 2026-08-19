@@ -1,4 +1,24 @@
-# Fantastic Chameleon 1.2.11 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.12 — Prop Hunt y Meccha corregidos
+
+> **1.2.12 — el freeze era mío, patas fluidas de verdad y pasos de mob.**
+> - **El congelamiento al pulsar F era un fallo mío de la versión anterior.** Sobrescribí
+>   `shouldCloseOnEsc` creyendo que era `isPauseScreen`, así que mi propio panel de controles **pausaba el
+>   servidor integrado**: al fijarte se detenía todo y volvía justo al desacoplarte, que es cuando se
+>   cierra el panel. Ahora el panel no pausa y Esc vuelve a cerrarlo. Comprobado en el resto de pantallas
+>   del mod: el pintor y la rueda de poses ya no pausaban.
+> - **Patas fluidas.** La marcha se imponía a mano después del tick del modelo, así que la animación se
+>   actualizaba dos veces por tick: el avance de las patas se duplicaba y la velocidad parpadeaba. Ahora
+>   se le da al modelo el mismo desplazamiento por tick que el jugador y su propio tick calcula la
+>   animación una sola vez, como cualquier mob del mundo.
+> - **Sonidos de paso.** Una araña o un zombi disfrazados andaban en silencio, porque el sonido de pasos
+>   lo emite el mob al desplazarse y el disfraz no se desplaza. Ahora los emite el servidor con la
+>   cadencia de vanilla: el sonido propio del tipo capturado (`entity.<tipo>.step`) y, si ese mob no
+>   tiene uno, el del bloque que pisa, que es exactamente lo que hace el juego.
+> - **Menos lag.** El texel exacto de la pipeta se calculaba **cada frame** con el pintor abierto,
+>   recorriendo los quads del modelo del bloque y leyendo su textura. Ahora solo se calcula al tomar el
+>   color; por frame queda una lectura de un píxel.
+>
+> **1.2.11 — el guardia anti-clipping acotado y medido.**
 
 > **1.2.11 — el guardia anti-clipping ya no puede tumbar el servidor, y la causa real del "se detiene
 > el juego" era otra.**

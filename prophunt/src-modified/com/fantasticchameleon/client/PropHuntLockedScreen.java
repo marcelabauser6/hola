@@ -110,9 +110,15 @@ public final class PropHuntLockedScreen extends Screen {
       return false;
    }
 
-   /** El mundo y la ronda siguen corriendo mientras se muestran los dos controles. */
+   /**
+    * El mundo y la ronda siguen corriendo mientras se muestran los dos controles.
+    *
+    * <p>Este es {@code isPauseScreen}. Antes estaba sobrescrito {@code shouldCloseOnEsc} por error, con
+    * dos consecuencias: el panel <b>pausaba el servidor integrado</b> —de ahí que al pulsar F se
+    * congelara todo y volviera al desacoplarte, que es cuando se cierra— y Esc no cerraba el panel.
+    */
    @Override
-   public boolean m_6913_() {
+   public boolean m_7043_() {
       return false;
    }
 }

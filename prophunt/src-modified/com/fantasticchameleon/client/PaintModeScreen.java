@@ -402,18 +402,6 @@ public final class PaintModeScreen extends Screen {
       return false;
    }
 
-   /**
-    * El pintor no pausa la partida.
-    *
-    * <p>Por defecto una pantalla pausa el servidor integrado, así que al pulsar F en un mundo local se
-    * detenía todo —mobs y jugadores incluidos— hasta cerrarla. En un modo de escondidas eso es fatal:
-    * el escondido congelaba la ronda entera mientras se pintaba.
-    */
-   @Override
-   public boolean m_6913_() {
-      return false;
-   }
-
    public boolean isInGameUi() {
       return true;
    }
@@ -455,7 +443,9 @@ public final class PaintModeScreen extends Screen {
          boolean spaceDown = InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          boolean textureTool = ClientPaintState.isTextureTool(ClientPaintState.tool());
          if (!textureTool && !overMap && !overPanels) {
-            this.lastVisualSample = this.sampleWorldColor(mc, mouseX, mouseY, partialTick);
+            // Una lectura de 1x1 por frame es barata. El texel exacto del bloque, en cambio, recorre
+            // los quads del modelo y lee su textura: se calcula solo al tomar el color, no cada frame.
+            this.lastVisualSample = FramebufferColorSampler.sample(mc, (double)mouseX, (double)mouseY);
             if (spaceDown && !this.pipetteHeld) {
                this.pendingVisualSample = this.lastVisualSample;
             }
@@ -1437,6 +1427,11 @@ public final class PaintModeScreen extends Screen {
       return FramebufferColorSampler.sample(mc, (double)mouseX, (double)mouseY);
    }
 
+   private int pickedColor(Minecraft mc, double mx, double my, float pt, int fallback) {
+      int exact = this.sampleWorldColor(mc, (int)mx, (int)my, pt);
+      return exact != 0 ? exact : fallback;
+   }
+
    private void pipette(Minecraft mc, double mx, double my, float pt) {
       LocalPlayer p = mc.f_91074_;
       if (p != null && mc.f_91073_ != null) {
@@ -1444,7 +1439,7 @@ public final class PaintModeScreen extends Screen {
          ClientPaintState.Tool tool = ClientPaintState.tool();
          boolean textureTool = ClientPaintState.isTextureTool(tool);
          if (held && !textureTool && !this.pipetteHeld) {
-            int color = this.pendingVisualSample;
+            int color = this.pickedColor(mc, mx, my, pt, this.pendingVisualSample);
             this.pendingVisualSample = 0;
             if (color != 0) {
                ClientPaintState.setCurrentColor(color);
@@ -1468,7 +1463,8 @@ public final class PaintModeScreen extends Screen {
    }
 
    private boolean pickColorAt(double mx, double my) {
-      int color = this.lastVisualSample;
+      // Se resuelve el texel exacto en el momento del clic, no la muestra del frame anterior.
+      int color = this.pickedColor(Minecraft.m_91087_(), mx, my, 1.0F, this.lastVisualSample);
       if (color == 0) {
          return false;
       }

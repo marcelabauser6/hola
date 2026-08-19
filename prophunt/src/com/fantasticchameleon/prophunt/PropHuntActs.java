@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,6 +23,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.block.SoundType;
 
 /**
  * Gestos de criatura para el modo Prop Hunt.
@@ -39,6 +41,10 @@ public final class PropHuntActs {
    private static final Map<UUID, Long> LAST_ACT = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> NEXT_AMBIENT = new ConcurrentHashMap<>();
    private static final Map<String, Optional<SoundEvent>> CAPTURED_VOICE = new ConcurrentHashMap<>();
+   private static final Map<String, Optional<SoundEvent>> STEP_VOICE = new ConcurrentHashMap<>();
+   private static final Map<UUID, double[]> STEP = new ConcurrentHashMap<>();
+   /** Un paso cada 0,9 bloques recorridos, la misma cadencia que usa el juego. */
+   private static final double STEP_DISTANCE = 0.9;
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -137,6 +143,62 @@ public final class PropHuntActs {
          case "enderman" -> SoundEvents.f_11899_;
          default -> null;
       };
+   }
+
+   /**
+    * Pasos de la criatura imitada.
+    *
+    * <p>El sonido de pasos de un mob lo emite el propio mob al desplazarse, y el disfraz es un modelo de
+    * adorno que no se mueve por el mundo: por eso una araña o un zombi disfrazados andaban en silencio y
+    * se notaba el engaño. Aquí lo emite el servidor, con la misma cadencia que vanilla y el sonido propio
+    * del tipo capturado ({@code entity.<tipo>.step}); si ese tipo no tiene uno, se usa el del bloque que
+    * se pisa, que es exactamente lo que hacen los mobs sin sonido propio.
+    */
+   public static void stepTick(ServerPlayer player) {
+      EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+      if (snapshot == null || !snapshot.present() || !player.m_20096_() || player.m_5833_()) {
+         STEP.remove(player.m_20148_());
+         return;
+      }
+
+      double[] state = STEP.get(player.m_20148_());
+      if (state == null) {
+         STEP.put(player.m_20148_(), new double[]{0.0, player.m_20185_(), player.m_20189_()});
+         return;
+      }
+
+      double dx = player.m_20185_() - state[1];
+      double dz = player.m_20189_() - state[2];
+      state[1] = player.m_20185_();
+      state[2] = player.m_20189_();
+      state[0] = state[0] + Math.sqrt(dx * dx + dz * dz);
+      if (state[0] < STEP_DISTANCE) {
+         return;
+      }
+
+      state[0] = 0.0;
+      ServerLevel level = player.m_284548_();
+      BlockPos below = player.m_20183_().m_7495_();
+      SoundType ground = level.m_8055_(below).m_60827_();
+      SoundEvent step = stepSound(snapshot.typeId());
+      if (step != null) {
+         play(level, player, step, 0.15F, 1.0F);
+      } else if (!level.m_8055_(below).m_60795_()) {
+         play(level, player, ground.m_56776_(), ground.m_56773_() * 0.15F, ground.m_56774_());
+      }
+   }
+
+   /** Sonido de paso del tipo capturado, por convención de registro, memorizado por tipo. */
+   private static SoundEvent stepSound(String typeId) {
+      return STEP_VOICE.computeIfAbsent(typeId, id -> {
+         try {
+            ResourceLocation type = new ResourceLocation(id);
+            SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), "entity." + type.m_135815_() + ".step"));
+            return found == null ? Optional.<SoundEvent>empty() : Optional.of(found);
+         } catch (RuntimeException ignored) {
+            return Optional.<SoundEvent>empty();
+         }
+      }).orElse(null);
    }
 
    /** Ejecuta el gesto del prop que lleva puesto. */

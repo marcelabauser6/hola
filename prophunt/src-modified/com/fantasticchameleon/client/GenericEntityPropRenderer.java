@@ -85,7 +85,13 @@ public final class GenericEntityPropRenderer {
          : Mth.m_14189_(partial, player.f_20884_, player.f_20883_);
       float headYaw = Mth.m_14189_(partial, player.f_20886_, player.f_20885_);
       float pitch = Mth.m_14179_(partial, player.f_19860_, player.m_146909_());
-      driver.m_7678_(player.m_20185_(), player.m_20186_(), player.m_20189_(), yaw, pitch);
+      // setPos y no moveTo: moveTo reajusta la posición anterior del modelo y con ello se perdía el
+      // desplazamiento por tick del que sale la animación de las patas.
+      driver.m_20343_(player.m_20185_(), player.m_20186_(), player.m_20189_());
+      driver.m_146922_(yaw);
+      driver.m_146926_(pitch);
+      driver.f_19859_ = yaw;
+      driver.f_19860_ = pitch;
       driver.f_19797_ = player.f_19797_;
 
       if (driver instanceof LivingEntity living) {
@@ -136,17 +142,23 @@ public final class GenericEntityPropRenderer {
          if (owner == null) {
             CACHE.remove(cached.getKey());
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
-            living.m_7678_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_(), owner.f_20883_, owner.m_146909_());
+            // La clave de que las patas vayan fluidas: se le da al modelo el MISMO desplazamiento por
+            // tick que el jugador (posición anterior -> posición actual) y se deja que su propio tick
+            // calcule la animación de marcha una sola vez, como cualquier mob del mundo.
+            //
+            // Antes se le imponía la marcha a mano después del tick, así que la animación se actualizaba
+            // dos veces por tick: el avance de las patas se duplicaba y la velocidad parpadeaba, que es
+            // lo que se veía como pasos a tirones.
+            living.f_19790_ = living.m_20185_();
+            living.f_19791_ = living.m_20186_();
+            living.f_19792_ = living.m_20189_();
+            living.m_20343_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_());
             living.f_19797_ = owner.f_19797_;
-            // El estado de suelo y la caída se copian del jugador ANTES del tick porque son justo lo
-            // que leen las animaciones propias del bicho: así la gallina bate las alas al saltar o
-            // caer y las mantiene quietas al andar, exactamente como una gallina de verdad.
+            // Suelo y caída se copian ANTES del tick porque son justo lo que leen las animaciones de
+            // vuelo y aleteo: la gallina bate las alas al saltar o caer y las tiene quietas al andar.
             living.m_6853_(owner.m_20096_());
             living.f_19789_ = owner.f_19789_;
             animate(entry, living, owner);
-            // Y la marcha se impone DESPUÉS del tick: el tick la recalcula desde el movimiento del
-            // modelo, que es cero, y dejaba las patas a tirones en vez de fluidas.
-            living.f_267362_.m_267566_(owner.f_267362_.m_267731_(), 1.0F);
          }
       }
    }

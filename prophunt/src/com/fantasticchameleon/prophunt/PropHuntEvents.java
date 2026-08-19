@@ -76,6 +76,8 @@ public final class PropHuntEvents {
                PropHunt.refresh(player);
                // Las criaturas disfrazadas suenan por su cuenta cada tanto, como los mobs de verdad.
                PropHuntActs.ambientTick(player);
+               // Y hacen ruido al andar: una araña o un zombi en silencio delatan el disfraz.
+               PropHuntActs.stepTick(player);
             }
          }
       }
