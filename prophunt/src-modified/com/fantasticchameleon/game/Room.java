@@ -1832,6 +1832,11 @@ public final class Room {
          && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
    }
 
+   /** True si la sala tiene una arena delimitada con la que comparar posiciones. */
+   public boolean hasArenaBounds() {
+      return this.config.arenaSet;
+   }
+
    /** Comprueba la misma caja y dimension usadas por el confinamiento de la arena. */
    public boolean containsArena(Entity entity) {
       if (!this.config.arenaSet || entity == null) {

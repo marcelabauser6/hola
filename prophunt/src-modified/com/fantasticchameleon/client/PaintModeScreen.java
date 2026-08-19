@@ -443,9 +443,7 @@ public final class PaintModeScreen extends Screen {
          boolean spaceDown = InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          boolean textureTool = ClientPaintState.isTextureTool(ClientPaintState.tool());
          if (!textureTool && !overMap && !overPanels) {
-            // Como maximo una lectura 1x1 por frame, antes de dibujar anillos, paneles o cursores:
-            // es el píxel final del mundo con iluminación, AO y postprocesado incluidos.
-            this.lastVisualSample = FramebufferColorSampler.sample(mc, (double)mouseX, (double)mouseY);
+            this.lastVisualSample = this.sampleWorldColor(mc, mouseX, mouseY, partialTick);
             if (spaceDown && !this.pipetteHeld) {
                this.pendingVisualSample = this.lastVisualSample;
             }
@@ -1398,6 +1396,33 @@ public final class PaintModeScreen extends Screen {
          double ndcY = rel.m_82526_(b.uc) / vz / b.tanV;
          return new double[]{(double)Math.round((0.5 + 0.5 * ndcX) * (double)b.gw), (double)Math.round((0.5 - 0.5 * ndcY) * (double)b.gh)};
       }
+   }
+
+   /**
+    * Color del punto señalado.
+    *
+    * <p>Si lo señalado es un bloque se devuelve el <b>texel exacto</b> de su textura, resuelto por la
+    * cara y el UV del impacto. El píxel del framebuffer solo se usa cuando no hay bloque, porque ese
+    * valor viene multiplicado por luz, sombreado de cara, niebla y viñeta: era la causa de que el color
+    * elegido nunca coincidiera con el del bloque.
+    */
+   private int sampleWorldColor(Minecraft mc, int mouseX, int mouseY, float partialTick) {
+      LocalPlayer p = mc.f_91074_;
+      if (p != null && mc.f_91073_ != null) {
+         BlockHitResult hit = this.rayThroughMouse(mc, p, this.basis(mc, p, partialTick), (double)mouseX, (double)mouseY);
+         if (hit != null && hit.m_6662_() == Type.BLOCK) {
+            BlockPos bp = hit.m_82425_();
+            BlockState st = mc.f_91073_.m_8055_(bp);
+            if (!st.m_60795_()) {
+               int exact = BlockColorSampler.sampleAt(mc.f_91073_, bp, st, hit.m_82434_(), hit.m_82450_());
+               if (exact != 0 && exact != -1) {
+                  return 0xFF000000 | exact & 0xFFFFFF;
+               }
+            }
+         }
+      }
+
+      return FramebufferColorSampler.sample(mc, (double)mouseX, (double)mouseY);
    }
 
    private void pipette(Minecraft mc, double mx, double my, float pt) {

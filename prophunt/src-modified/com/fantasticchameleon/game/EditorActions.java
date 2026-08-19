@@ -34,8 +34,15 @@ public final class EditorActions {
       "spectate",
       "roomcreation"
    };
+   /**
+    * Acciones que un jugador sin permisos puede ejecutar.
+    *
+    * <p>Se reduce a lo imprescindible para participar: unirse a una sala a la que te invitan, salir,
+    * ver la lista, aceptar invitación, espectar y cancelar una selección. Todo lo que configure,
+    * cree o entregue algo pasa a requerir operador.
+    */
    private static final Set<String> OPEN_TO_EVERYONE = Set.of(
-      "room.join", "room.leave", "room.list", "room.accept", "room.spectate", "room.save", "pick.cancel"
+      "room.join", "room.leave", "room.list", "room.accept", "room.spectate", "pick.cancel"
    );
 
    private EditorActions() {
@@ -240,7 +247,10 @@ public final class EditorActions {
                   }
                   break;
                case "kit":
-                  Kits.give(p.m_20203_(), p, false);
+                  // El kit entrega armadura, pincel y escopeta: queda restringido a operadores.
+                  if (requireStaff(p)) {
+                     Kits.give(p.m_20203_(), p, false);
+                  }
                   break;
                case "kit.other":
                   if (requireStaff(p)) {

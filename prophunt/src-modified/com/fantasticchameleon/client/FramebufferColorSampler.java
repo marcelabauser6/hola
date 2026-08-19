@@ -5,7 +5,12 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
-/** Lee un único píxel ya iluminado y postprocesado del framebuffer antes de dibujar la GUI. */
+/**
+ * Lee un único píxel ya iluminado del framebuffer, antes de dibujar la GUI.
+ *
+ * <p>Es la ruta de reserva de la pipeta, para cuando lo señalado no es un bloque (una entidad, el
+ * cielo, una partícula). Para bloques se usa el texel exacto, que no arrastra iluminación ni niebla.
+ */
 public final class FramebufferColorSampler {
    private static final ByteBuffer PIXEL = BufferUtils.createByteBuffer(4);
 
@@ -13,12 +18,19 @@ public final class FramebufferColorSampler {
    }
 
    public static int sample(Minecraft mc, double guiX, double guiY) {
-      int guiW = Math.max(1, mc.m_91268_().m_85445_());
-      int guiH = Math.max(1, mc.m_91268_().m_85446_());
       int fbW = Math.max(1, mc.m_91268_().m_85441_());
       int fbH = Math.max(1, mc.m_91268_().m_85442_());
-      int x = Math.max(0, Math.min(fbW - 1, (int)Math.floor(guiX * (double)fbW / (double)guiW)));
-      int yTop = Math.max(0, Math.min(fbH - 1, (int)Math.floor(guiY * (double)fbH / (double)guiH)));
+      // Se usa la escala real de la GUI, no fbW/guiW: el ancho escalado se redondea hacia arriba, así
+      // que ese cociente es algo menor que la escala y la muestra se desviaba más cuanto más lejos del
+      // origen. Y se muestrea el CENTRO de la celda (+0,5), no su esquina superior izquierda, que
+      // caía hasta 3 píxeles arriba y a la izquierda del punto señalado.
+      double scale = mc.m_91268_().m_85449_();
+      if (scale <= 0.0) {
+         scale = 1.0;
+      }
+
+      int x = clamp((int)Math.floor((guiX + 0.5) * scale), fbW);
+      int yTop = clamp((int)Math.floor((guiY + 0.5) * scale), fbH);
       int y = fbH - 1 - yTop;
 
       PIXEL.clear();
@@ -26,7 +38,12 @@ public final class FramebufferColorSampler {
       int r = PIXEL.get(0) & 255;
       int g = PIXEL.get(1) & 255;
       int b = PIXEL.get(2) & 255;
-      int a = PIXEL.get(3) & 255;
-      return a == 0 ? 0 : 0xFF000000 | r << 16 | g << 8 | b;
+      // El alfa del render target principal no es fiable: descartar la muestra cuando valía 0 hacía
+      // que la pipeta pareciera no responder y conservara el color anterior.
+      return 0xFF000000 | r << 16 | g << 8 | b;
+   }
+
+   private static int clamp(int value, int size) {
+      return Math.max(0, Math.min(size - 1, value));
    }
 }

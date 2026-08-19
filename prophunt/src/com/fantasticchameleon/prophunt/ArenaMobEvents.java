@@ -80,10 +80,14 @@ public final class ArenaMobEvents {
 
    private static boolean protectedTarget(Mob mob, ServerPlayer player) {
       Room room = Rooms.roomOf(player);
-      return room != null
-         && room.protectsFromWildMobs(player.m_20148_())
-         && room.containsArena(player)
-         && room.containsArena(mob);
+      if (room == null || !room.protectsFromWildMobs(player.m_20148_())) {
+         return false;
+      }
+
+      // Si la sala tiene arena delimitada, se exige que ambos estén dentro. Si no la tiene, la ronda
+      // en curso ES el perímetro: antes se exigía una arena configurada y, al no haberla, la
+      // protección no se aplicaba nunca y los mobs seguían atacando.
+      return !room.hasArenaBounds() || room.containsArena(player) && room.containsArena(mob);
    }
 
    private static void clearTarget(Mob mob) {

@@ -9,17 +9,19 @@ import net.minecraft.network.chat.Component;
 /**
  * Controles de Prop Hunt al quedar fijado.
  *
- * <p>Dos filas diminutas pegadas al borde izquierdo, con el mismo lenguaje visual que el resto del HUD
- * del mod. No usa botones vanilla a propósito: eran enormes, opacos y desentonaban con todo lo demás,
- * y encima tapaban media pantalla justo cuando hay que estar mirando el mundo.
+ * <p>Dos filas compactas pegadas al borde izquierdo, con el mismo lenguaje visual que el resto del HUD.
+ * El ancho se calcula a partir del texto traducido más largo, porque con un ancho fijo la etiqueta de
+ * revertir se salía de su recuadro en español. El texto va en blanco y con sombra: el gris tenue del HUD
+ * era ilegible sobre hierba clara.
  */
 public final class PropHuntLockedScreen extends Screen {
-   private static final int W = 76;
-   private static final int H = 12;
-   private static final int GAP = 2;
-   private static final int MARGIN = 4;
+   private static final int H = 14;
+   private static final int GAP = 3;
+   private static final int PAD_X = 7;
+   private static final int MARGIN = 6;
    private int left;
    private int top;
+   private int width;
 
    public PropHuntLockedScreen() {
       super(Component.m_237115_("fantastic.prophunt.controls"));
@@ -27,6 +29,9 @@ public final class PropHuntLockedScreen extends Screen {
 
    @Override
    protected void m_7856_() {
+      int detach = this.f_96547_.m_92852_(Component.m_237115_("fantastic.prophunt.detach"));
+      int revert = this.f_96547_.m_92852_(Component.m_237115_("fantastic.prophunt.revert"));
+      this.width = Math.max(detach, revert) + PAD_X * 2;
       this.left = MARGIN;
       this.top = this.f_96544_ / 2 - (H * 2 + GAP) / 2;
    }
@@ -39,19 +44,20 @@ public final class PropHuntLockedScreen extends Screen {
 
    private void row(GuiGraphics graphics, int y, String key, int mouseX, int mouseY) {
       boolean hover = hovering(mouseX, mouseY, y);
-      HudPanel.panel(graphics, this.left, y, W, H, hover ? HudPanel.ACCENT : HudPanel.SEP);
+      HudPanel.panel(graphics, this.left, y, this.width, H, hover ? HudPanel.ACCENT : HudPanel.SEP);
       Gfx.text(
          graphics,
          this.f_96547_,
          Component.m_237115_(key),
-         this.left + 6,
-         y + 2,
-         hover ? HudPanel.TEXT : HudPanel.TEXT_DIM
+         this.left + PAD_X,
+         y + (H - 8) / 2,
+         hover ? HudPanel.ACCENT : HudPanel.TEXT,
+         true
       );
    }
 
    private boolean hovering(int mouseX, int mouseY, int y) {
-      return mouseX >= this.left && mouseX <= this.left + W && mouseY >= y && mouseY <= y + H;
+      return mouseX >= this.left && mouseX <= this.left + this.width && mouseY >= y && mouseY <= y + H;
    }
 
    @Override
@@ -88,15 +94,15 @@ public final class PropHuntLockedScreen extends Screen {
       return super.m_7933_(keyCode, scanCode, modifiers);
    }
 
-   private int revertKeyCode() {
-      Key bound = LockControls.poseWheelKey == null ? null : ClientAccessors.boundKey(LockControls.poseWheelKey);
-      return bound != null && bound.m_84868_() == Type.KEYSYM ? bound.m_84873_() : Integer.MIN_VALUE;
-   }
-
-   /** Agacharse remapeado a un botón del ratón también tiene que soltar, no solo las teclas. */
+   /** Agacharse remapeado a un botón del ratón lo cubre el detector global de LockControls. */
    private int sneakKeyCode() {
       Key bound = ClientAccessors.boundKey(this.f_96541_.f_91066_.f_92090_);
       return bound.m_84868_() == Type.KEYSYM ? bound.m_84873_() : Integer.MIN_VALUE;
+   }
+
+   private int revertKeyCode() {
+      Key bound = LockControls.poseWheelKey == null ? null : ClientAccessors.boundKey(LockControls.poseWheelKey);
+      return bound != null && bound.m_84868_() == Type.KEYSYM ? bound.m_84873_() : Integer.MIN_VALUE;
    }
 
    @Override

@@ -138,8 +138,15 @@ public final class GenericEntityPropRenderer {
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
             living.m_7678_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_(), owner.f_20883_, owner.m_146909_());
             living.f_19797_ = owner.f_19797_;
+            // El estado de suelo y la caída se copian del jugador ANTES del tick porque son justo lo
+            // que leen las animaciones propias del bicho: así la gallina bate las alas al saltar o
+            // caer y las mantiene quietas al andar, exactamente como una gallina de verdad.
+            living.m_6853_(owner.m_20096_());
+            living.f_19789_ = owner.f_19789_;
+            animate(entry, living, owner);
+            // Y la marcha se impone DESPUÉS del tick: el tick la recalcula desde el movimiento del
+            // modelo, que es cero, y dejaba las patas a tirones en vez de fluidas.
             living.f_267362_.m_267566_(owner.f_267362_.m_267731_(), 1.0F);
-            animate(entry, living);
          }
       }
    }
@@ -151,12 +158,14 @@ public final class GenericEntityPropRenderer {
     * cada cliente, el disfrazado haría el doble de ruido que el mob de verdad y eso lo delata. Y va con
     * la caja de colisión vacía para que no empuje a quien pase al lado, que sería otra pista.
     */
-   private static void animate(Entry entry, LivingEntity living) {
+   private static void animate(Entry entry, LivingEntity living, Player owner) {
       try {
          living.m_20225_(true);
          living.f_19794_ = true;
          living.m_20242_(true);
-         living.m_20256_(Vec3.f_82478_);
+         // Se conserva la componente vertical del jugador: es la que distingue "en el aire" de "en el
+         // suelo" para las animaciones de vuelo y aleteo.
+         living.m_20256_(new Vec3(0.0, owner.m_20184_().f_82480_, 0.0));
          living.m_20011_(new AABB(living.m_20182_(), living.m_20182_()));
          living.m_8119_();
       } catch (RuntimeException | LinkageError ex) {

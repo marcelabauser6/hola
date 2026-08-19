@@ -5,7 +5,7 @@ issueTrackerURL = "https://github.com/renatosa6/Hola/issues"
 
 [[mods]]
 modId = "fantastic_chameleon"
-version = "1.2.9"
+version = "1.2.10"
 displayName = "Fantastic Chameleon"
 authors = "Amine"
 credits = "Ported to Forge 1.20.1 for the Fantastic server"

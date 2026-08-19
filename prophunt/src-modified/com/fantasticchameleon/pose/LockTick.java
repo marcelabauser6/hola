@@ -23,6 +23,9 @@ import net.minecraft.world.phys.Vec3;
 public final class LockTick {
    private static final Map<UUID, Vec3> ANCHORS = new ConcurrentHashMap<>();
    private static final Map<UUID, LockTick.Gesture> GESTURES = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> CLIP_RETRY = new ConcurrentHashMap<>();
+   private static final int CLIP_CHECK_TICKS = 10;
+   private static final long CLIP_BACKOFF_TICKS = 60L;
    private static final int GESTURE_TIMEOUT = 40;
    private static final double MAX_GESTURE_DIST = 8.0;
    private static final double NUDGE_STEP = 0.0625;
@@ -45,6 +48,7 @@ public final class LockTick {
    public static void release(Player player) {
       ANCHORS.remove(player.m_20148_());
       GESTURES.remove(player.m_20148_());
+      CLIP_RETRY.remove(player.m_20148_());
    }
 
    private static LockTick.Gesture touchGesture(ServerPlayer sp) {
@@ -263,20 +267,26 @@ public final class LockTick {
                   Vec3 anchor = ANCHORS.get(sp.m_20148_());
                   float pi = pitchOf(sp);
                   float ro = rollOf(sp);
-                  // Un disfraz roza su escondite a propósito, así que se le mide con el umbral laxo y
-                  // solo cada 10 ticks: medir 75 puntos por jugador y por tick era el lag de la ronda.
-                  // Pero se sigue midiendo, de modo que a quien tapien de verdad se le rescata.
-                  boolean checkClip = !flush && (!prop || sp.f_19797_ % 10 == 0);
+                  // Medir la oclusión cuesta 75 muestras de volumen, y buscar hueco hasta 5.625. Al
+                  // fijarse pegado a una pared el resultado siempre supera el límite, así que se
+                  // repetía la búsqueda entera cada tick y en el mismo hilo del servidor: eso es lo
+                  // que congelaba la partida para todo el mundo. Ahora se comprueba como máximo cada
+                  // 10 ticks, con umbral laxo para los disfraces, y si no hay hueco se espera antes
+                  // de volver a intentarlo en vez de insistir 20 veces por segundo.
+                  long now = sp.m_9236_().m_46467_();
+                  boolean due = sp.f_19797_ % CLIP_CHECK_TICKS == 0 && now >= CLIP_RETRY.getOrDefault(sp.m_20148_(), 0L);
                   double allowed = prop ? BodyClip.HARD_MAX_HIDDEN : BodyClip.limit();
-                  if (checkClip && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc) > allowed) {
+                  if (!flush && due && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc) > allowed) {
                      Optional<Vec3> valid = BodyClip.findValidPosition(sp.m_9236_(), sp.m_20182_(), yaw, pi, ro, pose, sc);
                      if (valid.isPresent()) {
+                        CLIP_RETRY.remove(sp.m_20148_());
                         anchor = valid.get();
                         ANCHORS.put(sp.m_20148_(), anchor);
                         sp.m_6021_(anchor.f_82479_, anchor.f_82480_, anchor.f_82481_);
                         return;
                      }
 
+                     CLIP_RETRY.put(sp.m_20148_(), now + CLIP_BACKOFF_TICKS);
                      if ((pi != 0.0F || ro != 0.0F) && BodyClip.hiddenRatio(sp.m_9236_(), sp.m_20182_(), yaw, 0.0F, 0.0F, pose, sc) <= BodyClip.limit()) {
                         clearTilt(sp);
                         return;

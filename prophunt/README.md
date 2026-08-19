@@ -1,5 +1,31 @@
-# Fantastic Chameleon 1.2.9 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.10 — Prop Hunt y Meccha corregidos
 
+> **1.2.10 — servidor que no se congela, animación fluida, solo operadores.**
+> - **La partida ya no se detiene al pulsar F.** El guardia anti-clipping recalculaba hasta 5.625 muestras
+>   de volumen por jugador **y por tick** en el hilo del servidor: al fijarse pegado a una pared la
+>   búsqueda de hueco fallaba y se repetía indefinidamente, y eso congelaba a todo el mundo hasta que te
+>   desacoplabas. Ahora se comprueba como máximo cada 10 ticks y, si no hay hueco, espera antes de
+>   reintentar.
+> - **Los pies del mob vuelven a ir fluidos.** La marcha se imponía antes del tick del modelo y el propio
+>   tick la recalculaba a cero desde su movimiento (que es nulo), dejando las patas a tirones.
+> - **La gallina aletea como la de verdad.** Se copia del jugador el estado de suelo y la caída antes de
+>   ticar el modelo, que es justo lo que leen sus animaciones: alas quietas al andar, aleteo al saltar o
+>   caer.
+> - **Al acoplarse ya no te quedas mirando dentro del bloque:** la vista gira hacia fuera de la cara
+>   clicada. Y el cuerpo se hunde 0,05 más, para que no se vea junta de aire.
+> - **Botones legibles:** el ancho se calcula con el texto traducido más largo y el texto va en blanco con
+>   sombra, en vez de gris tenue que se perdía sobre la hierba.
+> - **Pipeta precisa:** si señalas un bloque se toma el **texel exacto** de su textura por cara y UV; el
+>   píxel del framebuffer queda solo como reserva para entidades o cielo, porque venía multiplicado por
+>   luz, sombreado de cara, niebla y viñeta. Además se muestrea el centro del píxel y con la escala real
+>   de la GUI, no la aproximada.
+> - **Los mobs hostiles ya te ignoran de verdad.** La protección exigía una arena configurada; si la sala
+>   no tenía arena delimitada, `containsArena` devolvía siempre falso y la protección no se aplicaba
+>   nunca. Ahora, sin arena, el perímetro es la propia ronda en curso.
+> - **Solo operadores y sin regalar objetos.** `/fschameleon` entero requiere OP; crear salas, configurarlas,
+>   marcar arenas, pedir la varita y el kit exigen OP también por red; y el pincel de bienvenida no se
+>   entrega a nadie al conectarse.
+>
 > **1.2.9 — interfaz, rendimiento, desacople y acople de verdad pegado.**
 > - Los controles al fijarse son ahora dos filas diminutas de 76×12 pegadas al borde izquierdo, con el
 >   mismo lenguaje visual que el resto del HUD. Fuera los botones vanilla enormes.

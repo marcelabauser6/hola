@@ -73,6 +73,8 @@ public final class FantasticNetwork {
    public static final int BLOCK_POSE = 8;
    public static final int FREEZE_POSE = -1;
    private static final Map<UUID, Vec3> SAFE_POS = new ConcurrentHashMap<>();
+   /** Lo que el cuerpo se hunde en el bloque al acoplarse, para que no se vea una junta de aire. */
+   private static final double ATTACH_SINK = 0.05;
 
    private FantasticNetwork() {
    }
@@ -85,7 +87,10 @@ public final class FantasticNetwork {
    }
 
    public static void handleArenaCorner(ArenaCornerPayload payload, ServerPlayer sp) {
-      Rooms.setArenaCornerAt(sp, payload.which(), payload.pos());
+      // Administrar arenas es cosa de operadores, también por red y no solo desde la interfaz.
+      if (Perms.isStaff(sp)) {
+         Rooms.setArenaCornerAt(sp, payload.which(), payload.pos());
+      }
    }
 
    public static void handleArenaEdit(ArenaEditPayload payload, ServerPlayer sp) {
@@ -124,7 +129,9 @@ public final class FantasticNetwork {
    }
 
    public static void handleRoomConfig(RoomConfigPayload payload, ServerPlayer sp) {
-      Rooms.setConfig(sp, payload.field(), payload.value(), true);
+      if (Perms.isStaff(sp)) {
+         Rooms.setConfig(sp, payload.field(), payload.value(), true);
+      }
    }
 
    public static void handleEditorAction(EditorActionPayload payload, ServerPlayer sp) {
@@ -134,6 +141,14 @@ public final class FantasticNetwork {
    }
 
    public static void handleRoomAction(RoomActionPayload payload, ServerPlayer sp) {
+      // Crear, borrar, expulsar, banear y dar la varita son acciones administrativas: solo operadores.
+      // La varita, además, es el único objeto que este canal podía entregar y lo hacía sin comprobar
+      // nada, así que cualquier cliente podía pedirla.
+      if (!Perms.isStaff(sp)) {
+         sp.m_5661_(Component.m_237115_("fantastic.ui.staff_only").m_130940_(ChatFormatting.RED), true);
+         return;
+      }
+
       if ("wand".equals(payload.action())) {
          giveWand(sp);
       } else {
@@ -402,7 +417,7 @@ public final class FantasticNetwork {
       // visible de 0,15 contra la pared. El solape de hitbox resultante es deliberado y está cubierto
       // por la excepción ATTACHED.
       double[] clip = PoseDefs.def(0).clipBox();
-      double half = Math.abs(clip[0]) * (double)ArmorPaintHandler.scaleOf(player);
+      double half = Math.max(0.02, Math.abs(clip[0]) * (double)ArmorPaintHandler.scaleOf(player) - ATTACH_SINK);
       double x = player.m_20185_();
       double y = player.m_20186_();
       double z = player.m_20189_();
@@ -429,6 +444,12 @@ public final class FantasticNetwork {
       }
 
       LockTick.reanchor(player, target);
+      // La cámara se gira hacia fuera de la pared. Al clicar un bloque estabas mirándolo, así que al
+      // quedarte fijo te quedabas con la nariz metida en la textura y no se veía nada.
+      if (payload.face() != Direction.UP) {
+         player.m_19890_(target.f_82479_, target.f_82480_, target.f_82481_, yaw, 0.0F);
+      }
+
       immobilize(player, true);
    }
 
