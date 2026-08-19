@@ -2,6 +2,7 @@ package com.fantasticchameleon.prophunt;
 
 import com.fantasticchameleon.game.Room;
 import com.fantasticchameleon.network.FantasticNetwork;
+import com.fantasticchameleon.network.ForceExitPayload;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.PropShapes;
@@ -118,7 +119,8 @@ public final class PropHuntRules {
       for (UUID id : room.roster()) {
          ServerPlayer member = server.m_6846_().m_11259_(id);
          if (member != null) {
-            FantasticNetwork.clearProp(member);
+            FantasticNetwork.resetPose(member);
+            Services.PLATFORM.sendToClient(member, ForceExitPayload.INSTANCE);
             member.m_240418_(Component.m_237110_("fantastic.gamemode.switched", new Object[]{label}).m_130940_(ChatFormatting.AQUA), true);
          }
       }

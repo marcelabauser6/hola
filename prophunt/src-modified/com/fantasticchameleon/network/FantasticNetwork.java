@@ -18,6 +18,7 @@ import com.fantasticchameleon.item.FantasticItems;
 import com.fantasticchameleon.movement.Climb;
 import com.fantasticchameleon.paint.BodyCanvas;
 import com.fantasticchameleon.paint.BodyPart;
+import com.fantasticchameleon.paint.FrozenFrame;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.paint.SkinRegions;
 import com.fantasticchameleon.platform.Services;
@@ -241,6 +242,14 @@ public final class FantasticNetwork {
 
    public static void handlePose(PosePayload payload, ServerPlayer player) {
       if (!throttled(player, 1)) {
+         if (payload.posing() && PropHunt.isPropHunt(player)) {
+            // Prop Hunt no usa poses humanas. Validarlo aquí impide que un cliente modificado
+            // adopte una hitbox pequeña de Meccha como seeker, espectador o hider.
+            resetPose(player);
+            Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
+            return;
+         }
+
          if (!payload.posing()) {
             resetPose(player);
          } else {
@@ -283,6 +292,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
       Services.PLATFORM.set(player, PaintAttachments.POSING, false);
       Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
       LockTick.clearTilt(player);
       if (player instanceof ServerPlayer bp) {
          Rooms.leaveBlockPose(bp);
@@ -319,11 +329,27 @@ public final class FantasticNetwork {
                immobilize(player, false);
             }
          } else {
+            if (PropHunt.isPropHunt(player)) {
+               Room room = Rooms.roomOf(player);
+               if (room == null || !room.canUseProp(player.m_20148_())) {
+                  resetPose(player);
+                  Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
+                  return;
+               }
+            }
+
+            boolean meccha = PropHunt.isMecchaRoom(player);
             float yaw = Mth.m_14177_(payload.yaw());
             LockTick.clearTilt(player);
             if (payload.freeze()) {
-               Services.PLATFORM.set(player, PaintAttachments.POSE, -1);
-               Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, payload.frame());
+               if (meccha) {
+                  // Un cliente antiguo puede seguir enviando freeze=true. En Meccha se fuerza la
+                  // pose plana real para no conservar una FrozenFrame con silueta humana.
+                  Services.PLATFORM.set(player, PaintAttachments.POSE, 30);
+               } else {
+                  Services.PLATFORM.set(player, PaintAttachments.POSE, -1);
+                  Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, payload.frame());
+               }
             }
 
             int pose = Services.PLATFORM.get(player, PaintAttachments.POSE);
@@ -349,7 +375,12 @@ public final class FantasticNetwork {
                // su orientacion real ya va dentro del variant, asi que girar el cuerpo ademas los
                // dejaria torcidos respecto al mundo. Las criaturas si conservan hacia donde miran.
                yaw = PropShapes.followsLook(propNow) ? yaw : 0.0F;
-               PropGridSnap.snapToCell(player, yaw);
+               if (!PropGridSnap.snapToCell(player, yaw)) {
+                  resetPose(player);
+                  Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
+                  player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
+                  return;
+               }
             } else {
                placeAgainstCover(player, yaw);
             }
@@ -364,6 +395,19 @@ public final class FantasticNetwork {
 
    private static void placeAgainstCover(Player player, float yaw) {
       int pose = Services.PLATFORM.get(player, PaintAttachments.POSE);
+      if (player instanceof ServerPlayer sp && PropHunt.isMecchaRoom(sp)) {
+         // La pose plana ya descansa sobre el suelo; además se aproxima a la pared horizontal más
+         // cercana sin atravesarla. reanchor hace que LockTick conserve exactamente esa adhesión.
+         Vec3 target = BodyClip.snapToWall(player.m_9236_(), player.m_20182_(), yaw, Math.max(0, pose));
+         Vec3 delta = target.m_82546_(player.m_20182_());
+         if (player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta))) {
+            LockTick.reanchor(sp, target);
+         } else {
+            LockTick.reanchor(sp, player.m_20182_());
+         }
+         return;
+      }
+
       PoseDefs.Def def = PoseDefs.def(Math.max(0, pose));
       double[] foot = PoseDefs.footprint(def.clipBox(), yaw, (double)ArmorPaintHandler.scaleOf(player));
       int bx = Mth.m_14107_(player.m_20185_());
@@ -415,9 +459,14 @@ public final class FantasticNetwork {
    public static void handleSetProp(SetPropPayload payload, ServerPlayer player) {
       if (!throttled(player, 3)) {
          if (payload.prop() < 0) {
-            clearProp(player);
+            // Quitar el disfraz también debe soltar ancla, pose e inmovilización si estaba colocado.
+            resetPose(player);
          } else if (ChameleonArmor.coverageMask(player) != ChameleonArmor.ALL_MASK) {
             player.m_240418_(Component.m_237115_("fantastic.prop.need_full_set").m_130940_(ChatFormatting.RED), true);
+         } else if (PropHunt.isPropHunt(player)
+            && (Rooms.roomOf(player) == null || !Rooms.roomOf(player).canUseProp(player.m_20148_()))) {
+            resetPose(player);
+            Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
          } else if (PropHunt.isMecchaRoom(player)) {
             // En Meccha Chameleon el camuflaje es la pintura: convertirse en bloque es de Prop Hunt.
             player.m_240418_(Component.m_237115_("fantastic.prophunt.mode_only").m_130940_(ChatFormatting.RED), true);

@@ -217,10 +217,11 @@ public final class FantasticEditorScreen extends Screen {
             .m_257505_(Tooltip.m_257550_(Component.m_237115_("fantastic.editor.close.tip")))
             .m_253136_()
       );
-      this.m_142416_(Button.m_253074_(Component.m_237115_("fantastic.ui.refresh"), b -> {
-         RoomMenu.request();
+      this.m_142416_(Button.m_253074_(Component.m_237115_("fantastic.ui.save"), b -> {
+         EditorNet.send("room.save");
          ArenaMenu.refresh();
-      }).m_252987_(this.leftPos + this.panelWidth - 158, y, 150, 18).m_257505_(Tooltip.m_257550_(Component.m_237115_("fantastic.ui.refresh.tip"))).m_253136_());
+         FantasticSound.tap();
+      }).m_252987_(this.leftPos + this.panelWidth - 158, y, 150, 18).m_257505_(Tooltip.m_257550_(Component.m_237115_("fantastic.ui.save.tip"))).m_253136_());
    }
 
    public void m_88315_(GuiGraphics g, int mouseX, int mouseY, float partial) {

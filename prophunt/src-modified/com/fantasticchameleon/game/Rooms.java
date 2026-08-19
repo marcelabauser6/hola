@@ -426,7 +426,7 @@ public final class Rooms {
             tell(
                by, Component.m_237110_(ban ? "fantastic.room.banned_by" : "fantastic.room.kicked", new Object[]{targetName, room.name()}), ChatFormatting.GREEN
             );
-            pushRoom(server, room);
+            pushAll(server);
          }
       }
    }
@@ -486,6 +486,11 @@ public final class Rooms {
          room.onLogin(p);
       } else {
          FantasticItems.stripRoomGear(p);
+      }
+
+      if (room == null || !room.canUseProp(p.m_20148_())) {
+         FantasticNetwork.resetPose(p);
+         Services.PLATFORM.sendToClient(p, ForceExitPayload.INSTANCE);
       }
 
       boolean activeSpectator = room != null && room.inProgress() && room.isSpectator(p.m_20148_());
@@ -1633,8 +1638,7 @@ public final class Rooms {
    private static void addMember(Room room, ServerPlayer p) {
       room.addMember(p.m_20148_());
       MEMBER_ROOM.put(p.m_20148_(), room);
-      pushTo(p);
-      pushRoom(p.m_9236_().m_7654_(), room);
+      pushAll(p.m_9236_().m_7654_());
       if (room.config().filters != 0 && SHADERED.contains(p.m_20148_())) {
          room.broadcastShaderWarning(p.m_9236_().m_7654_(), p);
       }
@@ -1643,8 +1647,7 @@ public final class Rooms {
    private static void addSpectator(Room room, ServerPlayer p) {
       MEMBER_ROOM.put(p.m_20148_(), room);
       room.addSpectatorMidGame(p.m_9236_().m_7654_(), p);
-      pushTo(p);
-      pushRoom(p.m_9236_().m_7654_(), room);
+      pushAll(p.m_9236_().m_7654_());
    }
 
    private static void leaveInternal(MinecraftServer server, ServerPlayer p) {
@@ -1652,7 +1655,7 @@ public final class Rooms {
       leaveBlockPose(p);
       if (room != null) {
          room.removeMember(server, p.m_20148_());
-         pushTo(p);
+         pushAll(server);
       }
    }
 
@@ -1693,6 +1696,7 @@ public final class Rooms {
          }
 
          ROOMS.remove(key(name));
+         pushAll(server);
          tell(by, Component.m_237110_("fantastic.room.deleted", new Object[]{name}), ChatFormatting.GREEN);
       }
    }

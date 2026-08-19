@@ -20,8 +20,10 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -143,18 +145,29 @@ public class BodyPaintLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
             renderCanvasBlock(pose, buffers, light, data, propIdx, propVariant);
          }
       } else {
-         ResourceLocation propTex = PropCanvasTextures.update(data.uuid(), data.canvas());
-         ModelPart propPart = PropModels.part(propIdx, propVariant);
-         PropModels.animateMob(
-            propPart, PropShapes.of(propIdx).key(), limbSwing, limbSwingAmount, ageInTicks,
-            netHeadYaw, headPitch, AvatarState.propActAge(player, partialTick)
+         String mobKey = PropShapes.of(propIdx).key();
+         float actAge = AvatarState.propActAge(player, partialTick);
+         boolean vanillaRendered = PropHuntClient.isPropHunt(player) && VanillaPropModels.render(
+            mobKey, pose, buffers, light, player, limbSwing, limbSwingAmount, partialTick,
+            ageInTicks, netHeadYaw, headPitch, actAge
          );
-         propPart.m_104301_(pose, buffers.m_6299_(RenderType.m_110464_(propTex)), light, OverlayTexture.f_118083_);
 
-         if (BodyPaint.shouldCapture(data.uuid())) {
-            BodyPaint.beginCapture();
-            BodyPaint.captureProp(propPart, pose, 64);
-            BodyPaint.endCapture();
+         if (!vanillaRendered) {
+            // Meccha conserva su atlas editable y su captura UV. Solo Prop Hunt usa directamente el
+            // modelo y resource pack vanilla para que ambos modos sigan siendo independientes.
+            ResourceLocation propTex = PropCanvasTextures.update(data.uuid(), data.canvas());
+            ModelPart propPart = PropModels.part(propIdx, propVariant);
+            PropModels.animateMob(
+               propPart, mobKey, limbSwing, limbSwingAmount, ageInTicks,
+               netHeadYaw, headPitch, actAge
+            );
+            propPart.m_104301_(pose, buffers.m_6299_(RenderType.m_110464_(propTex)), light, OverlayTexture.f_118083_);
+
+            if (BodyPaint.shouldCapture(data.uuid())) {
+               BodyPaint.beginCapture();
+               BodyPaint.captureProp(propPart, pose, 64);
+               BodyPaint.endCapture();
+            }
          }
       }
 
@@ -205,13 +218,34 @@ public class BodyPaintLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
          ? AvatarState.lockYaw(player)
          : Mth.m_14189_(partialTick, player.f_20884_, player.f_20883_);
       pose.m_252781_(Axis.f_252436_.m_252977_(bodyYaw - 180.0F));
+
+      // La entidad se interpola entre ticks, pero un bloque colocado pertenece a una celda discreta.
+      // Compensar aqui la interpolacion evita que una cara oscile unas fracciones sobre la cara del
+      // vecino al mover la camara. La misma celda se usa para AO, tintes y culling de caras internas.
+      BlockPos anchor = player.m_20183_();
+      if (AvatarState.locked(player)) {
+         Vec3 interpolated = player.m_20318_(partialTick);
+         pose.m_252880_(
+            (float)((double)anchor.m_123341_() + 0.5 - interpolated.f_82479_),
+            (float)((double)anchor.m_123342_() - interpolated.f_82480_),
+            (float)((double)anchor.m_123343_() + 0.5 - interpolated.f_82481_)
+         );
+      }
       pose.m_252880_(-0.5F, 0.0F, -0.5F);
 
       if (state.m_60799_() == RenderShape.MODEL) {
          RenderType layer = ItemBlockRenderTypes.m_109282_(state);
-         Minecraft.m_91087_().m_91289_().m_110918_(
-            state, player.m_20183_(), player.m_9236_(), pose, buffers.m_6299_(layer)
-         );
+         VertexConsumer vertices = buffers.m_6299_(layer);
+         if (AvatarState.locked(player)) {
+            // Ya centrado en una celda: culling vanilla elimina solo las caras realmente internas.
+            Minecraft.m_91087_().m_91289_().m_110918_(state, anchor, player.m_9236_(), pose, vertices);
+         } else {
+            // Mientras camina el modelo no coincide necesariamente con floor(playerPos); emitir todas
+            // las caras evita huecos falsos al pasar junto a paredes o cruzar el borde de una celda.
+            Minecraft.m_91087_().m_91289_().m_234355_(
+               state, anchor, player.m_9236_(), pose, vertices, false, RandomSource.m_216335_(42L)
+            );
+         }
       } else {
          // Cofres/cabezas y otros ENTITYBLOCK_ANIMATED no tienen quads de mundo; se conserva el
          // renderer vanilla de ítem como fallback seguro en vez de mostrar un cubo blanco.

@@ -54,6 +54,7 @@ public final class PropTextures {
       "sheep", "textures/entity/sheep/sheep.png",
       "chicken", "textures/entity/chicken.png",
       "wolf", "textures/entity/wolf/wolf.png",
+      "panda", "textures/entity/panda/panda.png",
       "creeper", "textures/entity/creeper/creeper.png",
       "enderman", "textures/entity/enderman/enderman.png"
    );

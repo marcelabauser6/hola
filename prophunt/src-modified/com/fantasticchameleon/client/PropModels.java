@@ -119,7 +119,7 @@ public final class PropModels {
       }
 
       switch (key) {
-         case "cow", "pig", "sheep":
+         case "cow", "pig", "sheep", "panda":
             quadrupedWalk(root, walkA, walkB);
             if (head != null) {
                // V simula pastar: bajar y cabecear sobre el suelo, no solo emitir partículas.
@@ -406,6 +406,27 @@ public final class PropModels {
                CubeListBuilder.m_171558_().m_171514_(9, 18).m_171481_(0.0F, 0.0F, -1.0F, 2.0F, 8.0F, 2.0F),
                PartPose.m_171423_(-1.0F, 12.0F, 8.0F, (float) (Math.PI / 5), 0.0F, 0.0F)
             );
+            break;
+         case "panda":
+            prop.m_171599_(
+               "head",
+               CubeListBuilder.m_171558_()
+                  .m_171514_(0, 6)
+                  .m_171481_(-6.5F, -5.0F, -4.0F, 13.0F, 10.0F, 9.0F)
+                  .m_171514_(45, 16)
+                  .m_171481_(-3.0F, 1.0F, -5.0F, 6.0F, 4.0F, 1.0F),
+               PartPose.m_171419_(0.0F, 11.0F, -7.0F)
+            );
+            prop.m_171599_(
+               "body",
+               CubeListBuilder.m_171558_().m_171514_(0, 25).m_171481_(-9.0F, -7.0F, -6.0F, 18.0F, 14.0F, 12.0F),
+               PartPose.m_171423_(0.0F, 10.0F, 3.0F, (float) (Math.PI / 2), 0.0F, 0.0F)
+            );
+            CubeListBuilder pandaLeg = CubeListBuilder.m_171558_().m_171514_(40, 0).m_171481_(-3.0F, 0.0F, -3.0F, 6.0F, 7.0F, 6.0F);
+            prop.m_171599_("right_hind_leg", pandaLeg, PartPose.m_171419_(-5.5F, 17.0F, 7.0F));
+            prop.m_171599_("left_hind_leg", pandaLeg, PartPose.m_171419_(5.5F, 17.0F, 7.0F));
+            prop.m_171599_("right_front_leg", pandaLeg, PartPose.m_171419_(-5.5F, 17.0F, -4.0F));
+            prop.m_171599_("left_front_leg", pandaLeg, PartPose.m_171419_(5.5F, 17.0F, -4.0F));
             break;
          case "creeper": {
             prop.m_171599_(

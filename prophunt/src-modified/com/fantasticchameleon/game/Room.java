@@ -13,6 +13,7 @@ import com.fantasticchameleon.network.SeekerDraftPayload;
 import com.fantasticchameleon.network.WhistlePayload;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
+import com.fantasticchameleon.prophunt.PropHunt;
 import com.fantasticchameleon.pose.LockTick;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -216,11 +217,17 @@ public final class Room {
       return this.spectators.contains(id);
    }
 
+   /** Autoridad unica para capturar, fijar o animar un prop durante una ronda. */
+   public boolean canUseProp(UUID id) {
+      return id != null
+         && PropHunt.normalize(this.config.gameMode) == PropHunt.MODE_PROP_HUNT
+         && this.hiders.contains(id)
+         && !this.spectators.contains(id)
+         && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
+   }
+
    void addMember(UUID id) {
       this.roster.add(id);
-      if (!this.spectators.contains(id)) {
-         this.preAssigned.putIfAbsent(id, Room.Role.HIDER);
-      }
    }
 
    void removeMember(MinecraftServer server, UUID id) {
@@ -231,12 +238,14 @@ public final class Room {
       if (leaving != null) {
          this.removeRoomGear(leaving);
          Stash.restore(leaving);
+         resetAvatar(leaving);
       }
 
       this.roster.remove(id);
       this.hiders.remove(id);
       this.seekers.remove(id);
       this.preAssigned.remove(id);
+      this.chosenRole.remove(id);
       this.spectators.remove(id);
       this.scores.remove(id);
       this.totalScores.remove(id);
@@ -527,9 +536,9 @@ public final class Room {
                      if (!this.seekers.contains(idx)) {
                         if (DummyPlayer.isDummy(idx)) {
                            this.makeHider(pxxxxxx);
-                        } else if (this.preAssigned.get(idx) == Room.Role.SEEKER) {
+                        } else if (this.choseOwnRole(idx) && this.preAssigned.get(idx) == Room.Role.SEEKER) {
                            this.makeSeeker(pxxxxxx, false);
-                        } else if (this.preAssigned.get(idx) == Room.Role.HIDER) {
+                        } else if (this.choseOwnRole(idx) && this.preAssigned.get(idx) == Room.Role.HIDER) {
                            this.makeHider(pxxxxxx);
                         } else {
                            unassigned.add(pxxxxxx);
@@ -639,6 +648,7 @@ public final class Room {
 
       for (ServerPlayer p : members) {
          Stash.restore(p);
+         resetAvatar(p);
       }
 
       for (UUID idx : this.glowTargets) {
@@ -697,13 +707,15 @@ public final class Room {
             return false;
          } else {
             this.spectators.remove(id);
-            this.preAssigned.putIfAbsent(id, Room.Role.HIDER);
+            this.preAssigned.remove(id);
+            this.chosenRole.remove(id);
             this.msg(p, Component.m_237115_("fantastic.spectate.play_next"), ChatFormatting.AQUA);
             return true;
          }
       } else {
          this.spectators.add(id);
          this.preAssigned.remove(id);
+         this.chosenRole.remove(id);
          if (this.inProgress()) {
             boolean wasHider = this.hiders.remove(id);
             this.seekers.remove(id);
@@ -844,7 +856,13 @@ public final class Room {
       }
    }
 
+   private static void resetAvatar(ServerPlayer p) {
+      FantasticNetwork.resetPose(p);
+      Services.PLATFORM.sendToClient(p, ForceExitPayload.INSTANCE);
+   }
+
    private void enterSpectator(ServerPlayer p) {
+      resetAvatar(p);
       this.savedGameType.putIfAbsent(p.m_20148_(), p.f_8941_.m_9290_());
       Services.PLATFORM.persistentData(p).m_128405_("fantastic_saved_gm", this.savedGameType.get(p.m_20148_()).m_46392_());
       if (p.f_8941_.m_9290_() != GameType.SPECTATOR) {
@@ -1027,8 +1045,8 @@ public final class Room {
                      this.teleportGroupToStart(server, seekerTp);
                   }
 
-                  this.broadcast(server, Component.m_237115_("fantastic.game.seek"), ChatFormatting.AQUA);
-                  this.titleAll(server, Component.m_237115_("fantastic.game.title.hunt"), null, 5, 50, 12);
+                  this.broadcastTo(server, this.seekers, Component.m_237115_("fantastic.game.seek"), ChatFormatting.AQUA);
+                  this.titleTo(server, this.seekers, Component.m_237115_("fantastic.game.title.hunt"), null, 5, 50, 12);
                   break;
                case SEEKING:
                   this.end(server, false);
@@ -1039,12 +1057,14 @@ public final class Room {
                case COUNTDOWN:
                   this.phase = Room.Phase.HIDING;
                   this.timer = this.config.hideSecs * 20;
-                  this.broadcast(server, Component.m_237110_("fantastic.game.hide", new Object[]{this.config.hideSecs}), ChatFormatting.GREEN);
+                  this.broadcastTo(
+                     server, this.hiders, Component.m_237110_("fantastic.game.hide", new Object[]{this.config.hideSecs}), ChatFormatting.GREEN
+                  );
             }
          }
 
          if (this.phase == Room.Phase.HIDING && this.timer == 200) {
-            this.titleAll(server, Component.m_237115_("fantastic.game.title.hidewarn"), null, 5, 40, 10);
+            this.titleTo(server, this.hiders, Component.m_237115_("fantastic.game.title.hidewarn"), null, 5, 40, 10);
          }
 
          if (this.phase == Room.Phase.SEEKING) {
@@ -1125,6 +1145,20 @@ public final class Room {
             return true;
          } else {
             return false;
+         }
+      }
+   }
+
+   private void titleTo(MinecraftServer server, Set<UUID> recipients, Component title, Component subtitle, int fadeIn, int stay, int fadeOut) {
+      for (UUID id : new HashSet<>(recipients)) {
+         ServerPlayer p = resolve(server, id);
+         if (p != null && this.roster.contains(id)) {
+            p.f_8906_.m_9829_(new ClientboundSetTitlesAnimationPacket(fadeIn, stay, fadeOut));
+            if (subtitle != null) {
+               p.f_8906_.m_9829_(new ClientboundSetSubtitleTextPacket(subtitle));
+            }
+
+            p.f_8906_.m_9829_(new ClientboundSetTitleTextPacket(title));
          }
       }
    }
@@ -1459,6 +1493,7 @@ public final class Room {
 
          for (ServerPlayer p : this.onlineMembers(server)) {
             Sidebar.hide(p, this.objName);
+            resetAvatar(p);
          }
 
          if (this.config.revealSecs > 0 && !this.revealTargets.isEmpty()) {
@@ -1912,6 +1947,16 @@ public final class Room {
 
    void broadcastShaderWarning(MinecraftServer server, ServerPlayer p) {
       this.broadcast(server, Component.m_237110_("fantastic.game.shader_warning", new Object[]{p.m_7755_().getString()}), ChatFormatting.YELLOW);
+   }
+
+   private void broadcastTo(MinecraftServer server, Set<UUID> recipients, Component text, ChatFormatting color) {
+      Component full = Component.m_237113_("[" + this.name + "] ").m_7220_(text).m_130940_(color);
+      for (UUID id : new HashSet<>(recipients)) {
+         ServerPlayer p = resolve(server, id);
+         if (p != null && this.roster.contains(id)) {
+            p.m_213846_(full);
+         }
+      }
    }
 
    private void broadcast(MinecraftServer server, Component text, ChatFormatting color) {

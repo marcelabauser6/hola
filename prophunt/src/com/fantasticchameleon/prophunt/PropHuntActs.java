@@ -1,5 +1,7 @@
 package com.fantasticchameleon.prophunt;
 
+import com.fantasticchameleon.game.Room;
+import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.network.PropActPayload;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
@@ -49,6 +51,12 @@ public final class PropHuntActs {
     * intervalos irregulares para que no parezca un metronomo.
     */
    public static void ambientTick(ServerPlayer player) {
+      Room room = Rooms.roomOf(player);
+      if (room == null || !room.canUseProp(player.m_20148_())) {
+         NEXT_AMBIENT.remove(player.m_20148_());
+         return;
+      }
+
       Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
       if (prop == null || prop < 0 || !PropShapes.followsLook(prop)) {
          return;
@@ -85,6 +93,7 @@ public final class PropHuntActs {
          case "pig" -> SoundEvents.f_12233_;
          case "chicken" -> SoundEvents.f_11750_;
          case "wolf" -> SoundEvents.f_12617_;
+         case "panda" -> SoundEvents.f_12179_;
          case "enderman" -> SoundEvents.f_11899_;
          default -> null;
       };
@@ -92,6 +101,11 @@ public final class PropHuntActs {
 
    /** Ejecuta el gesto del prop que lleva puesto. */
    public static void act(ServerPlayer player) {
+      Room room = Rooms.roomOf(player);
+      if (room == null || !room.canUseProp(player.m_20148_())) {
+         return;
+      }
+
       Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
       if (prop == null || prop < 0) {
          return;
@@ -125,6 +139,10 @@ public final class PropHuntActs {
          case "wolf":
             play(level, player, SoundEvents.f_12617_, 1.0F, 1.0F);
             puff(level, player, ParticleTypes.f_123748_, 4);
+            break;
+         case "panda":
+            play(level, player, SoundEvents.f_12179_, 1.0F, 1.0F);
+            graze(level, player);
             break;
          case "creeper":
             // Sisear: el aviso clasico, sin explotar nada.

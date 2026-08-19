@@ -7,6 +7,7 @@ import java.util.Map;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.Chicken;
 import net.minecraft.world.entity.animal.Cow;
+import net.minecraft.world.entity.animal.Panda;
 import net.minecraft.world.entity.animal.Pig;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.animal.Wolf;
@@ -236,6 +237,8 @@ public final class BlockPropMapper {
          key = "chicken";
       } else if (entity instanceof Wolf) {
          key = "wolf";
+      } else if (entity instanceof Panda) {
+         key = "panda";
       } else if (entity instanceof Creeper) {
          key = "creeper";
       } else if (entity instanceof EnderMan) {

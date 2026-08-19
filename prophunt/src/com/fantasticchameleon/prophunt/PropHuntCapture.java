@@ -98,9 +98,7 @@ public final class PropHuntCapture {
       }
 
       Room room = Rooms.roomOf(player);
-      return room != null
-         && PropHunt.normalize(room.config().gameMode) == PropHunt.MODE_PROP_HUNT
-         && !room.isSeeker(player.m_20148_());
+      return room != null && room.canUseProp(player.m_20148_());
    }
 
    /** Como {@link #canTransform} pero avisando al jugador de lo que le falta. */

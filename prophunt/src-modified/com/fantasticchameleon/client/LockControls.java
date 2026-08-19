@@ -148,6 +148,13 @@ public final class LockControls {
 
    public static void onClientTick(Minecraft mc) {
       syncShrink(mc);
+      if (mc.f_91074_ != null
+         && PropHuntClient.isPropHunt()
+         && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
+         && !PropHuntClient.canUseProp()) {
+         forceExitFromServer();
+      }
+
       if (paintKey != null) {
          while (poseWheelKey.m_90859_()) {
             if (mc.f_91074_ != null) {
@@ -177,20 +184,30 @@ public final class LockControls {
 
          while (actKey.m_90859_()) {
             // Gesto de criatura: solo tiene sentido disfrazado en Prop Hunt.
-            if (mc.f_91074_ != null && PropHuntClient.isPropHunt()) {
+            if (mc.f_91074_ != null && PropHuntClient.isPropHunt() && PropHuntClient.canUseProp()) {
                ClientNet.sendToServer(PropActPayload.INSTANCE);
             }
          }
 
          boolean paintRawDown = rawKeyDown(paintKey);
          if (paintRawDown && !paintWasDown && !paintScreenWasOpen && mc.f_91074_ != null && ClientShims.screen(mc) == null) {
-            if (!Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)) {
+            boolean propHunt = PropHuntClient.isPropHunt();
+            if (!Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
+               && (!propHunt || PropHuntClient.canUseProp())) {
+               if (!propHunt) {
+                  // Meccha siempre entra en una silueta baja y plana antes de fijarse. Al marcarla
+                  // como pose real lock() no captura la postura humana incidental como FrozenFrame.
+                  Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, true);
+                  Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, 30);
+                  ClientNet.sendToServer(new PosePayload(true, 30));
+               }
+
                lock(mc);
             }
 
-            // En Prop Hunt la tecla solo sirve para fijarse en el sitio: no hay pintura, asi que no se
-            // abre el editor de pintura ni la camara libre que lo acompana.
-            if (!PropHuntClient.isPropHunt()) {
+            // En Prop Hunt F solo fija durante COUNTDOWN/HIDING/SEEKING y siendo hider. Fuera de
+            // esas fases no cambia estado local; el servidor aplica exactamente la misma regla.
+            if (!propHunt) {
                if (!FreeCam.active()) {
                   FreeCam.enable();
                }

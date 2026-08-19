@@ -1,5 +1,19 @@
-# Fantastic Chameleon 1.2.6 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.7 — Modo Prop Hunt
 
+> **1.2.7 — limpieza completa, modelos vanilla y Meccha adherido.**
+> - Prop Hunt usa modelos vanilla reales para vaca, cerdo, oveja, gallina, lobo, creeper,
+>   enderman y panda; las texturas salen del resource pack activo. Panda se añadió al final del
+>   catálogo (índice 19), sin desplazar los IDs anteriores.
+> - F solo funciona para hiders durante una ronda activa. Al terminar, salir, espectar o quitar el
+>   disfraz se limpian prop, pose, ancla, freeze e inmovilización; el servidor rechaza bypasses de
+>   `PosePayload` desde clientes modificados.
+> - Los mensajes se separan por rol, los bloques fijados usan celda/culling discreto sin líneas
+>   coplanares y los bloques móviles emiten todas sus caras.
+> - Crear, entrar, salir, expulsar o borrar una sala actualiza inmediatamente el catálogo global; el
+>   botón ahora dice **Guardar** y ejecuta la acción server-side correspondiente.
+> - En Meccha, F adopta la pose plana 30, recoge brazos/piernas y se adhiere de forma segura al suelo
+>   y a la pared horizontal más cercana. La pipeta con Space lee el texel exacto señalado.
+>
 > **1.2.6 — estado exacto, render vanilla, criaturas animadas y Jade indistinguible.**
 > - El servidor sincroniza el **`BlockState` completo** (`PROP_STATE`), no solo el ID del bloque. Se
 >   conservan eje, orientación, mitad, forma, conexiones, edad, encendido y demás propiedades.
@@ -134,7 +148,7 @@ escaleras (recta/interior/exterior, normal e invertida, 4 orientaciones), valla,
 (post/extremo/recta/esquina/te/cruz), trampilla (suelo/techo/pared), alfombra, pastel, maceta
 (vacía/planta/cactus), farol (de pie/colgante) y yunque. Cualquier otro bloque cae a bloque completo.
 
-**Criaturas**: vaca, cerdo, oveja, gallina, lobo, creeper y enderman. Otras entidades avisan que
+**Criaturas**: vaca, cerdo, oveja, gallina, lobo, panda, creeper y enderman. Otras entidades avisan que
 todavía no tienen forma.
 
 La apariencia del bloque es la real: se renderiza su `BakedModel` y `BlockState` exactos con el
@@ -176,7 +190,7 @@ del `variant` (el modelo se construye rotado), y así las caras quedan paralelas
 | `client/FantasticEditorScreen.java` | Botón selector de modo |
 | `client/LockControls.java` | En Prop Hunt la tecla solo fija, no abre el pintor |
 | `assets/.../lang/*.json` | 10 claves nuevas en los 8 idiomas |
-| `META-INF/mods.toml` | Versión 1.2.0 y descripción |
+| `META-INF/mods.toml` | Versión 1.2.7 y descripción |
 
 No se tocó ningún mixin, ni el access transformer, ni el refmap, ni el entrypoint del mod. Los
 listeners nuevos se registran con `@Mod.EventBusSubscriber` y corren a `EventPriority.LOW` para no
@@ -188,7 +202,7 @@ pisar las herramientas de staff que ya escuchaban el clic derecho.
   Forge: 0 fallos, ningún prop ni variant fuera de rango, ninguna excepción.
 - Compilación SRG Java 17 limpia de las clases modificadas; las clases insertadas coinciden por SHA-256
   con las compiladas y el JAR no contiene entradas duplicadas ni clases de self-test.
-- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.6, tanto sin Jade como con
+- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.7, tanto sin Jade como con
   Jade 11.13.3; Jade descubrió y cargó `FantasticJadePlugin` sin errores.
 
 Lo que **no** se pudo probar aquí: el render en pantalla y la sensación en partida (hace falta un

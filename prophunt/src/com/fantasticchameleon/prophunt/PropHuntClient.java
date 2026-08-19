@@ -52,12 +52,33 @@ public final class PropHuntClient {
     */
    public static boolean isPropHunt() {
       LocalPlayer player = Minecraft.m_91087_().f_91074_;
-      if (player == null) {
+      return player != null && isPropHunt(player);
+   }
+
+   /** Comprueba el modo sincronizado del jugador concreto que se esta renderizando. */
+   public static boolean isPropHunt(Player player) {
+      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      return mode != null && mode == PropHunt.MODE_PROP_HUNT;
+   }
+
+   /** Capacidad cliente conservadora; el servidor vuelve a validar cada accion. */
+   public static boolean canUseProp() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      if (player == null || !isPropHunt(player)) {
          return false;
       }
 
-      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
-      return mode != null && mode == PropHunt.MODE_PROP_HUNT;
+      int phase = com.fantasticchameleon.client.RoundBar.phase();
+      if (phase < 1 || phase > 3) {
+         return false;
+      }
+
+      for (com.fantasticchameleon.network.RoundStatePayload.Entry entry : com.fantasticchameleon.client.RoundBar.entries()) {
+         if (entry.id().equals(player.m_20148_())) {
+            return !entry.found();
+         }
+      }
+      return false;
    }
 
    @SubscribeEvent
@@ -162,6 +183,7 @@ public final class PropHuntClient {
       BLOCK_CACHE.clear();
       APPLIED.clear();
       PropTextures.clearCache();
+      com.fantasticchameleon.client.VanillaPropModels.clearCache();
    }
 
    /** Los listeners de recursos se registran en el bus MOD, separado del tick del bus Forge. */
