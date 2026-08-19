@@ -48,28 +48,27 @@ public final class PaintHud {
                }
             } else if (locked && !FreeCam.active()) {
                // Debajo de la barra de ronda: arriba fijo se solapaba con las cabezas y el reloj. El
-               // suelo de 46 cubre el primer frame, cuando la barra todavia no ha publicado su alto.
+               // suelo de 42 cubre el primer frame, cuando la barra todavia no ha publicado su alto.
                int topY = RoundBar.inRound() ? Math.max(RoundBar.bottom(), 42) + 4 : 4;
                String mode = "● " + Component.m_237115_("fantastic.hud.hiding").getString();
                Gfx.text(graphics, mc.f_91062_, mode, cx - mc.f_91062_.m_92895_(mode) / 2, topY, -11141291);
-               // En Prop Hunt no hay pintura ni poses, asi que se muestran solo las teclas que existen.
-               ControlHints.rowCentered(
-                  graphics,
-                  mc.f_91062_,
-                  cx,
-                  topY + 10,
-                  PropHuntClient.isPropHunt()
-                     ? List.of(
-                        new String[]{"Space", Component.m_237115_("fantastic.hint.move").getString()},
-                        new String[]{"R", Component.m_237115_("fantastic.prophunt.hint_clear").getString()}
-                     )
-                     : List.of(
+               // En Prop Hunt no se dibuja fila de teclas: parecían botones y no lo eran, y las dos
+               // acciones que existen (desacoplar y revertir) ya están como botones de verdad en el
+               // panel lateral. En Meccha sí se muestran, porque ahí no hay panel.
+               if (!PropHuntClient.isPropHunt()) {
+                  ControlHints.rowCentered(
+                     graphics,
+                     mc.f_91062_,
+                     cx,
+                     topY + 10,
+                     List.of(
                         new String[]{"Space", Component.m_237115_("fantastic.hint.move").getString()},
                         new String[]{"F", Component.m_237115_("fantastic.hint.paint").getString()},
                         new String[]{"R", Component.m_237115_("fantastic.hint.pose").getString()},
                         new String[]{"Esc", Component.m_237115_("fantastic.hint.menu").getString()}
                      )
-               );
+                  );
+               }
             }
 
             if (!locked && !FreeCam.active() && WindowLayouts.flag("HotkeyCard", true) && ChameleonArmor.fullCoverage(mc.f_91074_)) {

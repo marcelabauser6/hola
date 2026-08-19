@@ -110,6 +110,9 @@ public final class GameCommand {
       ServerPlayer p = player(ctx);
       WorldPick.forget(p);
       Services.PLATFORM.sendToClient(p, new OpenEditorPayload(tab));
+      // El catálogo de salas se envía junto con el editor. Antes había que pulsar Guardar para pedirlo,
+      // y hasta que llegaba el botón de crear estaba deshabilitado: parecía que no se podía crear nada.
+      Rooms.pushTo(p);
       return 1;
    }
 

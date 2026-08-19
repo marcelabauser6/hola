@@ -1,4 +1,28 @@
-# Fantastic Chameleon 1.2.13 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.14 — Prop Hunt y Meccha corregidos
+
+> **1.2.14 — ritmo del mob, acople en vallas y cristales, y sin rastros del disfraz anterior.**
+> - **Fuera la fila de teclas falsa.** Bajo el indicador de escondido había una fila con aspecto de
+>   botones que no hacía nada: eran solo etiquetas. En Prop Hunt ya no se dibuja, porque las dos acciones
+>   reales (desacoplar y revertir) están como botones de verdad en el panel lateral.
+> - **El acople funciona en vallas y paneles de cristal.** Se pegaba al borde de la celda del bloque, pero
+>   una valla ocupa de 0,375 a 0,625 y un panel es aún más fino: el jugador quedaba flotando y la
+>   comprobación de hueco no cuadraba, así que el acople no se completaba. Ahora se usa la caja real del
+>   bloque, sea la que sea.
+> - **Los pasos se oyen al instante.** El contador de distancia se reiniciaba cada vez que el jugador
+>   dejaba de tocar el suelo —lo que pasa constantemente al caminar—, así que casi nunca se completaba un
+>   paso. Ahora la distancia se acumula siempre y la cadencia bajó a 0,6 bloques.
+> - **Cada mob impone su ritmo.** Medida la velocidad base de los 76 tipos vivos vanilla: va de 0,09
+>   (camello) a 1,2 (delfín). Tomando el zombi (0,23) como referencia, porque se mueve casi como un
+>   jugador andando, el disfraz adopta la velocidad de la criatura: una vaca (0,20) va más lenta y una
+>   araña (0,30) más rápida. Se acota entre 0,6x y 1,35x porque los que saltan o nadan usan ese valor de
+>   otra forma (un slime marca 0,7 y un delfín 1,2, que darían 3x y 5x).
+> - **Se acabaron las partículas de slime pegadas.** Al cambiar de disfraz, el modelo anterior seguía
+>   ticando para siempre porque nadie lo retiraba: el slime invisible continuaba soltando partículas a
+>   tus pies. Ahora el modelo se retira en cuanto el jugador deja de llevar esa criatura.
+> - **Crear una sala ya no exige pulsar Guardar antes.** El catálogo de salas se envía junto con el
+>   editor; antes había que pedirlo a mano y hasta que llegaba el botón de crear estaba deshabilitado.
+>
+> **1.2.13 — patas que paran, cámara detrás al pegarse y ningún mob mudo.**
 
 > **1.2.13 — patas que paran, cámara detrás al pegarse y ningún mob mudo.**
 > - **Las patas ya no andan solas.** Reproducido en el servidor: dejando que el modelo calculara su propia

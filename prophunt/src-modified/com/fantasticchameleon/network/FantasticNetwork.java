@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -47,7 +48,10 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -55,6 +59,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -69,6 +74,25 @@ public final class FantasticNetwork {
    private static final int ACTION_RESET_TICKS = 100;
    private static final Map<UUID, long[]> ACTION_LAST = new ConcurrentHashMap<>();
    public static final ResourceLocation LOCK_MODIFIER_ID = new ResourceLocation("fantastic_chameleon", "pose_lock");
+   /** Modificador de velocidad que adopta el ritmo de la criatura imitada. */
+   public static final ResourceLocation PROP_SPEED_ID = new ResourceLocation("fantastic_chameleon", "prop_speed");
+   /**
+    * Velocidad del zombi, que en el juego se mueve prácticamente al ritmo de un jugador andando. Sirve
+    * de referencia para traducir la velocidad de cualquier mob a la escala del jugador.
+    */
+   private static final double REFERENCE_MOB_SPEED = 0.23;
+   private static final double PLAYER_SPEED = 0.1;
+   /**
+    * Límites del ritmo adoptado.
+    *
+    * <p>Medido en el servidor, la velocidad base va de 0,09 (camello) a 1,2 (delfín), y los que saltan o
+    * nadan la usan de otra forma: un slime marca 0,7 y un delfín 1,2, que traducidos a las piernas de un
+    * jugador darían 3x y 5x. Se acota para que el disfraz cambie de ritmo de forma creíble sin convertir
+    * a nadie en un cohete.
+    */
+   private static final double MIN_SPEED_RATIO = 0.6;
+   private static final double MAX_SPEED_RATIO = 1.35;
+   private static final Map<String, Double> MOB_SPEED = new ConcurrentHashMap<>();
    public static final int POSE_COUNT = PoseDefs.count();
    public static final int BLOCK_POSE = 8;
    public static final int FREEZE_POSE = -1;
@@ -421,17 +445,23 @@ public final class FantasticNetwork {
       // por la excepción ATTACHED.
       double[] clip = PoseDefs.def(0).clipBox();
       double half = Math.max(0.02, Math.abs(clip[0]) * (double)ArmorPaintHandler.scaleOf(player) - ATTACH_SINK);
+      // La superficie real del bloque, no el borde de su celda: una valla ocupa de 0,375 a 0,625 y un
+      // panel de cristal es aún más fino, así que pegarse al borde de la celda dejaba al jugador
+      // flotando en el aire y la comprobación de hueco no cuadraba. Se usa la caja del propio bloque.
+      AABB shape = state.m_60812_(player.m_9236_(), pos).m_83281_()
+         ? new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0)
+         : state.m_60812_(player.m_9236_(), pos).m_83215_();
       double x = player.m_20185_();
       double y = player.m_20186_();
       double z = player.m_20189_();
       switch (payload.face()) {
-         case EAST -> { x = (double)pos.m_123341_() + 1.0 + half; z = hit.f_82481_; }
-         case WEST -> { x = (double)pos.m_123341_() - half; z = hit.f_82481_; }
-         case SOUTH -> { z = (double)pos.m_123343_() + 1.0 + half; x = hit.f_82479_; }
-         case NORTH -> { z = (double)pos.m_123343_() - half; x = hit.f_82479_; }
+         case EAST -> { x = (double)pos.m_123341_() + shape.f_82291_ + half; z = hit.f_82481_; }
+         case WEST -> { x = (double)pos.m_123341_() + shape.f_82288_ - half; z = hit.f_82481_; }
+         case SOUTH -> { z = (double)pos.m_123343_() + shape.f_82293_ + half; x = hit.f_82479_; }
+         case NORTH -> { z = (double)pos.m_123343_() + shape.f_82290_ - half; x = hit.f_82479_; }
          // Encima del bloque se centra en la celda: con el punto exacto del rayo, clicar el borde
          // dejaba media huella en voladizo.
-         case UP -> { x = (double)pos.m_123341_() + 0.5; y = (double)pos.m_123342_() + 1.0; z = (double)pos.m_123343_() + 0.5; }
+         case UP -> { x = (double)pos.m_123341_() + 0.5; y = (double)pos.m_123342_() + shape.f_82292_; z = (double)pos.m_123343_() + 0.5; }
          default -> { restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame); return; }
       }
 
@@ -677,7 +707,63 @@ public final class FantasticNetwork {
       }
    }
 
+   /**
+    * El disfraz se mueve al ritmo del bicho: una vaca va más lenta que tú y una araña más rápida.
+    *
+    * <p>La velocidad base de los mobs no está en la misma escala que la del jugador, así que se traduce
+    * tomando el zombi como referencia —se mueve casi igual que un jugador andando— y se acota, porque los
+    * que saltan o nadan usan ese valor de otra manera.
+    */
+   private static void applyMobSpeed(ServerPlayer player, String typeId) {
+      AttributeInstance speed = player.m_21051_(Attributes.f_22279_);
+      if (speed == null) {
+         return;
+      }
+
+      Attr.remove(speed, PROP_SPEED_ID);
+      double base = mobSpeed(player, typeId);
+      if (base <= 0.0) {
+         return;
+      }
+
+      double target = base * PLAYER_SPEED / REFERENCE_MOB_SPEED;
+      double ratio = Mth.m_14008_(target / PLAYER_SPEED, MIN_SPEED_RATIO, MAX_SPEED_RATIO);
+      if (Math.abs(ratio - 1.0) > 0.01) {
+         speed.m_22118_(Attr.modifier(PROP_SPEED_ID, ratio - 1.0, Operation.MULTIPLY_TOTAL));
+      }
+   }
+
+   /** Velocidad base del tipo, leída una sola vez por tipo de una instancia desechable. */
+   private static double mobSpeed(ServerPlayer player, String typeId) {
+      return MOB_SPEED.computeIfAbsent(typeId, id -> {
+         try {
+            EntityType<?> type = BuiltInRegistries.f_256780_.m_7745_(new ResourceLocation(id));
+            if (type == null) {
+               return 0.0;
+            }
+
+            Entity probe = type.m_20615_(player.m_284548_());
+            if (!(probe instanceof LivingEntity living)) {
+               return 0.0;
+            }
+
+            AttributeInstance attr = living.m_21051_(Attributes.f_22279_);
+            double value = attr == null ? 0.0 : attr.m_22115_();
+            probe.m_146870_();
+            return value;
+         } catch (RuntimeException ignored) {
+            return 0.0;
+         }
+      });
+   }
+
    public static void clearProp(ServerPlayer player) {
+      AttributeInstance speed = player.m_21051_(Attributes.f_22279_);
+      if (speed != null) {
+         // Volver a ser jugador es volver a tu propia velocidad.
+         Attr.remove(speed, PROP_SPEED_ID);
+      }
+
       Services.PLATFORM.set(player, PaintAttachments.PROP, -1);
       Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, 0);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
@@ -725,6 +811,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, snapshot);
       Services.PLATFORM.set(player, PaintAttachments.SIZE_MINI, Boolean.FALSE);
       ArmorPaintHandler.updateShrink(player);
+      applyMobSpeed(player, snapshot.typeId());
       player.m_6210_();
       FantasticAdvancements.award(player, "block");
    }

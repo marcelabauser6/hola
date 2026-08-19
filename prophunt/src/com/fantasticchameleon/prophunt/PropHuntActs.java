@@ -43,8 +43,8 @@ public final class PropHuntActs {
    private static final Map<String, Optional<SoundEvent>> CAPTURED_VOICE = new ConcurrentHashMap<>();
    private static final Map<String, Optional<SoundEvent>> STEP_VOICE = new ConcurrentHashMap<>();
    private static final Map<UUID, double[]> STEP = new ConcurrentHashMap<>();
-   /** Un paso cada 0,9 bloques recorridos, la misma cadencia que usa el juego. */
-   private static final double STEP_DISTANCE = 0.9;
+   /** Un paso cada 0,6 bloques recorridos: la cadencia con la que se oyen los mobs al andar. */
+   private static final double STEP_DISTANCE = 0.6;
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -232,15 +232,15 @@ public final class PropHuntActs {
     */
    public static void stepTick(ServerPlayer player) {
       EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
-      if (snapshot == null || !snapshot.present() || !player.m_20096_() || player.m_5833_()) {
+      if (snapshot == null || !snapshot.present() || player.m_5833_()) {
          STEP.remove(player.m_20148_());
          return;
       }
 
       double[] state = STEP.get(player.m_20148_());
       if (state == null) {
-         STEP.put(player.m_20148_(), new double[]{0.0, player.m_20185_(), player.m_20189_()});
-         return;
+         state = new double[]{0.0, player.m_20185_(), player.m_20189_()};
+         STEP.put(player.m_20148_(), state);
       }
 
       double dx = player.m_20185_() - state[1];
@@ -248,7 +248,10 @@ public final class PropHuntActs {
       state[1] = player.m_20185_();
       state[2] = player.m_20189_();
       state[0] = state[0] + Math.sqrt(dx * dx + dz * dz);
-      if (state[0] < STEP_DISTANCE) {
+      // La distancia se acumula siempre, también en el aire: antes se reiniciaba el contador al dejar
+      // de tocar el suelo, y como eso pasa constantemente al caminar, casi nunca se llegaba a sonar un
+      // paso. En el aire no suena, pero lo andado no se pierde.
+      if (state[0] < STEP_DISTANCE || !player.m_20096_()) {
          return;
       }
 

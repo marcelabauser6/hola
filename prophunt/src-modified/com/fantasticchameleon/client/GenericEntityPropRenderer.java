@@ -152,7 +152,10 @@ public final class GenericEntityPropRenderer {
       for (Map.Entry<UUID, Entry> cached : new ArrayList<>(CACHE.entrySet())) {
          Entry entry = cached.getValue();
          Player owner = level.m_46003_(cached.getKey());
-         if (owner == null) {
+         // Si el jugador ya no lleva esa criatura, su modelo deja de existir aquí mismo. Sin esto, el
+         // modelo viejo seguía ticando para siempre: al pasar de slime a otra cosa, el slime invisible
+         // continuaba soltando sus partículas a los pies del jugador.
+         if (owner == null || !AvatarState.entityProp(owner).equals(entry.snapshot)) {
             CACHE.remove(cached.getKey());
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
             // Desplazamiento real del jugador en este tick, con la misma fórmula que usa el juego.
