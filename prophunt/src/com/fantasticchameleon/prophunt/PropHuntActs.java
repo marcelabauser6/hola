@@ -247,15 +247,16 @@ public final class PropHuntActs {
       double dz = player.m_20189_() - state[2];
       state[1] = player.m_20185_();
       state[2] = player.m_20189_();
-      state[0] = state[0] + Math.sqrt(dx * dx + dz * dz);
-      // La distancia se acumula siempre, también en el aire: antes se reiniciaba el contador al dejar
-      // de tocar el suelo, y como eso pasa constantemente al caminar, casi nunca se llegaba a sonar un
-      // paso. En el aire no suena, pero lo andado no se pierde.
-      if (state[0] < STEP_DISTANCE || !player.m_20096_()) {
+      // Misma fórmula que usa el juego para decidir cuándo suena un paso: acumula la distancia recorrida
+      // multiplicada por 0,6 y suena al llegar a 1. Con eso el ritmo coincide con el de cualquier mob en
+      // vez de ser una cadencia inventada. La distancia se acumula también en el aire (no suena, pero no
+      // se pierde), porque al caminar se deja de tocar el suelo constantemente.
+      state[0] = state[0] + Math.sqrt(dx * dx + dz * dz) * 0.6;
+      if (state[0] < 1.0 || !player.m_20096_()) {
          return;
       }
 
-      state[0] = 0.0;
+      state[0] = state[0] - 1.0;
       ServerLevel level = player.m_284548_();
       BlockPos below = player.m_20183_().m_7495_();
       SoundType ground = level.m_8055_(below).m_60827_();

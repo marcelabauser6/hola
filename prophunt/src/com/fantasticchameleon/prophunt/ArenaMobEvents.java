@@ -12,11 +12,14 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.memory.MemoryStatus;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.event.entity.EntityEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.living.LivingChangeTargetEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -58,11 +61,33 @@ public final class ArenaMobEvents {
 
    @SubscribeEvent
    public static void onAttack(LivingAttackEvent event) {
-      if (event.getEntity() instanceof ServerPlayer player
-         && event.getSource().m_7639_() instanceof Mob mob
-         && protectedTarget(mob, player)) {
+      if (blocked(event.getEntity(), event.getSource())) {
          event.setCanceled(true);
       }
+   }
+
+   /**
+    * Segunda barrera por si algo llega al cálculo de daño sin pasar por el ataque.
+    *
+    * <p>Cancelar el ataque cubre el golpe directo y el proyectil con dueño, pero hay rutas que aplican
+    * daño por otro camino. Con las dos puertas, ningún mob puede herir a un participante dentro de la zona.
+    */
+   @SubscribeEvent
+   public static void onHurt(LivingHurtEvent event) {
+      if (blocked(event.getEntity(), event.getSource())) {
+         event.setCanceled(true);
+      }
+   }
+
+   private static boolean blocked(LivingEntity victim, DamageSource source) {
+      if (!(victim instanceof ServerPlayer player) || source == null) {
+         return false;
+      }
+
+      // Se mira tanto el causante como el proyectil: una flecha tiene al esqueleto como dueño, pero
+      // conviene comprobar los dos por si alguno llega nulo.
+      return source.m_7639_() instanceof Mob shooter && protectedTarget(shooter, player)
+         || source.m_7640_() instanceof Mob direct && protectedTarget(direct, player);
    }
 
    /** Aplica al final las dimensiones autoritativas del mob, despues de escalas y poses humanas. */
@@ -84,10 +109,10 @@ public final class ArenaMobEvents {
          return false;
       }
 
-      // Si la sala tiene arena delimitada, se exige que ambos estén dentro. Si no la tiene, la ronda
-      // en curso ES el perímetro: antes se exigía una arena configurada y, al no haberla, la
-      // protección no se aplicaba nunca y los mobs seguían atacando.
-      return !room.hasArenaBounds() || room.containsArena(player) && room.containsArena(mob);
+      // Basta con que el PROTEGIDO esté dentro de la zona. Antes se exigía que el mob también lo
+      // estuviera, así que un esqueleto disparando desde fuera o un creeper al borde seguían haciendo
+      // daño: justo lo que se pedía evitar. Si la sala no tiene arena delimitada, la ronda es la zona.
+      return !room.hasArenaBounds() || room.containsArena(player);
    }
 
    private static void clearTarget(Mob mob) {

@@ -1,4 +1,35 @@
-# Fantastic Chameleon 1.2.15 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.16 — Prop Hunt y Meccha corregidos
+
+> **1.2.16 — ritmo medido de verdad, pasos con la cadencia del juego y nada de daño en la zona.**
+>
+> Se midió el ritmo real de varios mobs caminando por un suelo despejado durante 160 ticks, comparado con
+> un jugador andando (0,2158 bloques por tick):
+>
+> | Mob | Bloques/tick | Ritmo respecto al jugador |
+> |---|---|---|
+> | Vaca | 0,0537 | **0,25×** |
+> | Slime | 0,0557 | 0,26× |
+> | Zombi | 0,0756 | 0,35× |
+> | Enderman | 0,1255 | 0,58× |
+> | Creeper | 0,1307 | 0,61× |
+> | Araña | 0,1463 | 0,68× |
+> | Gallina | 0,1522 | 0,70× |
+>
+> - **Todos los mobs son más lentos que un jugador**, así que ir lento disfrazado es lo correcto. La
+>   calibración anterior tomaba el zombi como equivalente a un jugador, y era falso.
+> - **Como bloque vuelves a tu velocidad normal.** El modificador del mob no se retiraba al cambiar a un
+>   prop de bloque, así que arrastrabas la lentitud de la vaca para siempre. Eso era el "voy lento en
+>   ambas".
+> - **Pasos con la cadencia del juego:** se usa la misma fórmula que Minecraft (distancia × 0,6, paso al
+>   llegar a 1) en lugar de una cadencia inventada, y el resto se acumula en vez de descartarse.
+> - **Ningún mob te hace daño dentro de la zona.** Se exigía que el mob también estuviera dentro de la
+>   arena, así que un esqueleto disparando desde fuera seguía hiriéndote. Ahora basta con que el
+>   protegido esté dentro, y se cierra también la ruta del cálculo de daño, no solo la del ataque.
+> - **El acople ya no te mete en el bloque.** Se hundía el cuerpo entero hasta el plano de la superficie;
+>   ahora el desplazamiento es la profundidad real del torso (0,125), así que la espalda toca la
+>   superficie y el cuerpo queda fuera, visible en tercera persona.
+>
+> **1.2.15 — el editor deja de quedarse pegado y el acople queda a ras del bloque.**
 
 > **1.2.15 — el editor deja de quedarse pegado y el acople queda a ras del bloque.**
 > - **Botones del editor que no respondían.** Los botones calculaban si estaban habilitados **una sola

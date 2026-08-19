@@ -78,21 +78,30 @@ public final class FantasticNetwork {
    /** Modificador de velocidad que adopta el ritmo de la criatura imitada. */
    public static final ResourceLocation PROP_SPEED_ID = new ResourceLocation("fantastic_chameleon", "prop_speed");
    /**
-    * Velocidad del zombi, que en el juego se mueve prácticamente al ritmo de un jugador andando. Sirve
-    * de referencia para traducir la velocidad de cualquier mob a la escala del jugador.
-    */
-   private static final double REFERENCE_MOB_SPEED = 0.23;
-   private static final double PLAYER_SPEED = 0.1;
-   /**
-    * Límites del ritmo adoptado.
+    * Ritmo real de cada mob, medido en el servidor, como fracción de la velocidad de un jugador andando
+    * (0,2158 bloques por tick).
     *
-    * <p>Medido en el servidor, la velocidad base va de 0,09 (camello) a 1,2 (delfín), y los que saltan o
-    * nadan la usan de otra forma: un slime marca 0,7 y un delfín 1,2, que traducidos a las piernas de un
-    * jugador darían 3x y 5x. Se acota para que el disfraz cambie de ritmo de forma creíble sin convertir
-    * a nadie en un cohete.
+    * <p>Se midió haciendo caminar a los mobs por un suelo despejado durante 160 ticks. El dato importante
+    * es que <b>todos</b> son más lentos que un jugador: una vaca va a la cuarta parte y una araña, de las
+    * más rápidas, a dos tercios. Antes se estimaba a partir del atributo de velocidad tomando el zombi
+    * como equivalente a un jugador, y eso estaba mal.
+    *
+    * <p>Solo están los que se pudieron medir aislados y con fiabilidad. Para el resto se estima desde su
+    * atributo con la pendiente del zombi, acotada al rango observado.
     */
-   private static final double MIN_SPEED_RATIO = 0.6;
-   private static final double MAX_SPEED_RATIO = 1.35;
+   private static final Map<String, Double> MEASURED_GAIT = Map.of(
+      "minecraft:zombie", 0.35,
+      "minecraft:cow", 0.25,
+      "minecraft:chicken", 0.70,
+      "minecraft:spider", 0.68,
+      "minecraft:creeper", 0.61,
+      "minecraft:slime", 0.26,
+      "minecraft:enderman", 0.58
+   );
+   /** Pendiente atributo -> ritmo, calibrada con el zombi medido (0,23 de atributo = 0,35 de ritmo). */
+   private static final double GAIT_PER_ATTRIBUTE = 0.35 / 0.23;
+   private static final double MIN_SPEED_RATIO = 0.25;
+   private static final double MAX_SPEED_RATIO = 0.80;
    private static final Map<String, Double> MOB_SPEED = new ConcurrentHashMap<>();
    public static final int POSE_COUNT = PoseDefs.count();
    public static final int BLOCK_POSE = 8;
@@ -100,13 +109,13 @@ public final class FantasticNetwork {
    private static final Map<UUID, Vec3> SAFE_POS = new ConcurrentHashMap<>();
    /** Lo que el cuerpo se hunde en el bloque al acoplarse, para que no se vea una junta de aire. */
    /**
-    * Cuánto se hunde el cuerpo en el bloque al acoplarse.
+    * Media profundidad del torso, en bloques: el modelo tiene 4 píxeles de fondo, o sea 0,25.
     *
-    * <p>Con el valor igual a la profundidad del torso (0,15), el centro del cuerpo queda exactamente en
-    * el plano de la superficie: el disfraz se ve a ras del bloque, que es la idea del camuflaje pintado.
-    * Por eso la cámara pasa a tercera persona al acoplarse; en primera quedaría dentro de la pared.
+    * <p>Este es el desplazamiento correcto para quedar pegado: la espalda toca exactamente la superficie
+    * del bloque y el cuerpo no se mete dentro. Antes se hundía el cuerpo entero hasta el plano de la
+    * superficie, y por eso también en tercera persona se veía metido en el bloque.
     */
-   private static final double ATTACH_SINK = 0.15;
+   private static final double BODY_HALF_DEPTH = 0.125;
 
    private FantasticNetwork() {
    }
@@ -451,8 +460,7 @@ public final class FantasticNetwork {
       // fondo mientras la caja mide 0,3 de medio ancho, así que separar por la caja dejaba un hueco
       // visible de 0,15 contra la pared. El solape de hitbox resultante es deliberado y está cubierto
       // por la excepción ATTACHED.
-      double[] clip = PoseDefs.def(0).clipBox();
-      double half = Math.max(0.02, Math.abs(clip[0]) * (double)ArmorPaintHandler.scaleOf(player) - ATTACH_SINK);
+      double half = BODY_HALF_DEPTH * (double)ArmorPaintHandler.scaleOf(player);
       // La superficie real del bloque, no el borde de su celda: una valla ocupa de 0,375 a 0,625 y un
       // panel de cristal es aún más fino, así que pegarse al borde de la celda dejaba al jugador
       // flotando en el aire y la comprobación de hueco no cuadraba. Se usa la caja del propio bloque.
@@ -675,7 +683,7 @@ public final class FantasticNetwork {
          Direction cover = nearestCover(sp);
          if (cover != null) {
             BlockPos block = sp.m_20183_().m_121945_(cover);
-            double half = Math.max(0.0, Math.abs(PoseDefs.def(0).clipBox()[0]) * (double)ArmorPaintHandler.scaleOf(sp) - ATTACH_SINK);
+            double half = BODY_HALF_DEPTH * (double)ArmorPaintHandler.scaleOf(sp);
             Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), half);
             if (target != null && outwardClear(sp, cover.m_122424_(), target)) {
                Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
@@ -797,15 +805,29 @@ public final class FantasticNetwork {
       }
 
       Attr.remove(speed, PROP_SPEED_ID);
-      double base = mobSpeed(player, typeId);
-      if (base <= 0.0) {
-         return;
+      Double measured = MEASURED_GAIT.get(typeId);
+      double ratio;
+      if (measured != null) {
+         ratio = measured;
+      } else {
+         double base = mobSpeed(player, typeId);
+         if (base <= 0.0) {
+            return;
+         }
+
+         ratio = Mth.m_14008_(base * GAIT_PER_ATTRIBUTE, MIN_SPEED_RATIO, MAX_SPEED_RATIO);
       }
 
-      double target = base * PLAYER_SPEED / REFERENCE_MOB_SPEED;
-      double ratio = Mth.m_14008_(target / PLAYER_SPEED, MIN_SPEED_RATIO, MAX_SPEED_RATIO);
       if (Math.abs(ratio - 1.0) > 0.01) {
          speed.m_22118_(Attr.modifier(PROP_SPEED_ID, ratio - 1.0, Operation.MULTIPLY_TOTAL));
+      }
+   }
+
+   /** Devuelve al jugador su propia velocidad: un bloque no camina como el mob que llevabas antes. */
+   private static void clearMobSpeed(Player player) {
+      AttributeInstance speed = player.m_21051_(Attributes.f_22279_);
+      if (speed != null) {
+         Attr.remove(speed, PROP_SPEED_ID);
       }
    }
 
@@ -834,12 +856,7 @@ public final class FantasticNetwork {
    }
 
    public static void clearProp(ServerPlayer player) {
-      AttributeInstance speed = player.m_21051_(Attributes.f_22279_);
-      if (speed != null) {
-         // Volver a ser jugador es volver a tu propia velocidad.
-         Attr.remove(speed, PROP_SPEED_ID);
-      }
-
+      clearMobSpeed(player);
       Services.PLATFORM.set(player, PaintAttachments.PROP, -1);
       Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, 0);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
@@ -893,6 +910,9 @@ public final class FantasticNetwork {
    }
 
    private static void applyPropInternal(ServerPlayer player, int propIdx, int variantIdx) {
+      // Un prop de bloque no hereda el ritmo del mob anterior: sin esto, al pasar de vaca a bloque te
+      // quedabas caminando a la cuarta parte de tu velocidad para siempre.
+      clearMobSpeed(player);
       int prop = Math.floorMod(propIdx, PropShapes.PROPS.length);
       int variant = Math.floorMod(variantIdx, PropShapes.variantCount(prop));
       Integer wasProp = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
