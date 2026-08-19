@@ -57,8 +57,8 @@ public final class PropHuntCapture {
 
       Block block = state.m_60734_();
       BlockPropMapper.Match match = BlockPropMapper.ofBlock(state);
+      // Sin aviso al transformarse: se ve en el propio cuerpo y el cartel solo tapaba la pantalla.
       apply(player, match, String.valueOf(BuiltInRegistries.f_256975_.m_7981_(block)), Block.m_49956_(state));
-      player.m_240418_(Component.m_237110_("fantastic.prophunt.became", new Object[]{block.m_49954_()}).m_130940_(ChatFormatting.GREEN), true);
       return true;
    }
 
@@ -78,7 +78,6 @@ public final class PropHuntCapture {
       }
 
       FantasticNetwork.applyCapturedEntity(player, snapshot);
-      player.m_240418_(Component.m_237110_("fantastic.prophunt.became", new Object[]{target.m_7755_()}).m_130940_(ChatFormatting.GREEN), true);
       return true;
    }
 

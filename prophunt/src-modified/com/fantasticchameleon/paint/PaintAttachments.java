@@ -53,6 +53,15 @@ public final class PaintAttachments {
    );
    /** Tick de servidor del último gesto V, para animarlo de forma visible en todos los clientes. */
    public static final FantasticAttachment<Long> PROP_ACT_TICK = FantasticAttachment.synced("prop_act_tick", () -> -1000L, ByteBufCodecs.LONG);
+   /**
+    * El jugador está adherido a propósito a la cara exacta de un bloque (acople Meccha o prop fijado).
+    *
+    * <p>Estar pegado significa, por definición, que parte del cuerpo roza la geometría del bloque. El
+    * guardia anti-clipping mide justo eso y empujaba al jugador fuera cada tick, así que despegaba el
+    * acople y además recalculaba 75 muestras de volumen por jugador y por tick. Marcando la adherencia
+    * como deliberada se arregla el acople y desaparece ese coste.
+    */
+   public static final FantasticAttachment<Boolean> ATTACHED = FantasticAttachment.synced("attached", () -> Boolean.FALSE, ByteBufCodecs.BOOL);
    public static final FantasticAttachment<Long> KIT_LAST = FantasticAttachment.persistent("kit_last", () -> 0L, Codec.LONG, true);
    public static final FantasticAttachment<Boolean> SIZE_MINI = FantasticAttachment.persistent("size_mini", () -> Boolean.FALSE, Codec.BOOL, true);
    public static final FantasticAttachment<Boolean> STARTER_BRUSH = FantasticAttachment.persistent("starter_brush", () -> Boolean.FALSE, Codec.BOOL, true);
@@ -82,6 +91,7 @@ public final class PaintAttachments {
       PROP_STATE,
       ENTITY_PROP,
       PROP_ACT_TICK,
+      ATTACHED,
       KIT_LAST,
       SIZE_MINI,
       STARTER_BRUSH,

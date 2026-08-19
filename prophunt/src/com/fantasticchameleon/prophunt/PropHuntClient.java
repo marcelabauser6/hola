@@ -47,6 +47,8 @@ public final class PropHuntClient {
    private static final Map<String, BodyCanvas> BLOCK_CACHE = new HashMap<>();
    private static final Map<UUID, String> APPLIED = new HashMap<>();
    private static final Map<UUID, VisualState> VISUAL_STATES = new HashMap<>();
+   private static final int REFRESH_TICKS = 5;
+   private static int tickCounter;
 
    private PropHuntClient() {
    }
@@ -112,7 +114,10 @@ public final class PropHuntClient {
 
    @SubscribeEvent
    public static void onClientTick(TickEvent.ClientTickEvent event) {
+      // Se atiende cada tick a quien acaba de transformarse, pero el repaso completo del entorno (los
+      // 27 vecinos por jugador, que es lo que se notaba al empezar la ronda) solo cada 5 ticks.
       if (event.phase == TickEvent.Phase.END) {
+         tickCounter++;
          paintProps();
       }
    }
@@ -124,10 +129,17 @@ public final class PropHuntClient {
          return;
       }
 
+      boolean periodic = tickCounter % REFRESH_TICKS == 0;
       for (Player player : level.m_6907_()) {
          int prop = AvatarState.prop(player);
          if (prop < 0) {
             APPLIED.remove(player.m_20148_());
+            continue;
+         }
+
+         // Quien acaba de transformarse se atiende en el mismo tick; el repaso periódico existe solo
+         // para que las conexiones de vallas y muros sigan a los cambios del entorno.
+         if (!periodic && APPLIED.containsKey(player.m_20148_())) {
             continue;
          }
 

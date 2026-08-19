@@ -1,5 +1,33 @@
-# Fantastic Chameleon 1.2.8 — Prop Hunt y Meccha corregidos
+# Fantastic Chameleon 1.2.9 — Prop Hunt y Meccha corregidos
 
+> **1.2.9 — interfaz, rendimiento, desacople y acople de verdad pegado.**
+> - Los controles al fijarse son ahora dos filas diminutas de 76×12 pegadas al borde izquierdo, con el
+>   mismo lenguaje visual que el resto del HUD. Fuera los botones vanilla enormes.
+> - **Todos los textos en español, incluido `en_us`.** El `en_us` de este mod siempre fue el fallback en
+>   español, así que traducirlo al inglés era lo que hacía salir *Detach* entre textos españoles. Además
+>   se añadieron las claves que el HUD ya usaba y que faltaban en el JAR: por eso aparecía
+>   `fantastic.prophunt.hint_clear` en crudo.
+> - El indicador de escondido y sus teclas se dibujan **debajo** de la barra de ronda: se acabó el
+>   solape con las cabezas y el reloj.
+> - Sin carteles al transformarse: el disfraz ya se ve en el propio cuerpo.
+> - **Desacoplar libera de verdad.** Compartía cupo de peticiones con fijarse, así que pulsar fijar y
+>   soltar seguido descartaba el desacople: el cliente se creía libre y el servidor te devolvía a la
+>   misma posición cada tick. Ahora tiene cupo propio, limpia ancla, inmovilización, colisión y
+>   velocidad, y reafirma la posición para que el cliente no quede desincronizado.
+> - **Lag al empezar la partida resuelto.** El guardia anti-clipping medía 75 puntos del cuerpo por
+>   jugador y por tick, y hasta 5.625 al buscar hueco. Un disfraz roza su escondite a propósito, así que
+>   ahora se mide con umbral laxo y una vez cada 10 ticks; a quien tapien de verdad se le sigue
+>   rescatando, y la salida de emergencia bajo el agua se conserva.
+> - **Los mobs capturados vuelven a sonar y a moverse.** La captura genérica deja `PROP` en -1, y los
+>   sonidos exigían `PROP >= 0`: por eso enmudecieron. Ahora la voz se deriva del `EntityType` capturado,
+>   así que suenan también los mobs de otros mods. El modelo se ticka una vez por tick desde el tick del
+>   cliente, de modo que la gallina bate las alas y el lobo mueve la cola; va mudo y con caja vacía para
+>   no delatar al jugador con voz doble ni empujones.
+> - **El acople Meccha queda literalmente pegado.** Se medía con la hitbox (0,3 de medio ancho) cuando el
+>   torso solo tiene 0,15 de fondo, así que quedaba un hueco visible; ahora se mide el cuerpo que se ve,
+>   el giro lo decide la cara clicada, encima del bloque se centra en la celda y el roce intencionado
+>   está permitido de forma explícita.
+>
 > **1.2.8 — todos los mobs, conexiones reales y acople preciso.**
 > - Prop Hunt puede capturar cualquier `LivingEntity` no jugador mediante `EntityType` + NBT visual
 >   saneado. El renderer vanilla conserva modelo, variante, armadura, objetos de mano, ballestas,

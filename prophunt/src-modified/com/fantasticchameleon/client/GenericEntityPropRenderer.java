@@ -3,6 +3,7 @@ package com.fantasticchameleon.client;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -17,8 +18,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderPlayerEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -89,10 +93,6 @@ public final class GenericEntityPropRenderer {
          living.f_20883_ = yaw;
          living.f_20886_ = headYaw;
          living.f_20885_ = headYaw;
-         if (entry.lastTick != player.f_19797_) {
-            living.f_267362_.m_267566_(player.f_267362_.m_267731_(), 1.0F);
-            entry.lastTick = player.f_19797_;
-         }
       }
 
       try {
@@ -107,6 +107,63 @@ public final class GenericEntityPropRenderer {
          event.setCanceled(true);
       } finally {
          RENDERING.set(Boolean.FALSE);
+      }
+   }
+
+   /**
+    * Ticka los modelos una vez por tick de juego, desde el tick del cliente y no desde el render.
+    *
+    * <p>Sin esto el modelo estaba congelado: la gallina no batía las alas ni el lobo movía la cola, y
+    * se notaba a la legua que era un muñeco. Hacerlo en el render era peor de lo que parece: el evento
+    * de render no se dispara en primera persona ni con el prop fuera de pantalla, así que justamente el
+    * disfrazado nunca veía animarse su propio disfraz y la animación daba un salto al volver a verlo.
+    */
+   @SubscribeEvent
+   public static void onClientTick(TickEvent.ClientTickEvent event) {
+      if (event.phase != TickEvent.Phase.END || CACHE.isEmpty()) {
+         return;
+      }
+
+      ClientLevel level = Minecraft.m_91087_().f_91073_;
+      if (level == null) {
+         CACHE.clear();
+         return;
+      }
+
+      for (Map.Entry<UUID, Entry> cached : new ArrayList<>(CACHE.entrySet())) {
+         Entry entry = cached.getValue();
+         Player owner = level.m_46003_(cached.getKey());
+         if (owner == null) {
+            CACHE.remove(cached.getKey());
+         } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
+            living.m_7678_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_(), owner.f_20883_, owner.m_146909_());
+            living.f_19797_ = owner.f_19797_;
+            living.f_267362_.m_267566_(owner.f_267362_.m_267731_(), 1.0F);
+            animate(entry, living);
+         }
+      }
+   }
+
+   /**
+    * Un tick de animación aislado del mundo.
+    *
+    * <p>Va mudo porque la voz la emite el servidor para todos por igual: si además sonara el modelo de
+    * cada cliente, el disfrazado haría el doble de ruido que el mob de verdad y eso lo delata. Y va con
+    * la caja de colisión vacía para que no empuje a quien pase al lado, que sería otra pista.
+    */
+   private static void animate(Entry entry, LivingEntity living) {
+      try {
+         living.m_20225_(true);
+         living.f_19794_ = true;
+         living.m_20242_(true);
+         living.m_20256_(Vec3.f_82478_);
+         living.m_20011_(new AABB(living.m_20182_(), living.m_20182_()));
+         living.m_8119_();
+      } catch (RuntimeException | LinkageError ex) {
+         // Un mob de otro mod puede dar por hecho que está registrado en el mundo. Se deja de tickear
+         // ese modelo concreto (se queda estático) en vez de repetir el fallo 20 veces por segundo, y
+         // nunca se cancela el disfraz ni se revela el cuerpo humano.
+         entry.tickable = false;
       }
    }
 
@@ -142,7 +199,7 @@ public final class GenericEntityPropRenderer {
    private static final class Entry {
       final EntityPropSnapshot snapshot;
       final Entity entity;
-      int lastTick = Integer.MIN_VALUE;
+      boolean tickable = true;
 
       Entry(EntityPropSnapshot snapshot, Entity entity) {
          this.snapshot = snapshot;

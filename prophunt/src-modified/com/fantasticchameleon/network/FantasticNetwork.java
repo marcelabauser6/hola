@@ -62,7 +62,9 @@ import net.minecraft.world.phys.Vec3;
 public final class FantasticNetwork {
    private static final Map<UUID, Long> LAST_PROVOKE = new ConcurrentHashMap<>();
    private static final long PROVOKE_COOLDOWN = 30L;
-   private static final int[] ACTION_COOLDOWN_TICKS = new int[]{20, 20, 5, 2, 4, 2, 10, 2, 1, 1, 2, 1};
+   /** El último cupo es solo para desacoplar: compartirlo con fijarse descartaba el desacople. */
+   private static final int[] ACTION_COOLDOWN_TICKS = new int[]{20, 20, 5, 2, 4, 2, 10, 2, 1, 1, 2, 1, 2};
+   private static final int SLOT_DETACH = 12;
    private static final int ACTION_BURST_FREE = 3;
    private static final int ACTION_RESET_TICKS = 100;
    private static final Map<UUID, long[]> ACTION_LAST = new ConcurrentHashMap<>();
@@ -296,6 +298,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
       Services.PLATFORM.set(player, PaintAttachments.POSING, false);
       Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
       Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
       LockTick.clearTilt(player);
       if (player instanceof ServerPlayer bp) {
@@ -362,7 +365,44 @@ public final class FantasticNetwork {
          return;
       }
 
-      double half = (double)player.m_20205_() * 0.5 + 0.001;
+      // La espalda va contra la cara clicada, así que el giro lo decide la cara y no hacia dónde
+      // mirabas: con el yaw del cliente la silueta podía quedar de perfil y dejar hueco.
+      float yaw = switch (payload.face()) {
+         case EAST -> -90.0F;
+         case WEST -> 90.0F;
+         case SOUTH -> 0.0F;
+         case NORTH -> 180.0F;
+         default -> Mth.m_14177_((float)Math.round(payload.yaw() / 90.0F) * 90.0F);
+      };
+
+      boolean wasLocked = Services.PLATFORM.get(player, PaintAttachments.LOCKED);
+      boolean wasPosing = Services.PLATFORM.get(player, PaintAttachments.POSING);
+      int wasPose = Services.PLATFORM.get(player, PaintAttachments.POSE);
+      float wasYaw = Services.PLATFORM.get(player, PaintAttachments.LOCK_YAW);
+      float wasPitch = LockTick.pitchOf(player);
+      float wasRoll = LockTick.rollOf(player);
+      FrozenFrame wasFrame = Services.PLATFORM.get(player, PaintAttachments.FROZEN_FRAME);
+      if (!wasLocked && !wasPosing) {
+         SAFE_POS.put(player.m_20148_(), player.m_20182_());
+      }
+
+      // El ancho de la caja depende de la pose fijada, así que primero se adopta la pose y solo
+      // después se mide: al revés se separaba usando el ancho humano y quedaba flotando.
+      Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
+      Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, yaw);
+      Services.PLATFORM.set(player, PaintAttachments.POSING, true);
+      Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, true);
+      LockTick.clearTilt(player);
+      player.m_6210_();
+
+      // Pegado de verdad: se mide el cuerpo que se ve, no la hitbox. El torso solo tiene 0,15 de
+      // fondo mientras la caja mide 0,3 de medio ancho, así que separar por la caja dejaba un hueco
+      // visible de 0,15 contra la pared. El solape de hitbox resultante es deliberado y está cubierto
+      // por la excepción ATTACHED.
+      double[] clip = PoseDefs.def(0).clipBox();
+      double half = Math.abs(clip[0]) * (double)ArmorPaintHandler.scaleOf(player);
       double x = player.m_20185_();
       double y = player.m_20186_();
       double z = player.m_20189_();
@@ -371,43 +411,87 @@ public final class FantasticNetwork {
          case WEST -> { x = (double)pos.m_123341_() - half; z = hit.f_82481_; }
          case SOUTH -> { z = (double)pos.m_123343_() + 1.0 + half; x = hit.f_82479_; }
          case NORTH -> { z = (double)pos.m_123343_() - half; x = hit.f_82479_; }
-         case UP -> { x = hit.f_82479_; y = (double)pos.m_123342_() + 1.0; z = hit.f_82481_; }
-         default -> { return; }
+         // Encima del bloque se centra en la celda: con el punto exacto del rayo, clicar el borde
+         // dejaba media huella en voladizo.
+         case UP -> { x = (double)pos.m_123341_() + 0.5; y = (double)pos.m_123342_() + 1.0; z = (double)pos.m_123343_() + 0.5; }
+         default -> { restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame); return; }
       }
 
       Vec3 target = new Vec3(x, y, z);
       Vec3 delta = target.m_82546_(player.m_20182_());
-      if (!player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta))) {
+      // Se valida con la caja encogida el ancho del solape intencionado: así se sigue rechazando
+      // quedar metido dentro de geometría, pero no el roce a propósito contra la cara clicada.
+      double tolerance = Math.min(0.24, Math.max(0.0, (double)player.m_20205_() * 0.5 - half) + 0.01);
+      if (!player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta).m_82406_(tolerance))) {
+         restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame);
          player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
          return;
       }
 
-      float yaw = Mth.m_14177_((float)Math.round(payload.yaw() / 90.0F) * 90.0F);
-      Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
-      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
-      Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, yaw);
-      Services.PLATFORM.set(player, PaintAttachments.POSING, true);
-      Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
-      LockTick.clearTilt(player);
       LockTick.reanchor(player, target);
-      player.m_6210_();
       immobilize(player, true);
    }
 
-   /** Suelta el ancla de Prop Hunt sin borrar el bloque, mob, variante ni equipo capturados. */
+   /** Deja el acople sin efecto si el hueco no da, en vez de quedarse a medias con pose cambiada. */
+   private static void restoreLock(
+      ServerPlayer player, boolean locked, boolean posing, int pose, float yaw, float pitch, float roll, FrozenFrame frame
+   ) {
+      Services.PLATFORM.set(player, PaintAttachments.LOCKED, locked);
+      Services.PLATFORM.set(player, PaintAttachments.POSING, posing);
+      Services.PLATFORM.set(player, PaintAttachments.POSE, pose);
+      Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, yaw);
+      Services.PLATFORM.set(player, PaintAttachments.LOCK_PITCH, pitch);
+      Services.PLATFORM.set(player, PaintAttachments.LOCK_ROLL, roll);
+      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, frame);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+      player.m_6210_();
+   }
+
+   /**
+    * Suelta el ancla sin borrar el bloque, mob, variante ni equipo capturados.
+    *
+    * <p>No lleva throttle y no exige modo: soltar siempre tiene que funcionar. Antes compartía cupo con
+    * fijarse, así que pulsar fijar y soltar seguido descartaba el desacople: el cliente se creía libre
+    * mientras el servidor seguía anclado y te devolvía a la misma posición cada tick, que es
+    * exactamente el "me quedo pegado y bugueado".
+    */
    public static void handleDetachProp(DetachPropPayload payload, ServerPlayer player) {
-      if (!throttled(player, 0) && PropHunt.isPropHunt(player)) {
-         Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
-         Services.PLATFORM.set(player, PaintAttachments.POSING, false);
-         Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
-         Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
-         Services.PLATFORM.set(player, PaintAttachments.BLOCK_FORM, false);
-         LockTick.clearTilt(player);
-         LockTick.release(player);
-         immobilize(player, false);
-         player.m_20242_(false);
-         player.m_6210_();
-         SAFE_POS.remove(player.m_20148_());
+      // Solo suelta a quien está sujeto. Sin esta puerta, cualquiera podía spamear el paquete para
+      // anular su caída y para multiplicar difusiones de atributos aunque no estuviera disfrazado.
+      boolean anchored = Services.PLATFORM.get(player, PaintAttachments.LOCKED)
+         || Services.PLATFORM.get(player, PaintAttachments.POSING)
+         || Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.ATTACHED));
+      if (!anchored || throttled(player, SLOT_DETACH)) {
+         return;
+      }
+
+      if (Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.BLOCK_FORM))) {
+         // Único camino que devuelve el casco guardado; ponerlo a false a mano lo dejaba perdido.
+         Rooms.leaveBlockPose(player);
+      }
+
+      Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
+      Services.PLATFORM.set(player, PaintAttachments.POSING, false);
+      Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
+      Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
+      LockTick.clearTilt(player);
+      LockTick.release(player);
+      immobilize(player, false);
+      player.m_20242_(false);
+      player.f_19794_ = false;
+      player.m_20256_(Vec3.f_82478_);
+      player.m_6210_();
+
+      // Mismo rescate que al quitar la pose: soltar dentro de geometría dejaría al jugador libre
+      // dentro de un bloque, así que se devuelve al último sitio donde cabía de pie.
+      Vec3 safe = SAFE_POS.remove(player.m_20148_());
+      if (GlobalSettings.clipGuard() && safe != null && !player.m_9236_().m_45756_(player, player.m_20191_())) {
+         player.m_6021_(safe.f_82479_, safe.f_82480_, safe.f_82481_);
+      } else {
+         // Reafirma la posición con la caja nueva: sin esto el cliente conserva la predicción del
+         // estado anclado y parece seguir clavado aunque el servidor ya lo haya soltado.
+         player.m_6021_(player.m_20185_(), player.m_20186_(), player.m_20189_());
       }
    }
 
@@ -418,6 +502,8 @@ public final class FantasticNetwork {
                resetPose(player);
             } else {
                Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
+               // Dejar ATTACHED puesto mantenía la excepción de clipping con el jugador ya móvil.
+               Services.PLATFORM.set(player, PaintAttachments.ATTACHED, Boolean.FALSE);
                LockTick.release(player);
                immobilize(player, false);
             }

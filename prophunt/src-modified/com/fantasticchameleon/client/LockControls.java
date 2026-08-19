@@ -111,6 +111,12 @@ public final class LockControls {
          Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, 0);
          Services.PLATFORM.set(mc.f_91074_, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
          ClientNet.sendToServer(DetachPropPayload.INSTANCE);
+         // Devolver el control aquí mismo: dejar noClip puesto hacía que el cuerpo se quedara clavado
+         // hasta la siguiente corrección del servidor.
+         mc.f_91074_.f_19794_ = false;
+         mc.f_91074_.m_20256_(Vec3.f_82478_);
+         mc.f_91074_.f_19789_ = 0.0F;
+         mc.f_91074_.m_6210_();
          FreeCam.disable();
          WorldBrush.exitPaintMode();
          ClientPaintState.clearHidden();
@@ -130,7 +136,6 @@ public final class LockControls {
          if (ClientShims.screen(mc) instanceof PropHuntLockedScreen) {
             mc.m_91152_(null);
          }
-         ClientShims.overlay(Component.m_237115_("fantastic.prophunt.cleared"), true);
       }
    }
 

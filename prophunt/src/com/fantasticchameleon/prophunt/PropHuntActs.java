@@ -3,16 +3,20 @@ package com.fantasticchameleon.prophunt;
 import com.fantasticchameleon.game.Room;
 import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.network.PropActPayload;
+import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.PropShapes;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -34,6 +38,7 @@ import net.minecraft.sounds.SoundSource;
 public final class PropHuntActs {
    private static final Map<UUID, Long> LAST_ACT = new ConcurrentHashMap<>();
    private static final Map<UUID, Long> NEXT_AMBIENT = new ConcurrentHashMap<>();
+   private static final Map<String, Optional<SoundEvent>> CAPTURED_VOICE = new ConcurrentHashMap<>();
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -57,12 +62,7 @@ public final class PropHuntActs {
          return;
       }
 
-      Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
-      if (prop == null || prop < 0 || !PropShapes.followsLook(prop)) {
-         return;
-      }
-
-      SoundEvent sound = ambientSound(PropShapes.of(prop).key());
+      SoundEvent sound = voiceOf(player);
       if (sound == null) {
          return;
       }
@@ -84,6 +84,46 @@ public final class PropHuntActs {
    /** Proximo sonido entre 6 y 18 segundos, como el ritmo ambiental de los mobs vanilla. */
    private static long schedule(ServerLevel level) {
       return 120L + (long)level.m_213780_().m_188503_(240);
+   }
+
+   /**
+    * Voz del disfraz actual.
+    *
+    * <p>La captura genérica de criaturas guarda el bicho en {@code ENTITY_PROP} y deja {@code PROP} en
+    * -1, así que exigir {@code PROP >= 0} dejaba mudo a todo mob capturado. Aquí el sonido se deriva del
+    * propio {@code EntityType}, de modo que también suenan los mobs que no están en el catálogo, incluidos
+    * los de otros mods.
+    */
+   private static SoundEvent voiceOf(ServerPlayer player) {
+      Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
+      if (prop != null && prop >= 0) {
+         return PropShapes.followsLook(prop) ? ambientSound(PropShapes.of(prop).key()) : null;
+      }
+
+      EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+      return snapshot != null && snapshot.present() ? capturedSound(snapshot.typeId()) : null;
+   }
+
+   /** Resuelve y memoriza el sonido ambiental del tipo capturado por convención de registro. */
+   private static SoundEvent capturedSound(String typeId) {
+      return CAPTURED_VOICE.computeIfAbsent(typeId, PropHuntActs::resolveVoice).orElse(null);
+   }
+
+   private static Optional<SoundEvent> resolveVoice(String typeId) {
+      try {
+         ResourceLocation type = new ResourceLocation(typeId);
+         // Sin ".flop": ese es el sonido de un pez fuera del agua, no su ruido normal.
+         for (String suffix : new String[]{".ambient", ".idle", ".say", ".ambient.land", ".growl", ".breathe"}) {
+            SoundEvent found = BuiltInRegistries.f_256894_.m_7745_(new ResourceLocation(type.m_135827_(), "entity." + type.m_135815_() + suffix));
+            if (found != null) {
+               return Optional.of(found);
+            }
+         }
+      } catch (RuntimeException ignored) {
+         // Un id inválido simplemente no tiene voz; no debe romper el tick del jugador.
+      }
+
+      return Optional.empty();
    }
 
    private static SoundEvent ambientSound(String key) {
@@ -108,6 +148,7 @@ public final class PropHuntActs {
 
       Integer prop = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
       if (prop == null || prop < 0) {
+         actCaptured(player);
          return;
       }
 
@@ -159,6 +200,26 @@ public final class PropHuntActs {
             return;
       }
 
+      Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, level.m_46467_());
+      LAST_ACT.put(player.m_20148_(), level.m_46467_());
+   }
+
+   /** Gesto de una criatura capturada con el sistema genérico, que no tiene clave de catálogo. */
+   private static void actCaptured(ServerPlayer player) {
+      EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+      if (snapshot == null || !snapshot.present() || throttled(player)) {
+         return;
+      }
+
+      ServerLevel level = player.m_284548_();
+      SoundEvent sound = capturedSound(snapshot.typeId());
+      if (sound != null) {
+         play(level, player, sound, 1.0F, 1.0F);
+      }
+
+      // Partículas neutras: pastar solo tiene sentido en un animal de pasto, y esta ruta cubre
+      // cualquier criatura, incluidos murciélagos, ghasts o mobs de otros mods.
+      puff(level, player, ParticleTypes.f_123796_, 4);
       Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, level.m_46467_());
       LAST_ACT.put(player.m_20148_(), level.m_46467_());
    }

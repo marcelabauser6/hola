@@ -47,14 +47,17 @@ public final class PaintHud {
                   Gfx.text(graphics, mc.f_91062_, fcLabel, cx - mc.f_91062_.m_92895_(fcLabel) / 2, fcY + 12, -8875);
                }
             } else if (locked && !FreeCam.active()) {
+               // Debajo de la barra de ronda: arriba fijo se solapaba con las cabezas y el reloj. El
+               // suelo de 46 cubre el primer frame, cuando la barra todavia no ha publicado su alto.
+               int topY = RoundBar.inRound() ? Math.max(RoundBar.bottom(), 42) + 4 : 4;
                String mode = "● " + Component.m_237115_("fantastic.hud.hiding").getString();
-               Gfx.text(graphics, mc.f_91062_, mode, cx - mc.f_91062_.m_92895_(mode) / 2, 4, -11141291);
+               Gfx.text(graphics, mc.f_91062_, mode, cx - mc.f_91062_.m_92895_(mode) / 2, topY, -11141291);
                // En Prop Hunt no hay pintura ni poses, asi que se muestran solo las teclas que existen.
                ControlHints.rowCentered(
                   graphics,
                   mc.f_91062_,
                   cx,
-                  13,
+                  topY + 10,
                   PropHuntClient.isPropHunt()
                      ? List.of(
                         new String[]{"Space", Component.m_237115_("fantastic.hint.move").getString()},
