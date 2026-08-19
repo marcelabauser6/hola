@@ -3,6 +3,7 @@ package com.fantasticchameleon.client;
 import com.fantasticchameleon.donor.DonorFeatures;
 import com.fantasticchameleon.item.ChameleonArmor;
 import com.fantasticchameleon.paint.BodyCanvas;
+import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.FrozenFrame;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
@@ -169,8 +170,18 @@ public final class AvatarState {
       }
    }
 
+   public static boolean hasEntityProp(Player player) {
+      EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+      return snapshot != null && snapshot.present();
+   }
+
+   public static EntityPropSnapshot entityProp(Player player) {
+      EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+      return snapshot == null ? EntityPropSnapshot.NONE : snapshot;
+   }
+
    public static boolean fullyDisguised(Player player) {
-      return prop(player) >= 0 || blockForm(player);
+      return prop(player) >= 0 || blockForm(player) || hasEntityProp(player);
    }
 
    public static boolean hideArmorSlot(Player player, EquipmentSlot slot) {
@@ -192,6 +203,6 @@ public final class AvatarState {
    }
 
    public static boolean hideHeldItems(Player player) {
-      return blockForm(player) || prop(player) >= 0;
+      return blockForm(player) || prop(player) >= 0 || hasEntityProp(player);
    }
 }

@@ -1033,5 +1033,10 @@
   "fantastic.ui.cfg_hours": "%s h",
   "fantastic.ui.cfg_hours_mins": "%s h %s min",
   "fantastic.pose.tight": "Sitio justo para esa pose; puede que asome.",
-  "fantastic.paint.hide_limit": "Solo puedes ocultar %s partes a la vez."
+  "fantastic.paint.hide_limit": "Solo puedes ocultar %s partes a la vez.",
+  "fantastic.prophunt.controls": "Prop Hunt controls",
+  "fantastic.prophunt.detach": "Detach",
+  "fantastic.prophunt.revert": "Revert transformation",
+  "fantastic.prophunt.cleared": "Transformation reverted.",
+  "fantastic.prophunt.entity_too_large": "That creature cannot be copied because its data is too large."
 }

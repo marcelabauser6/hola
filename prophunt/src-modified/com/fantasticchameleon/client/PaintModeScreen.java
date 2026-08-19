@@ -49,6 +49,8 @@ public final class PaintModeScreen extends Screen {
    private final ColorPicker picker = new ColorPicker(8, 24);
    private boolean painting;
    private boolean pipetteHeld;
+   private int pendingVisualSample;
+   private int lastVisualSample;
    private boolean mapPainting;
    private long lastSparkleMs;
    private static final int STRIP_H = 13;
@@ -438,6 +440,16 @@ public final class PaintModeScreen extends Screen {
             || mapVisible && this.onBorder(this.mapPanel, 0, 2, MAP_SIZE + 8, mapBottom(), (double)mouseX, (double)mouseY)
             || !this.legendPanel.min && this.onBorder(this.legendPanel, 0, 2, legWh[0] + 8, 17 + legWh[1] + 2, (double)mouseX, (double)mouseY)
             || hideVisible && this.hideContains(p4x, p4y);
+         boolean spaceDown = InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
+         boolean textureTool = ClientPaintState.isTextureTool(ClientPaintState.tool());
+         if (!textureTool && !overMap && !overPanels) {
+            // Como maximo una lectura 1x1 por frame, antes de dibujar anillos, paneles o cursores:
+            // es el píxel final del mundo con iluminación, AO y postprocesado incluidos.
+            this.lastVisualSample = FramebufferColorSampler.sample(mc, (double)mouseX, (double)mouseY);
+            if (spaceDown && !this.pipetteHeld) {
+               this.pendingVisualSample = this.lastVisualSample;
+            }
+         }
          if (overMap) {
             BodyPaint.clearCursor();
             this.pipetteMap(mc, p2x, p2y);
@@ -1394,24 +1406,19 @@ public final class PaintModeScreen extends Screen {
          boolean held = InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          ClientPaintState.Tool tool = ClientPaintState.tool();
          boolean textureTool = ClientPaintState.isTextureTool(tool);
-         if (held && !textureTool && BodyPaint.hasCursor()) {
-            int c = BodyPaint.sampleAtCursor();
-            if (c != 0) {
-               ClientPaintState.setCurrentColor(c);
+         if (held && !textureTool && !this.pipetteHeld) {
+            int color = this.pendingVisualSample;
+            this.pendingVisualSample = 0;
+            if (color != 0) {
+               ClientPaintState.setCurrentColor(color);
             }
-         } else if (held) {
+         } else if (held && tool == ClientPaintState.Tool.TEXCROP) {
+            // TEXCROP no es un cuentagotas de color: necesita conservar la ruta UV/cara del bloque.
             BlockHitResult hit = this.rayThroughMouse(mc, p, this.basis(mc, p, pt), mx, my);
-            int entityColor = this.pipetteEntity(mc, p, pt, mx, my, hit);
-            if (entityColor != 0) {
-               ClientPaintState.setCurrentColor(entityColor);
-            } else if (hit.m_6662_() == Type.BLOCK) {
+            if (hit.m_6662_() == Type.BLOCK) {
                BlockPos bp = hit.m_82425_();
                BlockState st = mc.f_91073_.m_8055_(bp);
-               if (tool == ClientPaintState.Tool.TEXCROP) {
-                  ClientPaintState.setTexturePattern(BlockColorSampler.sample8x8Crop(mc.f_91073_, bp, st, hit.m_82434_(), hit.m_82450_()));
-               } else {
-                  ClientPaintState.setCurrentColor(BlockColorSampler.sampleAt(mc.f_91073_, bp, st, hit.m_82434_(), hit.m_82450_()));
-               }
+               ClientPaintState.setTexturePattern(BlockColorSampler.sample8x8Crop(mc.f_91073_, bp, st, hit.m_82434_(), hit.m_82450_()));
             }
          }
 
@@ -1424,27 +1431,13 @@ public final class PaintModeScreen extends Screen {
    }
 
    private boolean pickColorAt(double mx, double my) {
-      Minecraft mc = Minecraft.m_91087_();
-      LocalPlayer p = mc.f_91074_;
-      if (p != null && mc.f_91073_ != null) {
-         float pt = mc.m_91296_();
-         BlockHitResult hit = this.rayThroughMouse(mc, p, this.basis(mc, p, pt), mx, my);
-         int color = this.pipetteEntity(mc, p, pt, mx, my, hit);
-         if (color == 0 && hit.m_6662_() == Type.BLOCK) {
-            BlockPos bp = hit.m_82425_();
-            color = BlockColorSampler.sampleAt(mc.f_91073_, bp, mc.f_91073_.m_8055_(bp), hit.m_82434_(), hit.m_82450_());
-         }
-
-         if (color == 0) {
-            return false;
-         } else {
-            ClientPaintState.addSampled(color);
-            ClientShims.overlay(Component.m_237115_("fantastic.paint.picked_color"), true);
-            return true;
-         }
-      } else {
+      int color = this.lastVisualSample;
+      if (color == 0) {
          return false;
       }
+      ClientPaintState.addSampled(color);
+      ClientShims.overlay(Component.m_237115_("fantastic.paint.picked_color"), true);
+      return true;
    }
 
    private void pipetteMap(Minecraft mc, double lmx, double lmy) {

@@ -15,6 +15,7 @@ import com.fantasticchameleon.network.ClimbPayload;
 import com.fantasticchameleon.network.CrawlPayload;
 import com.fantasticchameleon.network.CreatorRollPayload;
 import com.fantasticchameleon.network.CreatorSkinPayload;
+import com.fantasticchameleon.network.DetachPropPayload;
 import com.fantasticchameleon.network.EditorActionPayload;
 import com.fantasticchameleon.network.FantasticNetwork;
 import com.fantasticchameleon.network.FantasticVersionPayload;
@@ -23,6 +24,7 @@ import com.fantasticchameleon.network.GlobalSettingsPayload;
 import com.fantasticchameleon.network.InvitePayload;
 import com.fantasticchameleon.network.LockPayload;
 import com.fantasticchameleon.network.MapRollPayload;
+import com.fantasticchameleon.network.MecchaAttachPayload;
 import com.fantasticchameleon.network.MovePayload;
 import com.fantasticchameleon.network.NudgePayload;
 import com.fantasticchameleon.network.OpenEditorPayload;
@@ -69,9 +71,9 @@ import net.minecraftforge.network.NetworkEvent.Context;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ForgeNetwork {
-   private static final String PROTOCOL = "1";
+   private static final String PROTOCOL = "2";
    private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-      new ResourceLocation("fantastic_chameleon", "main"), () -> "1", v -> true, v -> true
+      new ResourceLocation("fantastic_chameleon", "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals
    );
    private static int nextId;
 
@@ -84,6 +86,8 @@ public final class ForgeNetwork {
       c2s(SetPropPayload.class, SetPropPayload.STREAM_CODEC, FantasticNetwork::handleSetProp);
       c2s(CanvasDeltaPayload.class, CanvasDeltaPayload.STREAM_CODEC, FantasticNetwork::handleCanvasDelta);
       c2s(LockPayload.class, LockPayload.STREAM_CODEC, FantasticNetwork::handleLock);
+      c2s(DetachPropPayload.class, DetachPropPayload.STREAM_CODEC, FantasticNetwork::handleDetachProp);
+      c2s(MecchaAttachPayload.class, MecchaAttachPayload.STREAM_CODEC, FantasticNetwork::handleMecchaAttach);
       c2s(PosePayload.class, PosePayload.STREAM_CODEC, FantasticNetwork::handlePose);
       c2s(ProvokePayload.class, ProvokePayload.STREAM_CODEC, FantasticNetwork::handleProvoke);
       c2s(PropActPayload.class, PropActPayload.STREAM_CODEC, PropHuntActs::handle);

@@ -5,18 +5,26 @@ import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.game.WorldPick;
 import com.fantasticchameleon.item.ChameleonArmor;
 import com.fantasticchameleon.network.FantasticNetwork;
+import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
 import com.fantasticchameleon.pose.LockTick;
 import com.fantasticchameleon.pose.PropShapes;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -34,14 +42,16 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class PropHuntCapture {
    private static final Map<UUID, Long> LAST_HINT = new ConcurrentHashMap<>();
+   private static final Map<UUID, Long> LAST_CAPTURE = new ConcurrentHashMap<>();
    private static final long HINT_COOLDOWN = 80L;
+   private static final long CAPTURE_COOLDOWN = 5L;
 
    private PropHuntCapture() {
    }
 
    /** Convierte al jugador en el bloque indicado. Devuelve true si la transformacion se aplico. */
    public static boolean captureBlock(ServerPlayer player, BlockState state) {
-      if (!ready(player)) {
+      if (!ready(player) || !captureAllowed(player)) {
          return false;
       }
 
@@ -53,24 +63,61 @@ public final class PropHuntCapture {
    }
 
    /**
-    * Convierte al jugador en la entidad indicada, si el mod tiene una forma para ella.
-    *
-    * <p>Para las criaturas no se guarda bloque de origen: su textura la sube el cliente, que es quien
-    * puede leer el png del mob.
+    * Convierte al jugador en cualquier criatura viva no-jugador. El snapshot conserva equipo,
+    * edad, variante y datos visuales; el renderer cliente sera el renderer vanilla real del tipo.
     */
    public static boolean captureEntity(ServerPlayer player, Entity target) {
-      BlockPropMapper.Match match = BlockPropMapper.ofEntity(target);
-      if (match == null) {
+      if (!(target instanceof LivingEntity living) || target instanceof Player || !ready(player) || !captureAllowed(player)) {
          return false;
       }
 
-      if (!ready(player)) {
+      EntityPropSnapshot snapshot = snapshot(living);
+      if (snapshot == null) {
+         hint(player, "fantastic.prophunt.entity_too_large");
          return false;
       }
 
-      apply(player, match, "", -1);
+      FantasticNetwork.applyCapturedEntity(player, snapshot);
       player.m_240418_(Component.m_237110_("fantastic.prophunt.became", new Object[]{target.m_7755_()}).m_130940_(ChatFormatting.GREEN), true);
       return true;
+   }
+
+   private static EntityPropSnapshot snapshot(LivingEntity living) {
+      String typeId = String.valueOf(BuiltInRegistries.f_256780_.m_7981_(living.m_6095_()));
+      if (typeId.isEmpty() || "minecraft:player".equals(typeId)) {
+         return null;
+      }
+
+      CompoundTag tag = living.m_20240_(new CompoundTag());
+      for (String key : new String[]{
+         "id", "UUID", "Pos", "Motion", "Rotation", "Passengers", "Leash", "Brain",
+         "PortalCooldown", "Dimension", "CustomName", "CustomNameVisible", "HurtTime",
+         "DeathTime", "FallDistance", "Fire", "Air", "OnGround", "Invulnerable",
+         // Datos privados o de gameplay que no influyen en el renderer. El equipo visible se
+         // conserva expresamente en ArmorItems/HandItems.
+         "Inventory", "Items", "Offers", "Gossips", "Recipes", "ForgeCaps", "ForgeData",
+         "Owner", "OwnerUUID", "Trusted", "LoveCause", "AngryAt", "Target"
+      }) {
+         tag.m_128473_(key);
+      }
+
+      if (encodedSize(tag) > EntityPropSnapshot.MAX_NBT_BYTES) {
+         return null;
+      }
+
+      return new EntityPropSnapshot(typeId, tag, living.m_20205_(), living.m_20206_(), living.m_20192_());
+   }
+
+   private static int encodedSize(CompoundTag tag) {
+      try {
+         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+         try (DataOutputStream out = new DataOutputStream(bytes)) {
+            NbtIo.m_128941_(tag, out);
+         }
+         return bytes.size();
+      } catch (IOException ex) {
+         return Integer.MAX_VALUE;
+      }
    }
 
    /**
@@ -99,6 +146,16 @@ public final class PropHuntCapture {
 
       Room room = Rooms.roomOf(player);
       return room != null && room.canUseProp(player.m_20148_());
+   }
+
+   private static boolean captureAllowed(ServerPlayer player) {
+      long now = player.m_9236_().m_46467_();
+      Long last = LAST_CAPTURE.get(player.m_20148_());
+      if (last != null && now - last < CAPTURE_COOLDOWN) {
+         return false;
+      }
+      LAST_CAPTURE.put(player.m_20148_(), now);
+      return true;
    }
 
    /** Como {@link #canTransform} pero avisando al jugador de lo que le falta. */

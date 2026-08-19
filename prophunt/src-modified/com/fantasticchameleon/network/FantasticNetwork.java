@@ -18,6 +18,7 @@ import com.fantasticchameleon.item.FantasticItems;
 import com.fantasticchameleon.movement.Climb;
 import com.fantasticchameleon.paint.BodyCanvas;
 import com.fantasticchameleon.paint.BodyPart;
+import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.fantasticchameleon.paint.FrozenFrame;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.paint.SkinRegions;
@@ -35,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -53,6 +55,8 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 public final class FantasticNetwork {
@@ -318,6 +322,95 @@ public final class FantasticNetwork {
       }
    }
 
+   /** Acopla Meccha a la cara exacta clicada; nunca busca otra pared cercana. */
+   public static void handleMecchaAttach(MecchaAttachPayload payload, ServerPlayer player) {
+      if (throttled(player, 0) || !PropHunt.isMecchaRoom(player)) {
+         return;
+      }
+      Room room = Rooms.roomOf(player);
+      Room.Phase phase = room == null ? Room.Phase.LOBBY : room.phase();
+      if (room == null || !room.isHider(player.m_20148_())
+         || phase != Room.Phase.COUNTDOWN && phase != Room.Phase.HIDING && phase != Room.Phase.SEEKING
+         || ChameleonArmor.coverageMask(player) != ChameleonArmor.ALL_MASK || payload.face() == Direction.DOWN) {
+         return;
+      }
+
+      BlockPos pos = payload.pos();
+      BlockState state = player.m_9236_().m_8055_(pos);
+      if (state.m_60795_()) {
+         return;
+      }
+      float hx = payload.hitX();
+      float hy = payload.hitY();
+      float hz = payload.hitZ();
+      if (!Float.isFinite(hx) || !Float.isFinite(hy) || !Float.isFinite(hz)
+         || hx < 0.0F || hx > 1.0F || hy < 0.0F || hy > 1.0F || hz < 0.0F || hz > 1.0F) {
+         return;
+      }
+
+      Vec3 claimedHit = new Vec3((double)pos.m_123341_() + hx, (double)pos.m_123342_() + hy, (double)pos.m_123343_() + hz);
+      HitResult authoritative = player.m_19907_(8.0, 1.0F, false);
+      if (!(authoritative instanceof BlockHitResult ray)
+         || authoritative.m_6662_() != HitResult.Type.BLOCK
+         || !ray.m_82425_().equals(pos)
+         || ray.m_82434_() != payload.face()
+         || ray.m_82450_().m_82546_(claimedHit).m_82556_() > 0.04) {
+         return;
+      }
+      Vec3 hit = ray.m_82450_();
+      if (player.m_20238_(hit) > 64.0) {
+         return;
+      }
+
+      double half = (double)player.m_20205_() * 0.5 + 0.001;
+      double x = player.m_20185_();
+      double y = player.m_20186_();
+      double z = player.m_20189_();
+      switch (payload.face()) {
+         case EAST -> { x = (double)pos.m_123341_() + 1.0 + half; z = hit.f_82481_; }
+         case WEST -> { x = (double)pos.m_123341_() - half; z = hit.f_82481_; }
+         case SOUTH -> { z = (double)pos.m_123343_() + 1.0 + half; x = hit.f_82479_; }
+         case NORTH -> { z = (double)pos.m_123343_() - half; x = hit.f_82479_; }
+         case UP -> { x = hit.f_82479_; y = (double)pos.m_123342_() + 1.0; z = hit.f_82481_; }
+         default -> { return; }
+      }
+
+      Vec3 target = new Vec3(x, y, z);
+      Vec3 delta = target.m_82546_(player.m_20182_());
+      if (!player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta))) {
+         player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
+         return;
+      }
+
+      float yaw = Mth.m_14177_((float)Math.round(payload.yaw() / 90.0F) * 90.0F);
+      Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+      Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
+      Services.PLATFORM.set(player, PaintAttachments.LOCK_YAW, yaw);
+      Services.PLATFORM.set(player, PaintAttachments.POSING, true);
+      Services.PLATFORM.set(player, PaintAttachments.LOCKED, true);
+      LockTick.clearTilt(player);
+      LockTick.reanchor(player, target);
+      player.m_6210_();
+      immobilize(player, true);
+   }
+
+   /** Suelta el ancla de Prop Hunt sin borrar el bloque, mob, variante ni equipo capturados. */
+   public static void handleDetachProp(DetachPropPayload payload, ServerPlayer player) {
+      if (!throttled(player, 0) && PropHunt.isPropHunt(player)) {
+         Services.PLATFORM.set(player, PaintAttachments.LOCKED, false);
+         Services.PLATFORM.set(player, PaintAttachments.POSING, false);
+         Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
+         Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
+         Services.PLATFORM.set(player, PaintAttachments.BLOCK_FORM, false);
+         LockTick.clearTilt(player);
+         LockTick.release(player);
+         immobilize(player, false);
+         player.m_20242_(false);
+         player.m_6210_();
+         SAFE_POS.remove(player.m_20148_());
+      }
+   }
+
    public static void handleLock(LockPayload payload, ServerPlayer player) {
       if (!throttled(player, 0)) {
          if (!payload.locked()) {
@@ -343,9 +436,9 @@ public final class FantasticNetwork {
             LockTick.clearTilt(player);
             if (payload.freeze()) {
                if (meccha) {
-                  // Un cliente antiguo puede seguir enviando freeze=true. En Meccha se fuerza la
-                  // pose plana real para no conservar una FrozenFrame con silueta humana.
-                  Services.PLATFORM.set(player, PaintAttachments.POSE, 30);
+                  // Un cliente antiguo puede seguir enviando freeze=true. Meccha canoniza siempre
+                  // la pose normal erguida para evitar geometria humana solapada.
+                  Services.PLATFORM.set(player, PaintAttachments.POSE, 0);
                } else {
                   Services.PLATFORM.set(player, PaintAttachments.POSE, -1);
                   Services.PLATFORM.set(player, PaintAttachments.FROZEN_FRAME, payload.frame());
@@ -369,12 +462,13 @@ public final class FantasticNetwork {
 
             yaw = (float)Math.round(yaw / 90.0F) * 90.0F;
             Integer propNow = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP);
-            if (propNow != null && propNow >= 0 && PropHunt.isPropHunt(player)) {
+            EntityPropSnapshot entityNow = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
+            boolean capturedEntity = entityNow != null && entityNow.present();
+            if (PropHunt.isPropHunt(player) && (propNow != null && propNow >= 0 || capturedEntity)) {
                // Un prop tiene que quedar centrado en su celda, no pegado a la pared como la
-               // silueta pintada del modo clasico. Y los props de bloque se colocan siempre a yaw 0:
-               // su orientacion real ya va dentro del variant, asi que girar el cuerpo ademas los
-               // dejaria torcidos respecto al mundo. Las criaturas si conservan hacia donde miran.
-               yaw = PropShapes.followsLook(propNow) ? yaw : 0.0F;
+               // silueta pintada del modo clasico. Los bloques mantienen la orientacion de su
+               // BlockState; las criaturas (tambien las genericas) conservan hacia donde miran.
+               yaw = capturedEntity || PropShapes.followsLook(propNow) ? yaw : 0.0F;
                if (!PropGridSnap.snapToCell(player, yaw)) {
                   resetPose(player);
                   Services.PLATFORM.sendToClient(player, ForceExitPayload.INSTANCE);
@@ -396,15 +490,9 @@ public final class FantasticNetwork {
    private static void placeAgainstCover(Player player, float yaw) {
       int pose = Services.PLATFORM.get(player, PaintAttachments.POSE);
       if (player instanceof ServerPlayer sp && PropHunt.isMecchaRoom(sp)) {
-         // La pose plana ya descansa sobre el suelo; además se aproxima a la pared horizontal más
-         // cercana sin atravesarla. reanchor hace que LockTick conserve exactamente esa adhesión.
-         Vec3 target = BodyClip.snapToWall(player.m_9236_(), player.m_20182_(), yaw, Math.max(0, pose));
-         Vec3 delta = target.m_82546_(player.m_20182_());
-         if (player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(delta))) {
-            LockTick.reanchor(sp, target);
-         } else {
-            LockTick.reanchor(sp, player.m_20182_());
-         }
+         // F puede fijar la pintura en la posicion actual, pero pegarse a una superficie solo ocurre
+         // mediante MecchaAttachPayload y la cara exacta clicada; nunca se elige otra pared cercana.
+         LockTick.reanchor(sp, player.m_20182_());
          return;
       }
 
@@ -484,6 +572,7 @@ public final class FantasticNetwork {
       Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, 0);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
       Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
+      Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, EntityPropSnapshot.NONE);
       Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
       Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, BodyCanvas.EMPTY);
       player.m_6210_();
@@ -493,6 +582,7 @@ public final class FantasticNetwork {
     * Aplica un prop elegido por la UI clásica. No debe heredar el bloque capturado anteriormente.
     */
    public static void applyProp(ServerPlayer player, int propIdx, int variantIdx) {
+      Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, EntityPropSnapshot.NONE);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
       Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
       applyPropInternal(player, propIdx, variantIdx);
@@ -503,9 +593,30 @@ public final class FantasticNetwork {
     * nunca observan una forma nueva con los metadatos del disfraz anterior.
     */
    public static void applyCapturedProp(ServerPlayer player, int propIdx, int variantIdx, String sourceBlockId, int stateId) {
+      Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, EntityPropSnapshot.NONE);
       Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, sourceBlockId == null ? "" : sourceBlockId);
       Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, stateId);
       applyPropInternal(player, propIdx, variantIdx);
+   }
+
+   /** Publica de forma atomica cualquier criatura capturada, incluido su equipo y variante NBT. */
+   public static void applyCapturedEntity(ServerPlayer player, EntityPropSnapshot snapshot) {
+      if (snapshot == null || !snapshot.present()) {
+         clearProp(player);
+         return;
+      }
+
+      Services.PLATFORM.set(player, PaintAttachments.PROP, -1);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_VARIANT, 0);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_SOURCE, "");
+      Services.PLATFORM.set(player, PaintAttachments.PROP_STATE, -1);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, BodyCanvas.EMPTY);
+      Services.PLATFORM.set(player, PaintAttachments.PROP_ACT_TICK, -1000L);
+      Services.PLATFORM.set(player, PaintAttachments.ENTITY_PROP, snapshot);
+      Services.PLATFORM.set(player, PaintAttachments.SIZE_MINI, Boolean.FALSE);
+      ArmorPaintHandler.updateShrink(player);
+      player.m_6210_();
+      FantasticAdvancements.award(player, "block");
    }
 
    private static void applyPropInternal(ServerPlayer player, int propIdx, int variantIdx) {

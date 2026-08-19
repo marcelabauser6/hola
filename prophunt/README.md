@@ -1,5 +1,24 @@
-# Fantastic Chameleon 1.2.7 — Modo Prop Hunt
+# Fantastic Chameleon 1.2.8 — Prop Hunt y Meccha corregidos
 
+> **1.2.8 — todos los mobs, conexiones reales y acople preciso.**
+> - Prop Hunt puede capturar cualquier `LivingEntity` no jugador mediante `EntityType` + NBT visual
+>   saneado. El renderer vanilla conserva modelo, variante, armadura, objetos de mano, ballestas,
+>   espadas, arcos, monturas y capas compatibles, también para mobs añadidos por otros mods.
+> - Durante COUNTDOWN/HIDING/SEEKING, los mobs dentro de la arena delimitada ignoran a los hiders de
+>   Prop Hunt. La protección no se aplica fuera de la arena, a espectadores ni fuera de una ronda.
+> - La gallina se apoya con las patas sobre el suelo y no bate/gira las alas sin control. Vallas,
+>   muros, paneles/barrotes y escaleras derivan sus conexiones vanilla del entorno 3×3×3 sin modificar
+>   ningún bloque real del mundo.
+> - **Desacoplar** conserva exactamente el bloque o mob capturado. Un panel lateral pequeño ofrece
+>   **Desacoplar** y **Revertir transformación**; Esc solo cierra el panel y Space/agacharse libera el
+>   ancla, incluso si agacharse está remapeado a un botón del ratón.
+> - Meccha usa la pose normal de pie (pose 0) y se acopla con clic derecho únicamente a la cara exacta
+>   señalada. El servidor repite el raycast y valida alcance, cara, punto y colisión antes de anclar.
+> - La pipeta regular toma el RGBA final del framebuffer, incluida iluminación, AO, transparencias y
+>   shaders/resource packs; los modos de mapa UV y TEXCROP mantienen sus rutas especializadas.
+> - El protocolo de red ahora es estrictamente **2**: cliente y servidor deben ejecutar el mismo JAR
+>   1.2.8. Las capturas se limitan a 64 KiB y a una cada 5 ticks.
+>
 > **1.2.7 — limpieza completa, modelos vanilla y Meccha adherido.**
 > - Prop Hunt usa modelos vanilla reales para vaca, cerdo, oveja, gallina, lobo, creeper,
 >   enderman y panda; las texturas salen del resource pack activo. Panda se añadió al final del
@@ -90,21 +109,25 @@ El modo se elige por sala en la pestaña **Reglas** del editor (`/fschameleon`),
 ## Cómo se juega el modo Prop Hunt
 
 1. El líder de la sala pone el modo en `Prop Hunt` (pestaña Reglas, primer botón).
-2. Con el set completo de armadura camaleón puesto, **clic derecho** a cualquier bloque o criatura para convertirte en eso.
+2. Con el set completo de armadura camaleón puesto, **clic derecho** a cualquier bloque o mob vivo
+   para convertirte en él. Los mobs conservan visualmente su equipo y variante.
 3. Te podés mover normalmente estando disfrazado.
-4. Al pulsar **F** te quedás clavado en el sitio y el prop **se centra solo** en la celda del bloque, alineado con los ejes del mundo.
-5. Espacio o agacharse te libera para volver a moverte.
-6. **R** quita el disfraz.
+4. Al pulsar **F** te quedás clavado en el sitio y el prop **se centra solo** en la celda del bloque,
+   alineado con los ejes del mundo.
+5. Espacio o agacharse ejecutan **Desacoplar**: recuperás movilidad sin perder la transformación.
+6. El panel lateral tiene botones separados para **Desacoplar** y **Revertir transformación**; Esc
+   únicamente cierra ese panel. **R** también revierte por completo el disfraz.
 
 ### Teclas por modo
 
 | Tecla | Meccha Chameleon | Prop Hunt |
 |---|---|---|
-| **Clic derecho** | — | Convertirte en el bloque o criatura |
-| **F** | Fijarse + abrir el pintor | **Colocarte**: centrado, alineado y fijo |
-| **Espacio / agacharse** | Soltarse | Soltarse y recuperar movilidad |
-| **V** | — | **Gesto de criatura** (pastar, mugir, sisear) |
-| **R** | Rueda de poses y formas | Quitar el disfraz |
+| **Clic derecho** | Acoplarse a la cara exacta del bloque señalado | Convertirte en el bloque o mob vivo |
+| **F** | Fijarse de pie + abrir el pintor | **Colocarte**: centrado, alineado y fijo |
+| **Espacio / agacharse** | Soltarse | **Desacoplar** sin perder la transformación |
+| **V** | — | **Gesto de criatura** (cuando existe) |
+| **R** | Rueda de poses y formas | Revertir la transformación |
+| **Esc** | Cerrar la pantalla actual | Cerrar el panel; no desacopla ni revierte |
 
 ### Gestos por criatura (tecla V)
 
@@ -148,11 +171,15 @@ escaleras (recta/interior/exterior, normal e invertida, 4 orientaciones), valla,
 (post/extremo/recta/esquina/te/cruz), trampilla (suelo/techo/pared), alfombra, pastel, maceta
 (vacía/planta/cactus), farol (de pie/colgante) y yunque. Cualquier otro bloque cae a bloque completo.
 
-**Criaturas**: vaca, cerdo, oveja, gallina, lobo, panda, creeper y enderman. Otras entidades avisan que
-todavía no tienen forma.
+**Criaturas**: cualquier `LivingEntity` excepto jugadores. Se sincronizan su tipo, dimensiones y NBT
+visual saneado y se usa el renderer vanilla real, por lo que piglins, zombified piglins, esqueletos y
+mobs modded conservan armadura, objetos de mano, capas y variantes compatibles. Los datos de
+inventarios, ofertas, ownership, objetivos y capabilities se eliminan; el snapshot queda limitado a
+64 KiB. Si el cliente no dispone del tipo/renderer de un mob modded, el render falla cerrado para no
+revelar al jugador humano.
 
-La apariencia del bloque es la real: se renderiza su `BakedModel` y `BlockState` exactos con el
-renderer vanilla. Las criaturas usan el PNG del resource pack y su modelo animado.
+La apariencia de bloque también es la real: se renderiza su `BakedModel` y `BlockState` exactos con el
+renderer vanilla y las conexiones se recalculan solo para la vista, sin mutar el mundo.
 
 ## Alineación al grid
 
@@ -174,9 +201,15 @@ del `variant` (el modelo se construye rotado), y así las caras quedan paralelas
 | `PropHunt` | Constantes de modo y consulta del modo de la sala |
 | `BlockPropMapper` | `BlockState`/`Entity` → forma + orientación de prop |
 | `PropGridSnap` | Centrado y alineación al grid |
-| `PropHuntCapture` | Lógica de captura y validaciones |
-| `PropHuntEvents` | Enganche al clic derecho (servidor) |
-| `PropHuntClient` | Captura la textura real y la sube |
+| `PropHuntCapture` | Captura genérica de bloques/mobs, saneado NBT, cooldown y validaciones |
+| `PropHuntEvents` | Enganche server-side al clic derecho |
+| `PropHuntClient` | Texturas/estados conectados y gates de fase cliente |
+| `ArenaMobEvents` | Impide target/ataques de mobs contra hiders dentro de la arena |
+| `EntityPropSnapshot` | Snapshot atómico de tipo, NBT visual y dimensiones del mob |
+| `GenericEntityPropRenderer` | Renderer vanilla con equipo/capas y caché LRU |
+| `MecchaClientEvents` / `MecchaAttachPayload` | Clic derecho y acople Meccha autoritativo |
+| `DetachPropPayload` / `PropHuntLockedScreen` | Desacople sin reversión y panel lateral |
+| `FramebufferColorSampler` | Pipeta del RGBA final, con buffer nativo reutilizable |
 | `PropHuntRules` | Limpieza de estado al cambiar de modo |
 
 ### Modificados
@@ -189,21 +222,22 @@ del `variant` (el modelo se construye rotado), y así las caras quedan paralelas
 | `network/FantasticNetwork.java` | Snap al grid al fijarse; props bloqueados en Meccha |
 | `client/FantasticEditorScreen.java` | Botón selector de modo |
 | `client/LockControls.java` | En Prop Hunt la tecla solo fija, no abre el pintor |
-| `assets/.../lang/*.json` | 10 claves nuevas en los 8 idiomas |
-| `META-INF/mods.toml` | Versión 1.2.7 y descripción |
+| `assets/.../lang/*.json` | Controles nuevos en los 8 idiomas |
+| `META-INF/mods.toml` | Versión 1.2.8 y protocolo de red 2 en código |
 
-No se tocó ningún mixin, ni el access transformer, ni el refmap, ni el entrypoint del mod. Los
-listeners nuevos se registran con `@Mod.EventBusSubscriber` y corren a `EventPriority.LOW` para no
-pisar las herramientas de staff que ya escuchaban el clic derecho.
+No se tocó ningún mixin, access transformer, refmap ni entrypoint del mod. Los listeners nuevos se
+registran con `@Mod.EventBusSubscriber`; la captura corre antes del bloqueo de interacciones existente
+y el servidor sigue siendo autoritativo para cada acción.
 
 ## Verificación hecha
 
 - **24.135 blockstates** (todos los del juego) pasados por el mapeador dentro del runtime real de
   Forge: 0 fallos, ningún prop ni variant fuera de rango, ninguna excepción.
-- Compilación SRG Java 17 limpia de las clases modificadas; las clases insertadas coinciden por SHA-256
-  con las compiladas y el JAR no contiene entradas duplicadas ni clases de self-test.
-- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.7, tanto sin Jade como con
-  Jade 11.13.3; Jade descubrió y cargó `FantasticJadePlugin` sin errores.
+- Compilación SRG Java 17 limpia de todas las clases modificadas; los 8 JSON de idioma son válidos,
+  las clases insertadas coinciden con el build y el JAR no contiene entradas duplicadas ni self-test.
+- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.8 y Jade 11.13.3; Jade
+  descubrió y cargó `FantasticJadePlugin` sin errores. El self-test comprobó **24.135 blockstates** y
+  terminó con `RESULT: ALL PASSED`.
 
 Lo que **no** se pudo probar aquí: el render en pantalla y la sensación en partida (hace falta un
 cliente gráfico), y Mohist en concreto (se probó en Forge puro). El código solo usa APIs estándar de
@@ -211,8 +245,9 @@ Forge y los mismos patrones que ya usaba el mod.
 
 ## Aviso de compatibilidad
 
-El paquete de salas creció de 21 a 22 enteros de config, así que **cliente y servidor tienen que usar
-la misma versión**. Hay que actualizar el JAR en los dos lados a la vez.
+El protocolo de red es estrictamente **2** y los payloads/attachments cambiaron. **Cliente y servidor
+tienen que usar exactamente Fantastic Chameleon 1.2.8**; hay que actualizar el JAR en ambos lados al
+mismo tiempo.
 
 ## Cómo recompilar
 

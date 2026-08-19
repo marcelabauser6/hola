@@ -47,6 +47,10 @@ public final class PaintAttachments {
     * shape, conexiones, edad y encendido. El valor -1 identifica props de criatura o datos antiguos.
     */
    public static final FantasticAttachment<Integer> PROP_STATE = FantasticAttachment.synced("prop_state", () -> -1, ByteBufCodecs.VAR_INT);
+   /** Tipo, variante NBT, equipo y dimensiones de cualquier criatura capturada. */
+   public static final FantasticAttachment<EntityPropSnapshot> ENTITY_PROP = FantasticAttachment.synced(
+      "entity_prop", () -> EntityPropSnapshot.NONE, EntityPropSnapshot.STREAM_CODEC
+   );
    /** Tick de servidor del último gesto V, para animarlo de forma visible en todos los clientes. */
    public static final FantasticAttachment<Long> PROP_ACT_TICK = FantasticAttachment.synced("prop_act_tick", () -> -1000L, ByteBufCodecs.LONG);
    public static final FantasticAttachment<Long> KIT_LAST = FantasticAttachment.persistent("kit_last", () -> 0L, Codec.LONG, true);
@@ -76,6 +80,7 @@ public final class PaintAttachments {
       PROP_CANVAS,
       PROP_SOURCE,
       PROP_STATE,
+      ENTITY_PROP,
       PROP_ACT_TICK,
       KIT_LAST,
       SIZE_MINI,

@@ -3,6 +3,7 @@ package com.fantasticchameleon.client;
 import com.fantasticchameleon.item.ArmorPaintHandler;
 import com.fantasticchameleon.network.ClimbPayload;
 import com.fantasticchameleon.network.CrawlPayload;
+import com.fantasticchameleon.network.DetachPropPayload;
 import com.fantasticchameleon.network.LockPayload;
 import com.fantasticchameleon.network.PosePayload;
 import com.fantasticchameleon.network.PropActPayload;
@@ -68,7 +69,9 @@ public final class LockControls {
 
    public static void forceExitFromServer() {
       Minecraft mc = Minecraft.m_91087_();
-      if (ClientShims.screen(mc) instanceof PaintModeScreen || ClientShims.screen(mc) instanceof PoseWheelScreen) {
+      if (ClientShims.screen(mc) instanceof PaintModeScreen
+         || ClientShims.screen(mc) instanceof PoseWheelScreen
+         || ClientShims.screen(mc) instanceof PropHuntLockedScreen) {
          mc.m_91152_(null);
       }
 
@@ -97,6 +100,37 @@ public final class LockControls {
          }
 
          ClientNet.sendToServer(new LockPayload(true, bodyYaw, freeze, frame));
+      }
+   }
+
+   /** Libera movimiento y ancla, pero conserva exactamente la transformación de Prop Hunt. */
+   public static void detach(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, false);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.LOCKED, false);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, 0);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.FROZEN_FRAME, FrozenFrame.NONE);
+         ClientNet.sendToServer(DetachPropPayload.INSTANCE);
+         FreeCam.disable();
+         WorldBrush.exitPaintMode();
+         ClientPaintState.clearHidden();
+         Gizmos.hide();
+         if (ClientShims.screen(mc) instanceof PropHuntLockedScreen) {
+            mc.m_91152_(null);
+         }
+      }
+   }
+
+   /** Revierte por completo el bloque o mob actual; es deliberadamente distinto de desacoplar. */
+   public static void revertProp(Minecraft mc) {
+      if (mc.f_91074_ != null) {
+         ClientNet.sendToServer(new SetPropPayload(-1, 0));
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.LOCKED, false);
+         Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, false);
+         if (ClientShims.screen(mc) instanceof PropHuntLockedScreen) {
+            mc.m_91152_(null);
+         }
+         ClientShims.overlay(Component.m_237115_("fantastic.prophunt.cleared"), true);
       }
    }
 
@@ -159,10 +193,9 @@ public final class LockControls {
          while (poseWheelKey.m_90859_()) {
             if (mc.f_91074_ != null) {
                if (PropHuntClient.isPropHunt()) {
-                  // En Prop Hunt no hay poses ni rueda de formas: el disfraz se elige tocando el
-                  // mundo. La tecla se reutiliza para quitarselo, que si hace falta poder hacer.
-                  ClientNet.sendToServer(new SetPropPayload(-1, 0));
-                  ClientShims.overlay(Component.m_237115_("fantastic.prophunt.cleared"), true);
+                  // R conserva el atajo historico de revertir; el panel al fijarse muestra ademas
+                  // botones separados para que desacoplar nunca se confunda con quitar el disfraz.
+                  revertProp(mc);
                } else {
                   mc.m_91152_(new PoseWheelScreen(ClientAccessors.boundKey(poseWheelKey).m_84873_()));
                }
@@ -195,14 +228,17 @@ public final class LockControls {
             if (!Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
                && (!propHunt || PropHuntClient.canUseProp())) {
                if (!propHunt) {
-                  // Meccha siempre entra en una silueta baja y plana antes de fijarse. Al marcarla
-                  // como pose real lock() no captura la postura humana incidental como FrozenFrame.
+                  // Meccha se fija de pie en la pose normal. El acople a una superficie se realiza
+                  // aparte con clic derecho sobre la cara exacta del bloque.
                   Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSING, true);
-                  Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, 30);
-                  ClientNet.sendToServer(new PosePayload(true, 30));
+                  Services.PLATFORM.set(mc.f_91074_, PaintAttachments.POSE, 0);
+                  ClientNet.sendToServer(new PosePayload(true, 0));
                }
 
                lock(mc);
+               if (propHunt && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)) {
+                  mc.m_91152_(new PropHuntLockedScreen());
+               }
             }
 
             // En Prop Hunt F solo fija durante COUNTDOWN/HIDING/SEEKING y siendo hider. Fuera de
@@ -221,12 +257,17 @@ public final class LockControls {
          paintScreenWasOpen = ClientShims.screen(mc) != null;
          boolean space = mc.f_91074_ != null && InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          boolean sneak = mc.f_91066_ != null && mc.f_91066_.f_92090_.m_90857_();
-         boolean canRelease = ClientShims.screen(mc) == null
+         boolean releaseScreen = ClientShims.screen(mc) == null || ClientShims.screen(mc) instanceof PropHuntLockedScreen;
+         boolean canRelease = releaseScreen
             && mc.f_91074_ != null
             && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)
             && !FreeCam.active();
          if (canRelease && (space && !spaceWasDown || sneak && !sneakWasDown)) {
-            exit(mc);
+            if (PropHuntClient.isPropHunt()) {
+               detach(mc);
+            } else {
+               exit(mc);
+            }
          }
 
          if (mc.f_91074_ != null && (space != climbJumpSent || sneak != climbSneakSent)) {

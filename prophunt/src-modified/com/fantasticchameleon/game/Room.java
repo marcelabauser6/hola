@@ -1823,6 +1823,38 @@ public final class Room {
       }
    }
 
+   /** Solo las fases activas de una ronda delimitada protegen a sus participantes de mobs. */
+   public boolean protectsFromWildMobs(UUID id) {
+      return id != null
+         && PropHunt.normalize(this.config.gameMode) == PropHunt.MODE_PROP_HUNT
+         && (this.hiders.contains(id) || this.seekers.contains(id))
+         && !this.spectators.contains(id)
+         && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
+   }
+
+   /** Comprueba la misma caja y dimension usadas por el confinamiento de la arena. */
+   public boolean containsArena(Entity entity) {
+      if (!this.config.arenaSet || entity == null) {
+         return false;
+      }
+      if (!entity.m_9236_().m_46472_().m_135782_().toString().equals(this.config.arenaDim)) {
+         return false;
+      }
+
+      int minX = Math.min(this.config.ax1, this.config.ax2);
+      int maxX = Math.max(this.config.ax1, this.config.ax2);
+      int minY = Math.min(this.config.ay1, this.config.ay2);
+      int maxY = Math.max(this.config.ay1, this.config.ay2);
+      int minZ = Math.min(this.config.az1, this.config.az2);
+      int maxZ = Math.max(this.config.az1, this.config.az2);
+      double x = entity.m_20185_();
+      double y = entity.m_20186_();
+      double z = entity.m_20189_();
+      return x >= (double)minX && x <= (double)(maxX + 1)
+         && y >= (double)minY && y <= (double)(maxY + 1)
+         && z >= (double)minZ && z <= (double)(maxZ + 1);
+   }
+
    public boolean outsideArena(ServerPlayer p) {
       if (!this.config.arenaSet) {
          return false;

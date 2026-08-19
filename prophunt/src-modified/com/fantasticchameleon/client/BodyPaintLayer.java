@@ -136,7 +136,7 @@ public class BodyPaintLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
       }
 
       if (!PropShapes.followsLook(propIdx)) {
-         BlockState state = PropHuntClient.stateFor(player);
+         BlockState state = PropHuntClient.visualStateFor(player);
          if (state != null) {
             renderExactBlock(pose, buffers, player, state, partialTick, light);
          } else {

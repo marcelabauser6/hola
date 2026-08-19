@@ -3,6 +3,7 @@ package com.fantasticchameleon.prophunt;
 import com.fantasticchameleon.client.AvatarState;
 import com.fantasticchameleon.client.BlockTexturePresets;
 import com.fantasticchameleon.client.PropAvatarPreview;
+import com.fantasticchameleon.item.ChameleonArmor;
 import com.fantasticchameleon.paint.BodyCanvas;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
@@ -13,11 +14,16 @@ import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
@@ -40,6 +46,7 @@ import net.minecraftforge.fml.common.Mod;
 public final class PropHuntClient {
    private static final Map<String, BodyCanvas> BLOCK_CACHE = new HashMap<>();
    private static final Map<UUID, String> APPLIED = new HashMap<>();
+   private static final Map<UUID, VisualState> VISUAL_STATES = new HashMap<>();
 
    private PropHuntClient() {
    }
@@ -61,6 +68,28 @@ public final class PropHuntClient {
       return mode != null && mode == PropHunt.MODE_PROP_HUNT;
    }
 
+   /** Gate cliente conservador para no cancelar clics normales fuera de una ronda Meccha como hider. */
+   public static boolean canUseMecchaAttach() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      if (player == null || !ChameleonArmor.fullCoverage(player)) {
+         return false;
+      }
+      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      if (mode == null || mode != PropHunt.MODE_MECCHA) {
+         return false;
+      }
+      int phase = com.fantasticchameleon.client.RoundBar.phase();
+      if (phase != 1 && phase != 2 && phase != 4) {
+         return false;
+      }
+      for (com.fantasticchameleon.network.RoundStatePayload.Entry entry : com.fantasticchameleon.client.RoundBar.entries()) {
+         if (entry.id().equals(player.m_20148_())) {
+            return !entry.found();
+         }
+      }
+      return false;
+   }
+
    /** Capacidad cliente conservadora; el servidor vuelve a validar cada accion. */
    public static boolean canUseProp() {
       LocalPlayer player = Minecraft.m_91087_().f_91074_;
@@ -69,7 +98,7 @@ public final class PropHuntClient {
       }
 
       int phase = com.fantasticchameleon.client.RoundBar.phase();
-      if (phase < 1 || phase > 3) {
+      if (phase != 1 && phase != 2 && phase != 4) {
          return false;
       }
 
@@ -103,7 +132,7 @@ public final class PropHuntClient {
          }
 
          boolean creature = PropShapes.followsLook(prop);
-         BlockState state = creature ? null : stateFor(player);
+         BlockState state = creature ? null : visualStateFor(player);
          if (!creature && state == null) {
             continue;
          }
@@ -152,6 +181,57 @@ public final class PropHuntClient {
       }
    }
 
+   /**
+    * Estado visual derivado en la celda donde el prop esta fijado. Conserva el estado capturado como
+    * base, pero vuelve a ejecutar las reglas vanilla de vecinos para vallas, paneles, muros y
+    * escaleras. No coloca ni modifica ningun bloque real.
+    */
+   public static BlockState visualStateFor(Player player) {
+      BlockState base = stateFor(player);
+      if (base == null || !AvatarState.locked(player) || !connectsToNeighbours(base.m_60734_())) {
+         VISUAL_STATES.remove(player.m_20148_());
+         return base;
+      }
+
+      BlockPos anchor = player.m_20183_();
+      int baseId = Block.m_49956_(base);
+      int neighbours = neighbourSignature(player, anchor);
+      VisualState cached = VISUAL_STATES.get(player.m_20148_());
+      if (cached != null && cached.anchor.equals(anchor) && cached.baseId == baseId && cached.neighbours == neighbours) {
+         return cached.state;
+      }
+
+      BlockState derived = base;
+      try {
+         derived = Block.m_49931_(base, player.m_9236_(), anchor);
+      } catch (RuntimeException ignored) {
+         // Un bloque modded puede asumir que existe de verdad en anchor. En ese caso se conserva el
+         // estado capturado, nunca se arriesga el render completo por una conexion cosmetica.
+      }
+      VISUAL_STATES.put(player.m_20148_(), new VisualState(anchor.m_7949_(), baseId, neighbours, derived));
+      return derived;
+   }
+
+   private static boolean connectsToNeighbours(Block block) {
+      return block instanceof FenceBlock || block instanceof IronBarsBlock || block instanceof WallBlock || block instanceof StairBlock;
+   }
+
+   /** Escaleras consultan diagonales; una firma 3x3x3 cubrelas y sigue siendo muy barata al fijarse. */
+   private static int neighbourSignature(Player player, BlockPos anchor) {
+      int hash = 1;
+      for (int dy = -1; dy <= 1; dy++) {
+         for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+               if (dx != 0 || dy != 0 || dz != 0) {
+                  BlockState around = player.m_9236_().m_8055_(anchor.m_7918_(dx, dy, dz));
+                  hash = 31 * hash + Block.m_49956_(around);
+               }
+            }
+         }
+      }
+      return hash;
+   }
+
    /** Lienzo del estado exacto con cache porque construirlo cuesta. */
    private static BodyCanvas blockCanvas(BlockState state, int prop, int variant) {
       int stateId = Block.m_49956_(state);
@@ -182,8 +262,12 @@ public final class PropHuntClient {
    public static void clearCaches() {
       BLOCK_CACHE.clear();
       APPLIED.clear();
+      VISUAL_STATES.clear();
       PropTextures.clearCache();
       com.fantasticchameleon.client.VanillaPropModels.clearCache();
+   }
+
+   private record VisualState(BlockPos anchor, int baseId, int neighbours, BlockState state) {
    }
 
    /** Los listeners de recursos se registran en el bus MOD, separado del tick del bus Forge. */

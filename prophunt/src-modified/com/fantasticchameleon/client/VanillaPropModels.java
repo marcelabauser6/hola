@@ -80,8 +80,11 @@ public final class VanillaPropModels {
 
       Models cache = getModels(player.m_9236_());
       pose.m_85836_();
-      // PlayerRenderer reduce el modelo a 0.9375; los EntityRenderers vanilla no. Se revierte aqui.
+      // PlayerRenderer reduce el modelo a 0.9375 alrededor del origen transformado. Revertir la
+      // escala alrededor del pivote vanilla Y=1.501 evita desplazar las patas pequeñas bajo el suelo.
+      pose.m_252880_(0.0F, 1.501F, 0.0F);
       pose.m_85841_(PLAYER_SCALE_FIX, PLAYER_SCALE_FIX, PLAYER_SCALE_FIX);
+      pose.m_252880_(0.0F, -1.501F, 0.0F);
 
       switch (key) {
          case "cow" -> renderEntity(cache.cow, cache.cowRoot, player, texture, pose, buffers, light,
@@ -141,7 +144,10 @@ public final class VanillaPropModels {
       model.f_102609_ = false;
       model.f_102610_ = false;
       model.m_6839_(entity, limbSwing, limbSwingAmount, partialTick);
-      model.m_6973_(entity, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);
+      // ChickenModel interpreta este cuarto float como batido de alas. El ageInTicks continuo del
+      // jugador lo hacia girar sin control; fuera del gesto V debe permanecer en reposo.
+      float animationProgress = "chicken".equals(key) ? 0.0F : ageInTicks;
+      model.m_6973_(entity, limbSwing, limbSwingAmount, animationProgress, netHeadYaw, headPitch);
       applyAct(root, key, ageInTicks, actAge);
       VertexConsumer vertices = buffers.m_6299_(model.m_103119_(texture));
       model.m_7695_(pose, vertices, light, OverlayTexture.f_118083_, 1.0F, 1.0F, 1.0F, 1.0F);
