@@ -31,7 +31,12 @@ from docx import Document
 from docx.enum.section import WD_ORIENT
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
+from docx.enum.text import (
+    WD_ALIGN_PARAGRAPH,
+    WD_LINE_SPACING,
+    WD_TAB_ALIGNMENT,
+    WD_TAB_LEADER,
+)
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
@@ -91,6 +96,7 @@ ABSTRACT = (
 KEYWORDS_EN = (
     "Keywords: pasteurized milk, prefeasibility, agribusiness, financial appraisal, risk management."
 )
+
 
 # Reescrituras de párrafo completo. Se conserva la redacción del autor y solo se
 # sustituyen los pasajes que dejaban datos sin explicar o tareas pendientes.
@@ -216,6 +222,11 @@ NIVEL4 = {
     "Impuesto sobre Ventas (ISV)", "Arrastre de pérdidas fiscales.",
     "Impuesto Municipal de Industria, Comercio y Servicios", "Capital de trabajo.",
 }
+# Filas que cierran un cálculo y por convención llevan regla superior.
+FILAS_RESUMEN = {
+    "INGRESOS POR VENTAS", "IMPUESTO MUNICIPAL (ICS)", "Planilla mensual y base cotizable",
+    "Tasa de descuento del proyecto", "WACC",
+}
 CAPITULOS = {
     "estudio sectorial", "estudio de mercado", "estudio técnico",
     "estudio organizacional y administrativo", "estudio legal", "estudio ambiental",
@@ -323,7 +334,7 @@ def _configure_styles(doc: Document) -> None:
     normal = doc.styles["Normal"]
     _set_style_font(normal, BODY_PT)
     pf = normal.paragraph_format
-    pf.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     pf.line_spacing_rule = WD_LINE_SPACING.DOUBLE
     pf.space_before = Pt(0)
     pf.space_after = Pt(0)
@@ -337,7 +348,7 @@ def _configure_styles(doc: Document) -> None:
         pf.line_spacing_rule = WD_LINE_SPACING.DOUBLE
         pf.space_before = Pt(12)
         pf.space_after = Pt(0)
-        pf.first_line_indent = Inches(0.5) if level == 4 else None
+        pf.first_line_indent = Inches(0.5) if level == 4 else Inches(0)
         pf.keep_with_next = True
         pf.keep_together = True
         pf.page_break_before = level == 1
@@ -382,10 +393,13 @@ def _configure_styles(doc: Document) -> None:
         _set_style_font(style, BODY_PT)
         pf = style.paragraph_format
         pf.first_line_indent = None
-        pf.left_indent = Inches(0.3 * (level - 1))
+        sangria = 0.3 * (level - 1)
+        pf.left_indent = Inches(sangria)
         pf.line_spacing = 1
         pf.space_after = Pt(4)
-        pf.tab_stops.add_tab_stop(Inches(CONTENT_WIDTH - 0.05), alignment=2, leader=1)
+        pf.tab_stops.add_tab_stop(
+            Inches(CONTENT_WIDTH - sangria), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS
+        )
     for name in ("Índice manual tabla", "Índice manual figura"):
         style = _get_or_add_style(doc, name)
         _set_style_font(style, BODY_PT)
@@ -394,7 +408,9 @@ def _configure_styles(doc: Document) -> None:
         pf.left_indent = Inches(0)
         pf.line_spacing = 1
         pf.space_after = Pt(4)
-        pf.tab_stops.add_tab_stop(Inches(CONTENT_WIDTH - 0.05), alignment=2, leader=1)
+        pf.tab_stops.add_tab_stop(
+            Inches(CONTENT_WIDTH), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -420,8 +436,86 @@ def _paragraph_before_element(doc: Document, element, text: str, style) -> Parag
     return paragraph
 
 
+def _portada(doc: Document) -> list:
+    """Elementos de la portada: todo lo anterior al primer índice.
+
+    Se incluye «Resumen» entre las marcas de cierre porque, una vez depurados los
+    índices del borrador, es el primer título que sigue a la portada.
+    """
+    marcas = {"Tabla de contenido", "Índice de Tablas", "Índice de tablas", "Resumen"}
+    elementos = []
+    for child in doc.element.body:
+        if child.tag == qn("w:p") and Paragraph(child, doc._body).text.strip() in marcas:
+            break
+        elementos.append(child)
+    return elementos
+
+
+def _portada_paragraphs(doc: Document) -> list:
+    """Todos los párrafos de la portada, incluidos los del control de contenido
+    que aloja la escuela, el programa y la ciudad.
+
+    Devuelve los elementos y no sus identidades: lxml crea envoltorios temporales
+    y, si se guardan solo los id(), el recolector puede reutilizar esas
+    direcciones y provocar coincidencias falsas.
+    """
+    parrafos = []
+    for element in _portada(doc):
+        if element.tag == qn("w:p"):
+            parrafos.append(element)
+        parrafos.extend(element.iter(qn("w:p")))
+    return parrafos
+
+
+def _limpiar_cierre_portada(doc: Document) -> None:
+    """Quita los saltos de página sobrantes al final de la portada.
+
+    El título «Tabla de contenido» ya abre página propia, de modo que los saltos
+    manuales heredados generaban una hoja en blanco.
+    """
+    elementos = _portada(doc)
+    for element in elementos:
+        for br in list(element.iter(qn("w:br"))):
+            if br.get(qn("w:type")) == "page":
+                _remove(br)
+    ultimo_con_texto = -1
+    for indice, element in enumerate(elementos):
+        texto = "".join(t.text or "" for t in element.iter(qn("w:t")))
+        if texto.strip():
+            ultimo_con_texto = indice
+    for element in elementos[ultimo_con_texto + 1:]:
+        if element.tag == qn("w:p") and element.find(".//" + qn("w:sectPr")) is None:
+            _remove(element)
+
+
+def _format_portada(doc: Document) -> int:
+    """Centra toda la portada y deja su interlineado sencillo para que quepa."""
+    _limpiar_cierre_portada(doc)
+    total = 0
+    for element in _portada(doc):
+        objetivos = [element] if element.tag == qn("w:p") else []
+        objetivos += list(element.iter(qn("w:p")))
+        for node in objetivos:
+            paragraph = Paragraph(node, doc._body)
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            pf = paragraph.paragraph_format
+            pf.first_line_indent = Inches(0)
+            pf.left_indent = Inches(0)
+            pf.right_indent = Inches(0)
+            pf.line_spacing = 1.5
+            pf.space_before = Pt(0)
+            pf.space_after = Pt(0)
+            total += 1
+    return total
+
+
 def _remove_empty_paragraphs(doc: Document) -> None:
+    # La portada usa párrafos vacíos para distribuir el texto en la página.
+    portada = _portada(doc)
+    portada_ids = {id(element) for element in portada}
     for paragraph in list(doc.paragraphs):
+        if id(paragraph._p) in portada_ids:
+            continue
         if paragraph.text.strip():
             continue
         p = paragraph._p
@@ -498,6 +592,20 @@ def _assign_headings(doc: Document) -> None:
             paragraph.style = doc.styles["Heading 3"]
         elif text in NIVEL4:
             paragraph.style = doc.styles["Heading 4"]
+        else:
+            continue
+
+    # Se retira la alineación directa heredada del borrador en todos los títulos,
+    # incluidos los que ya venían con estilo, para que manden los estilos:
+    # nivel 1 centrado y niveles 2 en adelante a la izquierda.
+    for paragraph in doc.paragraphs:
+        if not paragraph.style.name.startswith("Heading"):
+            continue
+        paragraph.alignment = None
+        paragraph.paragraph_format.first_line_indent = (
+            Inches(0.5) if paragraph.style.name == "Heading 4" else Inches(0)
+        )
+        paragraph.paragraph_format.left_indent = Inches(0)
 
 
 # --------------------------------------------------------------------------- #
@@ -625,8 +733,7 @@ def _format_table_apa(table: Table, widths: list[float], metrica: Metrica) -> No
         if row_index == 0:
             if trpr.find(qn("w:tblHeader")) is None:
                 trpr.append(OxmlElement("w:tblHeader"))
-        first_cell = row.cells[0].text.strip().casefold()
-        is_total = first_cell.startswith("total") or first_cell.startswith("(=) flujo")
+        is_total = _es_fila_resumen(row.cells[0].text)
         for column_index, cell in enumerate(row.cells):
             cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             cell.width = Inches(widths[column_index])
@@ -676,6 +783,19 @@ def _format_table_apa(table: Table, widths: list[float], metrica: Metrica) -> No
                     )
                 for run in paragraph.runs:
                     _set_run_font(run, BODY_PT, bold=(row_index == 0 or is_total) or None)
+
+
+def _es_fila_resumen(texto: str) -> bool:
+    """Identifica filas de total o de resultado calculado."""
+    limpio = texto.strip()
+    if not limpio:
+        return False
+    plano = limpio.casefold()
+    if plano.startswith("total") or plano.endswith("total"):
+        return True
+    if limpio.startswith("(=)"):
+        return True
+    return limpio in FILAS_RESUMEN
 
 
 def _new_table_before(doc: Document, reference, data: list[list[str]]) -> Table:
@@ -825,9 +945,13 @@ def _resize_figures(doc: Document) -> None:
 
 
 def _normalize_body(doc: Document) -> None:
+    portada = _portada_paragraphs(doc)
+    portada_ids = {id(element) for element in portada}
     for paragraph in doc.paragraphs:
         text = paragraph.text.strip()
         if not text:
+            continue
+        if id(paragraph._p) in portada_ids:
             continue
         name = paragraph.style.name
         if name.startswith(("Heading", "APA ", "Índice manual")):
@@ -838,8 +962,7 @@ def _normalize_body(doc: Document) -> None:
         pf.line_spacing_rule = WD_LINE_SPACING.DOUBLE
         pf.space_before = Pt(0)
         pf.space_after = Pt(0)
-        # APA 7 alinea el cuerpo a la izquierda y deja el margen derecho irregular.
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
         if not text.startswith(("•", "-")) and name != "List Paragraph":
             pf.first_line_indent = Inches(0.5)
     for section in doc.sections:
@@ -1004,6 +1127,7 @@ def rectificar(docx_path: Path) -> None:
     _configure_styles(doc)
     _complete_summary_abstract(doc)
     counters = _apply_rewrites(doc)
+    counters["portada"] = _format_portada(doc)
     _remove_empty_paragraphs(doc)
     _assign_headings(doc)
     _clear_front_indexes(doc)
@@ -1023,8 +1147,24 @@ def rectificar(docx_path: Path) -> None:
     doc.core_properties.subject = "Versión rectificada con formato APA 7"
     doc.save(docx_path)
     print(f"reescrituras={counters['reescrituras']} frecuencia={counters['frecuencia']} "
+          f"portada+={counters['portada']} "
           f"tablas={stats['tablas']} bloques={stats['bloques']} divididas={stats['divididas']} "
           f"titulos={len(headings)}")
+
+
+def _run_con_tabulacion(etiqueta: str, pagina: int):
+    """Construye el run del índice con tabulación real para que salgan los puntos."""
+    run = OxmlElement("w:r")
+    inicio = OxmlElement("w:t")
+    inicio.set(qn("xml:space"), "preserve")
+    inicio.text = etiqueta
+    tabulacion = OxmlElement("w:tab")
+    final = OxmlElement("w:t")
+    final.text = str(pagina)
+    run.append(inicio)
+    run.append(tabulacion)
+    run.append(final)
+    return run
 
 
 def _norm(text: str) -> str:
@@ -1067,11 +1207,7 @@ def actualizar_indices(docx_path: Path, pdf_path: Path) -> None:
             container = link if link is not None else paragraph._p
             for run in container.findall(qn("w:r")):
                 container.remove(run)
-            run = OxmlElement("w:r")
-            text = OxmlElement("w:t")
-            text.text = f"{label}\t{page_index + 1}"
-            run.append(text)
-            container.append(run)
+            container.append(_run_con_tabulacion(label, page_index + 1))
             _format_all_xml_runs(paragraph._p, BODY_PT)
     doc.save(docx_path)
 
