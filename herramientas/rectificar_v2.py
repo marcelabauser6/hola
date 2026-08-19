@@ -388,24 +388,18 @@ def _configure_styles(doc: Document) -> None:
     continuacion.paragraph_format.keep_with_next = True
     continuacion.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    for level in (1, 2, 3):
-        style = _get_or_add_style(doc, f"Índice manual nivel {level}")
-        _set_style_font(style, BODY_PT)
-        pf = style.paragraph_format
-        pf.first_line_indent = None
-        sangria = 0.3 * (level - 1)
-        pf.left_indent = Inches(sangria)
-        pf.line_spacing = 1
-        pf.space_after = Pt(4)
-        pf.tab_stops.add_tab_stop(
-            Inches(CONTENT_WIDTH - sangria), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS
-        )
-    for name in ("Índice manual tabla", "Índice manual figura"):
+    # Los tres índices van justificados, sin sangría en ningún nivel, con puntos
+    # guía hasta el número de página alineado al margen derecho.
+    indices = [f"Índice manual nivel {level}" for level in (1, 2, 3)]
+    indices += ["Índice manual tabla", "Índice manual figura"]
+    for name in indices:
         style = _get_or_add_style(doc, name)
         _set_style_font(style, BODY_PT)
         pf = style.paragraph_format
-        pf.first_line_indent = None
+        pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        pf.first_line_indent = Inches(0)
         pf.left_indent = Inches(0)
+        pf.right_indent = Inches(0)
         pf.line_spacing = 1
         pf.space_after = Pt(4)
         pf.tab_stops.add_tab_stop(
@@ -761,7 +755,6 @@ def _format_table_apa(table: Table, widths: list[float], metrica: Metrica) -> No
                     margins.append(node)
                 node.set(qn("w:w"), "55")
                 node.set(qn("w:type"), "dxa")
-            numeric = bool(re.fullmatch(r"[-(]?[\d.,%\s]*[\d%)]", cell.text.strip()))
             for paragraph in cell.paragraphs:
                 pf = paragraph.paragraph_format
                 pf.first_line_indent = Inches(0)
@@ -773,14 +766,8 @@ def _format_table_apa(table: Table, widths: list[float], metrica: Metrica) -> No
                 # La última fila permanece junto a la nota o al rótulo siguiente
                 # para que ninguno quede solo al inicio de una página.
                 pf.keep_with_next = row_index == total_rows - 1
-                if row_index == 0:
-                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                elif column_index == 0:
-                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                else:
-                    paragraph.alignment = (
-                        WD_ALIGN_PARAGRAPH.RIGHT if numeric else WD_ALIGN_PARAGRAPH.LEFT
-                    )
+                # Todo el contenido de las tablas queda centrado.
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 for run in paragraph.runs:
                     _set_run_font(run, BODY_PT, bold=(row_index == 0 or is_total) or None)
 
