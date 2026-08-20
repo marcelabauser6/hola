@@ -3,12 +3,17 @@ package com.fantasticchameleon.client;
 import com.fantasticchameleon.network.RoundStatePayload;
 import com.fantasticchameleon.paint.PaintAttachments;
 import com.fantasticchameleon.platform.Services;
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.InputConstants.Key;
+import com.mojang.blaze3d.platform.InputConstants.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -193,11 +198,33 @@ public final class FreeCam {
       offZo = offZ;
    }
 
+   /** Estado de una tecla; en crudo cuando una pantalla del mod tiene el foco. */
+   private static boolean pressed(KeyMapping mapping, boolean raw) {
+      if (!raw) {
+         return mapping.m_90857_();
+      }
+
+      Key key = ClientAccessors.boundKey(mapping);
+      int code = key.m_84873_();
+      long window = Minecraft.m_91087_().m_91268_().m_85439_();
+      if (key.m_84868_() == Type.KEYSYM) {
+         return code >= 0 && InputConstants.m_84830_(window, code);
+      }
+
+      // Quien tenga el movimiento en un botón del ratón también debe poder mover la cámara.
+      if (key.m_84868_() == Type.MOUSE) {
+         return code >= 0 && GLFW.glfwGetMouseButton(window, code) == GLFW.GLFW_PRESS;
+      }
+
+      return mapping.m_90857_();
+   }
+
    private static void tickWatchInput(Minecraft mc) {
       long window = mc.m_91268_().m_85439_();
       boolean previous = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_BRACKET) == GLFW.GLFW_PRESS;
       boolean next = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_BRACKET) == GLFW.GLFW_PRESS;
-      if (ClientShims.screen(mc) == null && canWatch()) {
+      Screen screen = ClientShims.screen(mc);
+      if ((screen == null || screen instanceof PropHuntLockedScreen) && canWatch()) {
          if (previous && !prevWasDown) cycle(-1);
          if (next && !nextWasDown) cycle(1);
       }
@@ -273,13 +300,28 @@ public final class FreeCam {
          return;
       }
 
-      if (options.f_92085_.m_90857_()) { dx += look.f_82479_; dy += look.f_82480_; dz += look.f_82481_; }
-      if (options.f_92087_.m_90857_()) { dx -= look.f_82479_; dy -= look.f_82480_; dz -= look.f_82481_; }
-      if (options.f_92086_.m_90857_()) { dx -= right.f_82479_; dz -= right.f_82481_; }
-      if (options.f_92088_.m_90857_()) { dx += right.f_82479_; dz += right.f_82481_; }
-      if (options.f_92089_.m_90857_()) dy++;
-      if (options.f_92090_.m_90857_()) dy--;
-      double speed = options.f_92091_.m_90857_() ? SPEED * SPRINT_MULT : SPEED;
+      // Con el panel de controles abierto Minecraft suelta todas las teclas, así que los atajos
+      // normales devuelven "no pulsada" y la cámara quedaba inmóvil. Ahí se consulta el teclado en
+      // crudo, igual que hace el mod para detectar la tecla de fijarse.
+      boolean panel = ClientShims.screen(mc) instanceof PropHuntLockedScreen;
+      if (!panel && ClientShims.screen(mc) != null) {
+         offXo = offX;
+         offYo = offY;
+         offZo = offZ;
+         return;
+      }
+
+      if (pressed(options.f_92085_, panel)) { dx += look.f_82479_; dy += look.f_82480_; dz += look.f_82481_; }
+      if (pressed(options.f_92087_, panel)) { dx -= look.f_82479_; dy -= look.f_82480_; dz -= look.f_82481_; }
+      if (pressed(options.f_92086_, panel)) { dx -= right.f_82479_; dz -= right.f_82481_; }
+      if (pressed(options.f_92088_, panel)) { dx += right.f_82479_; dz += right.f_82481_; }
+      // Subir y bajar sólo sin el panel: con él abierto saltar y agacharse significan desacoplarse,
+      // así que leerlos aquí soltaría el prop al primer intento de mover la cámara en vertical.
+      if (!panel) {
+         if (options.f_92089_.m_90857_()) dy++;
+         if (options.f_92090_.m_90857_()) dy--;
+      }
+      double speed = pressed(options.f_92091_, panel) ? SPEED * SPRINT_MULT : SPEED;
       offXo = offX;
       offYo = offY;
       offZo = offZ;

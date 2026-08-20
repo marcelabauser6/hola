@@ -46,9 +46,29 @@ public final class PropHuntActs {
    private static final Map<String, Optional<SoundEvent>> CAPTURED_VOICE = new ConcurrentHashMap<>();
    private static final Map<String, Optional<SoundEvent>> STEP_VOICE = new ConcurrentHashMap<>();
    private static final Map<UUID, Motion> MOTION = new ConcurrentHashMap<>();
-   /** Distancia física entre pasos; la misma medición determina también la velocidad de las patas. */
-   private static final double STEP_DISTANCE = 0.6;
+   /**
+    * Distancia entre pasos, la misma que usa el juego.
+    *
+    * <p>Vanilla no compara la distancia con 0,6: acumula {@code distancia × 0,6} y emite el paso al
+    * llegar a 1, es decir un paso cada {@code 1 / 0,6} bloques. Tomar el 0,6 como umbral en bloques
+    * disparaba los pasos casi tres veces más a menudo de lo normal, a cualquier velocidad.
+    */
+   private static final double STEP_DISTANCE = 1.0 / 0.6;
    private static final double TELEPORT_DISTANCE = 1.5;
+   /**
+    * Amplitud de marcha por unidad de atributo de velocidad.
+    *
+    * <p>Una criatura suelta camina mucho más despacio que un jugador: medida en este mismo mod, una
+    * vaca (atributo 0,20) avanza 0,0537 bloques por tick, que con la fórmula de animación de vanilla
+    * (distancia × 4) da una amplitud de 0,215. De ahí sale la proporción 0,215 / 0,20 ≈ 1,07.
+    *
+    * <p>Se usa como <b>techo</b>: al caminar despacio manda la distancia real, y al ir a velocidad
+    * jugable las patas no pasan del ritmo que tendría la criatura de verdad. Sin este techo la
+    * amplitud saturaba en 1,0 —el máximo del juego— y las patas iban como locas.
+    */
+   private static final double GAIT_PER_ATTRIBUTE = 1.07;
+   /** Correcciones de posición del servidor por debajo de esto no son caminar. */
+   private static final double MOTION_EPSILON = 0.002;
    private static final long COOLDOWN = 12L;
 
    private PropHuntActs() {
@@ -244,7 +264,12 @@ public final class PropHuntActs {
    public static void motionTick(ServerPlayer player) {
       EntityPropSnapshot snapshot = Services.PLATFORM.getOrNull(player, PaintAttachments.ENTITY_PROP);
       Room room = Rooms.roomOf(player);
-      if (snapshot == null || !snapshot.present() || player.m_5833_() || room == null || !room.canUseProp(player.m_20148_())) {
+      // Un prop fijado no camina. Estando anclado el servidor lo devuelve a su ancla en cuanto se
+      // desvía lo más mínimo, y ese reposicionamiento se medía como distancia recorrida: por eso las
+      // patas andaban y sonaban pasos con el jugador completamente quieto.
+      boolean anchored = Services.PLATFORM.get(player, PaintAttachments.LOCKED)
+         || Services.PLATFORM.get(player, PaintAttachments.POSING);
+      if (snapshot == null || !snapshot.present() || player.m_5833_() || anchored || room == null || !room.canUseProp(player.m_20148_())) {
          Motion removed = MOTION.remove(player.m_20148_());
          PropMotionState current = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_MOTION);
          if (removed != null || current != null && current.speed() != 0.0F) {
@@ -267,12 +292,18 @@ public final class PropHuntActs {
       state.x = player.m_20185_();
       state.z = player.m_20189_();
       double distance = Math.sqrt(dx * dx + dz * dz);
-      if (!Double.isFinite(distance) || distance > TELEPORT_DISTANCE) {
-         state.stepDistance = 0.0;
+      if (!Double.isFinite(distance) || distance > TELEPORT_DISTANCE || distance < MOTION_EPSILON) {
+         if (!Double.isFinite(distance) || distance > TELEPORT_DISTANCE) {
+            state.stepDistance = 0.0;
+         }
          distance = 0.0;
       }
 
-      float walk = (float)Math.min(1.0, distance * 4.0);
+      // Fórmula de vanilla (distancia × 4) acotada al ritmo propio de la criatura imitada.
+      double natural = snapshot.movementSpeed() > 0.0F
+         ? Math.min(1.0, (double)snapshot.movementSpeed() * GAIT_PER_ATTRIBUTE)
+         : 1.0;
+      float walk = (float)Math.min(natural, distance * 4.0);
       boolean starting = walk > 0.0F && state.lastSpeed == 0.0F;
       boolean stopping = walk == 0.0F && state.lastSpeed > 0.0F;
       state.ticksSinceSync++;

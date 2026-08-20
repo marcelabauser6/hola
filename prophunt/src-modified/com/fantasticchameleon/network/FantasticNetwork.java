@@ -82,7 +82,20 @@ public final class FantasticNetwork {
     * esperado por el controlador del jugador. Se conserva la relación real entre atributos, con un
     * límite defensivo sólo para criaturas acuáticas/voladoras cuyo atributo no representa caminar.
     */
-   private static final double BODY_SURFACE_OFFSET = 0.04;
+   /**
+    * Cuánto se hunde el cuerpo por dentro de la superficie del bloque.
+    *
+    * <p>El torso tiene 0,125 de semiprofundidad y la cabeza 0,25, así que con 0,20 el torso queda
+    * completamente dentro y de la cabeza asoma apenas 0,05: se distingue que hay algo, pero no un
+    * jugador. La iluminación ya no depende de esta posición, porque el render toma la luz del aire de
+    * la cara de acople; sin eso, hundirse dejaba el cuerpo totalmente negro.
+    *
+    * <p>Sólo aplica a las cuatro caras laterales. Encima de un bloque el cuerpo se apoya en la
+    * superficie, porque hundirlo ahí lo dejaría con los pies bajo el suelo.
+    */
+   private static final double BODY_SINK_DEPTH = 0.2;
+   /** Conserva exactamente el margen de hueco exterior que se exigía antes de hundir el cuerpo. */
+   private static final double SURFACE_PROBE_MARGIN = 0.04;
    private static final double VANILLA_LAND_REFERENCE = 0.23;
    private static final double MIN_MOB_RATIO = 0.75;
    private static final double MAX_MOB_RATIO = 1.35;
@@ -459,12 +472,10 @@ public final class FantasticNetwork {
       LockTick.clearTilt(player);
       player.m_6210_();
 
-      // El origen queda apenas fuera de la superficie para que Minecraft tome luz del aire y la capa
-      // pintada conserve sus colores. El torso sigue parcialmente embebido: 0,04 es menor que su
-      // semiprofundidad visual, así que entra un poco más que en 1.2.17 sin volverse negro.
-      double surfaceOffset = BODY_SURFACE_OFFSET * (double)ArmorPaintHandler.scaleOf(player);
-      Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), surfaceOffset);
-      if (target == null || !outwardClear(player, payload.face(), target)) {
+      // Signo negativo: el origen entra en el bloque en vez de quedarse por fuera.
+      double sink = BODY_SINK_DEPTH * (double)ArmorPaintHandler.scaleOf(player);
+      Vec3 target = flushTarget(player, pos, payload.face(), new Vec3(hit.f_82479_, player.m_20186_(), hit.f_82481_), -sink);
+      if (target == null || !outwardClear(player, payload.face(), target, sink)) {
          restoreLock(player, wasLocked, wasPosing, wasPose, wasYaw, wasPitch, wasRoll, wasFrame);
          player.m_240418_(Component.m_237115_("fantastic.pose.tight").m_130940_(ChatFormatting.YELLOW), true);
          return;
@@ -521,12 +532,15 @@ public final class FantasticNetwork {
     * esté libre: se comprueba que exista hueco justo por delante, para no acabar embutido entre dos
     * paredes.
     */
-   private static boolean outwardClear(Player player, Direction face, Vec3 target) {
+   private static boolean outwardClear(Player player, Direction face, Vec3 target, double sink) {
       if (face == Direction.UP) {
          return player.m_9236_().m_45756_(player, player.m_20191_().m_82383_(target.m_82546_(player.m_20182_())));
       }
 
-      Vec3 outward = new Vec3((double)face.m_122429_(), 0.0, (double)face.m_122431_()).m_82490_(0.35);
+      // La sonda se mide desde la superficie, no desde el origen hundido: así hundir más el cuerpo no
+      // convierte en "no cabe" un sitio que antes sí valía.
+      Vec3 outward = new Vec3((double)face.m_122429_(), 0.0, (double)face.m_122431_())
+         .m_82490_(0.35 + Math.max(0.0, sink) + SURFACE_PROBE_MARGIN * (double)ArmorPaintHandler.scaleOf(player));
       AABB probe = player.m_20191_().m_82383_(target.m_82546_(player.m_20182_()).m_82549_(outward)).m_82406_(0.02);
       return player.m_9236_().m_45756_(player, probe);
    }
@@ -691,10 +705,9 @@ public final class FantasticNetwork {
          Direction cover = nearestCover(sp);
          if (cover != null) {
             BlockPos block = sp.m_20183_().m_121945_(cover);
-            Vec3 target = flushTarget(
-               sp, block, cover.m_122424_(), sp.m_20182_(), BODY_SURFACE_OFFSET * (double)ArmorPaintHandler.scaleOf(sp)
-            );
-            if (target != null && outwardClear(sp, cover.m_122424_(), target)) {
+            double sink = BODY_SINK_DEPTH * (double)ArmorPaintHandler.scaleOf(sp);
+            Vec3 target = flushTarget(sp, block, cover.m_122424_(), sp.m_20182_(), -sink);
+            if (target != null && outwardClear(sp, cover.m_122424_(), target, sink)) {
                Services.PLATFORM.set(sp, PaintAttachments.ATTACH_FACE, cover.m_122424_().m_122411_());
                Services.PLATFORM.set(sp, PaintAttachments.ATTACHED, Boolean.TRUE);
                LockTick.reanchor(sp, target);

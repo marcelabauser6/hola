@@ -1,5 +1,6 @@
 package com.fantasticchameleon.client;
 
+import com.fantasticchameleon.mixin.client.WalkAnimationAccessor;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
 import com.mojang.blaze3d.vertex.PoseStack;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,9 @@ public final class GenericEntityPropRenderer {
    private static final Map<UUID, Entry> CACHE = new LinkedHashMap<>(16, 0.75F, true);
    private static final ThreadLocal<Boolean> RENDERING = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final int MAX_CREATIONS_PER_TICK = 2;
+   /** Interpolación de velocidad de marcha de vanilla; el mismo 0,4 que usa cualquier criatura. */
+   private static final float WALK_BLEND = 0.4F;
+   private static boolean walkAccessorBroken;
    private static long creationTick = Long.MIN_VALUE;
    private static int creationsThisTick;
    private static ClientLevel cachedLevel;
@@ -158,15 +162,33 @@ public final class GenericEntityPropRenderer {
          } else if (entry.tickable && entry.entity instanceof LivingEntity living) {
             // La velocidad llega de la medición autoritativa que también dispara los pasos. Las
             // posiciones interpoladas de cada cliente dejaron de ser una segunda fuente de fase.
-            float walk = AvatarState.propMotion(owner).speed();
+            float target = AvatarState.propMotion(owner).speed();
+
+            // Mismo suavizado que aplica cualquier criatura del mundo (factor 0,4). Sin él la
+            // amplitud daba un salto seco en cada muestra de red y las patas parecían dispararse.
+            entry.walkOld = entry.walk;
+            entry.walk += (target - entry.walk) * WALK_BLEND;
+            if (entry.walk < 1.0E-4F) {
+               entry.walk = 0.0F;
+            }
+            entry.walkPhase += entry.walk;
 
             // El dummy no debe aportar una segunda distancia: se coloca primero y sus coordenadas
-            // anterior/actual quedan iguales. Su tick conserva alas, cola e IA visual, pero la marcha
-            // empieza en cero y no avanza fase por el reposicionamiento artificial.
+            // anterior/actual quedan iguales, así que su propio tick no puede deducir marcha alguna
+            // del reposicionamiento artificial. Su tick sigue moviendo alas, cola y cabeza.
             living.m_20343_(owner.m_20185_(), owner.m_20186_(), owner.m_20189_());
+            // Dos tríos distintos y los dos importan: f_19854_ es la posición del tick anterior, de la
+            // que el propio modelo deduce cuánto ha caminado, y f_19790_ es la que interpola el render.
+            // Igualando la primera, su tick mide desplazamiento cero en vez de la distancia desde el
+            // origen del mundo, que saturaba la marcha en el máximo cada tick.
+            living.f_19854_ = living.m_20185_();
+            living.f_19855_ = living.m_20186_();
+            living.f_19856_ = living.m_20189_();
             living.f_19790_ = living.m_20185_();
             living.f_19791_ = living.m_20186_();
             living.f_19792_ = living.m_20189_();
+            // Con la velocidad interna a cero, el tick tampoco puede sumar fase por su cuenta: así la
+            // ruta de reserva avanza exactamente lo impuesto y no un 60 % de más.
             living.f_267362_.m_267771_(0.0F);
             living.f_19797_ = owner.f_19797_;
             // Suelo y caída se copian ANTES del tick porque son justo lo que leen las animaciones de
@@ -175,17 +197,36 @@ public final class GenericEntityPropRenderer {
             living.f_19789_ = owner.f_19789_;
             animate(entry, living, owner);
 
-            // Y aquí manda el jugador, no el muñeco. Medido en el servidor: dejando que el modelo
-            // calculara su propia marcha, la velocidad subía a 1.0 y NO bajaba nunca, así que las patas
-            // seguían andando con el jugador parado. Imponer la velocidad después del tick (sin avanzar
-            // la fase, que ya la avanzó el tick) hace que las patas anden cuando andas y paren cuando
-            // paras, sin depender de lo que el modelo crea que está haciendo.
-            // update y no setSpeed: setSpeed fija la velocidad pero NO avanza la fase de la animación, y
-            // como el propio modelo no se desplaza (su posición la imponemos nosotros), su delta es cero
-            // y la fase se quedaba congelada: las piernas parecían trabadas aunque la velocidad dijera
-            // que iba andando. update fija la velocidad y avanza la fase, una sola vez por tick.
-            living.f_267362_.m_267566_(walk, 1.0F);
+            // Estado final impuesto después del tick, para que sea indiferente lo que el modelo haya
+            // calculado por su cuenta. Se escriben los tres campos porque el renderer interpola la
+            // amplitud entre la velocidad anterior y la actual: si la anterior queda en cero, la
+            // amplitud oscila de 0 al máximo dentro de cada tick y eso se ve como temblor acelerado.
+            applyWalk(living, entry);
          }
+      }
+   }
+
+   /**
+    * Impone la marcha exacta: velocidad anterior, actual y fase acumulada.
+    *
+    * <p>Si el accessor no estuviera registrado se recurre a la ruta pública: avanza la misma fase, pero
+    * sin poder fijar la velocidad anterior, así que la amplitud queda menos suave. Nunca deja al
+    * disfraz quieto ni propaga la excepción al tick del cliente.
+    */
+   private static void applyWalk(LivingEntity living, Entry entry) {
+      if (walkAccessorBroken) {
+         living.f_267362_.m_267566_(entry.walk, 1.0F);
+         return;
+      }
+
+      try {
+         WalkAnimationAccessor state = (WalkAnimationAccessor)(Object)living.f_267362_;
+         state.fantastic$setSpeedOld(entry.walkOld);
+         state.fantastic$setSpeed(entry.walk);
+         state.fantastic$setPosition(entry.walkPhase);
+      } catch (RuntimeException | LinkageError ex) {
+         walkAccessorBroken = true;
+         living.f_267362_.m_267566_(entry.walk, 1.0F);
       }
    }
 
@@ -265,6 +306,10 @@ public final class GenericEntityPropRenderer {
       final EntityPropSnapshot snapshot;
       final Entity entity;
       boolean tickable = true;
+      /** Marcha suavizada y fase acumulada, propias del modelo y no del jugador. */
+      float walk;
+      float walkOld;
+      float walkPhase;
 
       Entry(EntityPropSnapshot snapshot, Entity entity) {
          this.snapshot = snapshot;

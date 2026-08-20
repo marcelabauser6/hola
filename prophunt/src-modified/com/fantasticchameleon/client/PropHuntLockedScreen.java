@@ -22,6 +22,7 @@ public final class PropHuntLockedScreen extends Screen {
    private int left;
    private int top;
    private int width;
+   private boolean orbiting;
 
    public PropHuntLockedScreen() {
       super(Component.m_237115_("fantastic.prophunt.controls"));
@@ -74,7 +75,42 @@ public final class PropHuntLockedScreen extends Screen {
          }
       }
 
+      // Fuera de los dos botones, arrastrar con el botón izquierdo gira la cámara libre. Con el panel
+      // abierto el cursor está libre, así que el ratón no llega al jugador y sin esto la vista no se
+      // podía mover. Si la cámara no está activa no se consume el clic.
+      if (button == 0 && FreeCam.active()) {
+         this.orbiting = true;
+         return true;
+      }
+
       return super.m_6375_(mouseX, mouseY, button);
+   }
+
+   @Override
+   public boolean m_7979_(double mouseX, double mouseY, int button, double dragX, double dragY) {
+      if (this.orbiting) {
+         FreeCam.orbit(dragX, dragY);
+         return true;
+      }
+
+      return super.m_7979_(mouseX, mouseY, button, dragX, dragY);
+   }
+
+   @Override
+   public boolean m_6348_(double mouseX, double mouseY, int button) {
+      this.orbiting = false;
+      return super.m_6348_(mouseX, mouseY, button);
+   }
+
+   /** La rueda acerca y aleja la cámara, como en el pintor. */
+   @Override
+   public boolean m_6050_(double mouseX, double mouseY, double scrollY) {
+      if (scrollY != 0.0 && FreeCam.active()) {
+         FreeCam.zoom(scrollY > 0.0 ? 1 : -1);
+         return true;
+      }
+
+      return super.m_6050_(mouseX, mouseY, scrollY);
    }
 
    @Override

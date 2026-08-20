@@ -1,0 +1,35 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.fantasticchameleon.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "fantastic_chameleon.refmap.json",
+  "mixins": [
+    "EntityAttachmentMixin",
+    "EntityBoundingBoxMixin",
+    "LivingEntityClimbMixin",
+    "LivingEntityJumpAccessor",
+    "PlayerPoseMixin",
+    "SlotPickupMixin"
+  ],
+  "client": [
+    "client.AbstractClientPlayerMixin",
+    "client.ArmorPieceMixin",
+    "client.AttachedLightMixin",
+    "client.CustomHeadLayerMixin",
+    "client.DisguisedLayerMixin",
+    "client.HumanoidModelMixin",
+    "client.ItemInHandLayerMixin",
+    "client.LivingEntityLayersMixin",
+    "client.LivingEntityRendererMixin",
+    "client.LivingEntityRendererShowNameMixin",
+    "client.LocalPlayerMixin",
+    "client.PlayerRendererMixin",
+    "client.VoicechatIconMixin",
+    "client.WalkAnimationAccessor"
+  ],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

@@ -1,3 +1,27 @@
+# Fantastic Chameleon 1.2.20 — cámara libre de verdad, patas al ritmo real y acople hundido
+
+> **1.2.20 — correcciones posteriores a 1.2.19.**
+> - **La cámara libre ya se mueve.** El panel de controles quitaba el foco al juego, así que Minecraft
+>   soltaba todas las teclas y `WASD` no llegaba a la cámara. Ahora se lee el teclado en crudo mientras
+>   ese panel está en foco, **arrastrar con el botón izquierdo gira** la vista y **la rueda acerca y
+>   aleja**. Los botones Desacoplar y Revertir siguen funcionando igual. Saltar y agacharse no mueven la
+>   cámara a propósito, porque ahí significan desacoplarse.
+> - **Las patas ya no van solas ni aceleradas.** Tres causas, las tres arregladas:
+>   1. Estando fijado, el servidor devuelve al jugador a su ancla en cuanto se desvía un milímetro, y ese
+>      reajuste se medía como caminar: de ahí las patas andando y los pasos sonando **estando quieto**.
+>      Un prop anclado ya no mide movimiento.
+>   2. La amplitud se calculaba con la distancia del jugador, que se mueve 3-4 veces más rápido que el
+>      animal real, así que saturaba en el máximo del juego. Ahora está acotada al **ritmo propio de la
+>      criatura** (una vaca camina como una vaca) y al andar despacio manda la distancia real.
+>   3. El renderer sólo podía fijar la velocidad actual, no la anterior, y la amplitud saltaba de 0 al
+>      máximo en cada tick: eso era el temblor. Ahora se escriben los tres valores de la animación.
+> - **Pasos con la cadencia del juego.** Vanilla acumula `distancia × 0,6` y da un paso al llegar a 1, es
+>   decir uno cada **1,67 bloques**. Se estaba usando el 0,6 como umbral en bloques, así que sonaban casi
+>   **tres veces más a menudo** de lo normal a cualquier velocidad.
+> - **El muñeco queda metido en el bloque.** Se hunde 0,2: el torso entra completo y de la cabeza asoma
+>   apenas 0,05. Para que no se viera negro, el render toma la luz de la celda de aire de la cara a la que
+>   te pegas, en lugar de la del bloque en el que está metido.
+>
 # Fantastic Chameleon 1.2.19 — freecam, pintura, mobs y GUI corregidos
 
 > **1.2.19 — correcciones posteriores a 1.2.18.**
