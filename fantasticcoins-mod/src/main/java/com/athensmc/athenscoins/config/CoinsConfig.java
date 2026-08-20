@@ -14,12 +14,8 @@ public final class CoinsConfig {
     public static final ForgeConfigSpec.IntValue DEPOSIT_FEE_PERCENT;
     /** Percentage of a withdrawal kept by the bank (0 = withdrawals are 1:1). */
     public static final ForgeConfigSpec.IntValue WITHDRAW_FEE_PERCENT;
-    /** How far an ATM may be for /fscoins deposit and /fscoins withdraw to work. */
+    /** How close an ATM must be for the wallet to report "there is an ATM nearby". */
     public static final ForgeConfigSpec.IntValue ATM_RANGE;
-    /** When true, deposits/withdrawals via command work anywhere, no ATM needed. */
-    public static final ForgeConfigSpec.BooleanValue BANKING_WITHOUT_ATM;
-    /** Allows players to transfer digital funds with /fscoins pay. */
-    public static final ForgeConfigSpec.BooleanValue ALLOW_PAY;
     /** Hard cap on coins handed out by a single withdrawal. */
     public static final ForgeConfigSpec.IntValue MAX_WITHDRAW_PER_TRANSACTION;
 
@@ -39,18 +35,9 @@ public final class CoinsConfig {
                 .defineInRange("withdrawFeePercent", 0, 0, 100);
 
         ATM_RANGE = builder
-                .comment("Maximum distance (in blocks) to an ATM for /fscoins deposit and",
-                        "/fscoins withdraw to be accepted.")
+                .comment("Distance (in blocks) the wallet searches for an ATM so it can tell the",
+                        "player whether there is one within reach.")
                 .defineInRange("atmRange", 6, 1, 32);
-
-        BANKING_WITHOUT_ATM = builder
-                .comment("Set to true to let players deposit and withdraw from anywhere,",
-                        "without having to stand next to an ATM block.")
-                .define("bankingWithoutAtm", false);
-
-        ALLOW_PAY = builder
-                .comment("Allows players to send digital funds to each other with /fscoins pay.")
-                .define("allowPay", true);
 
         MAX_WITHDRAW_PER_TRANSACTION = builder
                 .comment("Maximum number of coins a single withdrawal may hand out.",

@@ -194,10 +194,6 @@ public final class WalletManager {
         return best;
     }
 
-    public static boolean canBankHere(Player player) {
-        return CoinsConfig.BANKING_WITHOUT_ATM.get() || findNearbyAtm(player) != null;
-    }
-
     // ------------------------------------------------------------------ misc
 
     public static Wallet walletOf(ServerPlayer contextPlayer, UUID owner) {
