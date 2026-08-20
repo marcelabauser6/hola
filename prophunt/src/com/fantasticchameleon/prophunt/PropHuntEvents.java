@@ -1,5 +1,6 @@
 package com.fantasticchameleon.prophunt;
 
+import com.fantasticchameleon.FantasticChameleon;
 import com.fantasticchameleon.item.ArenaWandItem;
 import com.fantasticchameleon.item.FantasticItems;
 import com.fantasticchameleon.item.ShotgunItem;
@@ -33,6 +34,7 @@ public final class PropHuntEvents {
    private static final int REFRESH_INTERVAL = 20;
 
    private static int tick;
+   private static boolean tickFailureLogged;
 
    private PropHuntEvents() {
    }
@@ -72,17 +74,27 @@ public final class PropHuntEvents {
    public static void onServerTick(TickEvent.ServerTickEvent event) {
       if (event.phase == TickEvent.Phase.END && event.getServer() != null) {
          tick++;
-         for (ServerPlayer player : event.getServer().m_6846_().m_11314_()) {
-            // Movimiento y pasos comparten esta medición por tick. No volver a meterla dentro del
-            // refresco de 20 ticks: ésa era la causa del segundo de retraso y de los pasos en cola.
-            PropHuntActs.motionTick(player);
-            if (tick % REFRESH_INTERVAL == 0) {
-               PropHunt.refresh(player);
-               PropHuntActs.ambientTick(player);
+         // Todo este trabajo va aislado a propósito. El temporizador de la ronda lo mueve otro oyente
+         // del MISMO evento, así que una excepción escapando de aquí abortaba el reparto y la partida
+         // se quedaba sin avanzar de fase: el ritmo del juego no puede depender de este añadido.
+         try {
+            for (ServerPlayer player : event.getServer().m_6846_().m_11314_()) {
+               // Movimiento y pasos comparten esta medición por tick. No volver a meterla dentro del
+               // refresco de 20 ticks: ésa era la causa del segundo de retraso y de los pasos en cola.
+               PropHuntActs.motionTick(player);
+               if (tick % REFRESH_INTERVAL == 0) {
+                  PropHunt.refresh(player);
+                  PropHuntActs.ambientTick(player);
+               }
             }
-         }
-         if (tick % REFRESH_INTERVAL == 0) {
-            PropHuntActs.sweep(event.getServer().m_6846_().m_11314_());
+            if (tick % REFRESH_INTERVAL == 0) {
+               PropHuntActs.sweep(event.getServer().m_6846_().m_11314_());
+            }
+         } catch (RuntimeException | LinkageError ex) {
+            if (!tickFailureLogged) {
+               tickFailureLogged = true;
+               FantasticChameleon.LOGGER.error("[Prop Hunt] fallo en el tick de disfraces; la ronda sigue su curso", ex);
+            }
          }
       }
    }

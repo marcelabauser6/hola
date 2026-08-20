@@ -162,7 +162,13 @@ public final class LockControls {
       } else {
          boolean locked = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
          boolean posing = Services.PLATFORM.get(mc.f_91074_, PaintAttachments.POSING);
-         if (FreeCam.active()) {
+         boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.ATTACHED));
+         if (FreeCam.active() && attached) {
+            // Adherido el cuerpo queda metido en el bloque, así que apagar aquí la cámara dejaba la
+            // vista dentro de la geometría, a oscuras y sin salida. Esc abre el menú normal y la
+            // cámara se conserva fuera; para soltarse están espacio, agacharse y el panel.
+            return false;
+         } else if (FreeCam.active()) {
             MecchaClientEvents.suppressFreeCam();
             FreeCam.disable();
             WorldBrush.exitPaintMode();

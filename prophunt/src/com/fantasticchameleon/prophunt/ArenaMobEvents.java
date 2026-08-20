@@ -1,5 +1,6 @@
 package com.fantasticchameleon.prophunt;
 
+import com.fantasticchameleon.FantasticChameleon;
 import com.fantasticchameleon.game.Room;
 import com.fantasticchameleon.game.Rooms;
 import com.fantasticchameleon.paint.EntityPropSnapshot;
@@ -31,6 +32,8 @@ import net.minecraftforge.fml.common.Mod;
 /** Protección estrictamente limitada a participantes y mobs dentro de una arena Prop Hunt activa. */
 @Mod.EventBusSubscriber(modid = "fantastic_chameleon", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class ArenaMobEvents {
+   private static boolean barrierFailureLogged;
+
    private ArenaMobEvents() {
    }
 
@@ -49,10 +52,19 @@ public final class ArenaMobEvents {
          return;
       }
 
-      Room barrier = Rooms.blockingArena(mob);
-      if (barrier != null) {
-         eject(mob, barrier.arenaBounds());
-         return;
+      // La barrera corre dentro del tick de entidades: un fallo aquí reventaría el tick del mundo
+      // entero, así que se aísla y como mucho deja de expulsar a ese mob.
+      try {
+         Room barrier = Rooms.blockingArena(mob);
+         if (barrier != null) {
+            eject(mob, barrier.arenaBounds());
+            return;
+         }
+      } catch (RuntimeException | LinkageError ex) {
+         if (!barrierFailureLogged) {
+            barrierFailureLogged = true;
+            FantasticChameleon.LOGGER.error("[Prop Hunt] fallo en la barrera de arena", ex);
+         }
       }
 
       if (mob.m_5448_() instanceof ServerPlayer player && protectedTarget(mob, player)) {

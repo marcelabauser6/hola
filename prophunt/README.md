@@ -1,3 +1,19 @@
+# Fantastic Chameleon 1.2.21 — cámara arreglada tras hundir el cuerpo
+
+> **1.2.21 — corrige dos regresiones de 1.2.20 y blinda el reloj de la partida.**
+> - **La cámara vuelve a funcionar al adherirse, en los dos modos.** Al hundir el cuerpo 0,2 dentro del
+>   bloque, el ojo quedó **dentro de la geometría**: el rayo de la cámara chocaba en el primer centímetro
+>   y la vista se quedaba pegada al cuerpo. Ahora el centro de la órbita sale al aire por delante de la
+>   superficie (0,45), así que el rayo y el recorte por colisión miden desde fuera.
+> - **Esc ya no te deja ciego dentro del bloque.** Estando adherido, Esc apagaba la cámara libre y la
+>   vista caía a primera persona dentro del bloque. Ahora Esc abre el menú normal y la cámara se
+>   conserva; para soltarse siguen estando espacio, agacharse y el botón Desacoplar.
+> - **El reloj de la ronda ya no depende del código de disfraces.** El temporizador lo mueve otro oyente
+>   del mismo evento de tick, así que una excepción escapando del tick de disfraces abortaba el reparto y
+>   la partida se quedaba sin cambiar de fase. Ese trabajo va aislado y, si falla, lo registra una vez en
+>   el log y la ronda sigue su curso. Lo mismo para la barrera de mobs, que corre dentro del tick del
+>   mundo.
+>
 # Fantastic Chameleon 1.2.20 — cámara libre de verdad, patas al ritmo real y acople hundido
 
 > **1.2.20 — correcciones posteriores a 1.2.19.**

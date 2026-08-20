@@ -33,6 +33,8 @@ public final class FreeCam {
    private static final double SPRINT_MULT = 2.2;
    private static final double ORBIT_SENS = 0.01;
    private static final double MIN_ORBIT = 0.8;
+   /** Debe superar el hundimiento del cuerpo (0,2) para que la órbita empiece en aire. */
+   private static final double ATTACH_CLEARANCE = 0.45;
    private static final double ZOOM_STEP = 0.85;
    private static UUID target;
    private static boolean prevWasDown;
@@ -62,7 +64,10 @@ public final class FreeCam {
       }
 
       active = true;
-      Vec3 eye = player.m_20299_(1.0F);
+      // El ancla, no el ojo: estando adherido el cuerpo queda hundido dentro del bloque, así que un
+      // rayo lanzado desde el ojo choca con la cara interior en el primer centímetro y la cámara se
+      // quedaba pegada al cuerpo. El ancla ya sale al aire por delante de la superficie.
+      Vec3 eye = cameraAnchorPosition(player, 1.0F);
       boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.ATTACHED));
       // Pegado a una pared, "detrás" mira justo hacia el sólido. La cámara debe empezar en el lado
       // exterior, delante del cuerpo, y mirar de vuelta al ancla.
@@ -148,7 +153,33 @@ public final class FreeCam {
       double x = Mth.m_14139_((double)partialTick, entity.f_19854_, entity.m_20185_());
       double y = Mth.m_14139_((double)partialTick, entity.f_19855_, entity.m_20186_()) + (double)entity.m_20192_();
       double z = Mth.m_14139_((double)partialTick, entity.f_19856_, entity.m_20189_());
-      return new Vec3(x, y, z);
+      return new Vec3(x, y, z).m_82549_(outwardClearance(entity));
+   }
+
+   /**
+    * Desplazamiento que saca el centro de la órbita al aire cuando el cuerpo está metido en un bloque.
+    *
+    * <p>Sin esto la cámara nace dentro de la geometría: tanto el rayo inicial como el recorte por
+    * colisión de cada frame miden cero y la vista se queda clavada contra el cuerpo. Debe ser mayor que
+    * la profundidad a la que se hunde el cuerpo para que el origen quede fuera de la superficie.
+    */
+   private static Vec3 outwardClearance(Entity entity) {
+      if (!(entity instanceof Player player)
+         || !Boolean.TRUE.equals(Services.PLATFORM.getOrNull(player, PaintAttachments.ATTACHED))) {
+         return Vec3.f_82478_;
+      }
+
+      Integer faceId = Services.PLATFORM.getOrNull(player, PaintAttachments.ATTACH_FACE);
+      if (faceId == null || faceId < 0 || faceId >= Direction.values().length) {
+         return Vec3.f_82478_;
+      }
+
+      Direction face = Direction.m_122376_(faceId);
+      if (face.m_122434_() == Direction.Axis.Y) {
+         return Vec3.f_82478_;
+      }
+
+      return new Vec3((double)face.m_122429_(), 0.0, (double)face.m_122431_()).m_82490_(ATTACH_CLEARANCE);
    }
 
    private static boolean canWatch() {
