@@ -1,0 +1,26 @@
+{
+  "currencyName": "Fantastic Cash",
+  "currencySymbol": "$",
+  "cashColor": "#4CD964",
+
+  "bronzeCoinValue": 0.15,
+  "silverCoinValue": 1.35,
+  "goldCoinValue": 12.15,
+
+  "bronzeColor": "#C87137",
+  "silverColor": "#DCDCDC",
+  "goldColor": "#FFC93C",
+
+  "startingBalance": 0.0,
+  "exchangeToCashFeePercent": 0,
+  "exchangeToCoinsFeePercent": 0,
+  "maxCoinsPerExchange": 2304,
+  "atmDetectionRange": 6,
+
+  "transfersEnabled": true,
+  "minTransfer": 0.01,
+  "maxTransfer": 1000000.0,
+  "transferRequestTimeoutSeconds": 60,
+
+  "walletTheme": 1
+}

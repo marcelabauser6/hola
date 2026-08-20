@@ -1,15 +1,18 @@
 package com.athensmc.athenscoins.menu;
 
 import com.athensmc.athenscoins.block.ModBlocks;
+import com.athensmc.athenscoins.config.CurrencyConfig;
+import com.athensmc.athenscoins.config.DisplaySettings;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2CWalletSyncPacket;
 import com.athensmc.athenscoins.wallet.CoinType;
-import com.athensmc.athenscoins.wallet.Wallet;
+import com.athensmc.athenscoins.wallet.Money;
 import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -18,25 +21,27 @@ import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * The ATM (cash machine) menu: turns physical coins into digital funds and back.
+ * The ATM: exchanges Fantastic Coins for Fantastic Cash and back.
  *
- * <p>Actions travel over vanilla's container-button channel, so no custom serverbound packet is
- * needed. The button id encodes the operation, the denomination and the amount preset.</p>
+ * <p>Actions ride vanilla's container-button channel, so no custom serverbound packet is needed.
+ * The button id packs the direction, the denomination and the amount preset into one byte.</p>
  */
 public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder {
 
-    public static final int MODE_DEPOSIT = 0;
-    public static final int MODE_WITHDRAW = 1;
+    /** Coins out of the inventory, cash into the account. */
+    public static final int MODE_TO_CASH = 0;
+    /** Cash out of the account, coins into the inventory. */
+    public static final int MODE_TO_COINS = 1;
 
-    /** Amount presets; {@code -1} means "everything available". */
+    /** Amount presets; {@code -1} means "as many as possible". */
     public static final int[] AMOUNTS = { 1, 10, 64, -1 };
 
     private static final int BUTTONS_PER_MODE = CoinType.ORDERED.length * 4;
 
     private final ContainerLevelAccess access;
-    private final long[] digital = new long[CoinType.ORDERED.length];
-    private final int[] cash = new int[CoinType.ORDERED.length];
-    private boolean atmNearby = true;
+    private long cashCents;
+    private final int[] coinCounts = new int[CoinType.ORDERED.length];
+    private DisplaySettings display = DisplaySettings.fromConfig();
 
     /** Server-side. */
     public AtmMenu(int containerId, Inventory inventory, ContainerLevelAccess access) {
@@ -51,10 +56,22 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
     public AtmMenu(int containerId, Inventory inventory, FriendlyByteBuf buffer) {
         super(ModMenus.ATM.get(), containerId);
         this.access = ContainerLevelAccess.NULL;
-        readState(buffer);
+        this.cashCents = buffer.readVarLong();
+        for (int i = 0; i < coinCounts.length; i++) {
+            coinCounts[i] = buffer.readVarInt();
+        }
+        this.display = DisplaySettings.read(buffer);
     }
 
-    // ------------------------------------------------------------------ button ids
+    public static void writeState(FriendlyByteBuf buffer, ServerPlayer player) {
+        buffer.writeVarLong(WalletManager.accountOf(player).balance());
+        for (CoinType type : CoinType.ORDERED) {
+            buffer.writeVarInt(WalletManager.countCoins(player, type));
+        }
+        DisplaySettings.fromConfig().write(buffer);
+    }
+
+    // ------------------------------------------------------------------ buttons
 
     public static int buttonId(int mode, CoinType type, int amountIndex) {
         return mode * BUTTONS_PER_MODE + type.ordinal() * AMOUNTS.length + amountIndex;
@@ -65,10 +82,7 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return false;
         }
-        if (id < 0 || id >= BUTTONS_PER_MODE * 2) {
-            return false;
-        }
-        if (!stillValid(player)) {
+        if (id < 0 || id >= BUTTONS_PER_MODE * 2 || !stillValid(player)) {
             return false;
         }
 
@@ -76,81 +90,65 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
         int rest = id % BUTTONS_PER_MODE;
         CoinType type = CoinType.ORDERED[rest / AMOUNTS.length];
         int preset = AMOUNTS[rest % AMOUNTS.length];
+        String symbol = CurrencyConfig.get().currencySymbol;
 
-        WalletManager.Tx tx;
-        if (mode == MODE_DEPOSIT) {
-            int requested = preset < 0 ? Integer.MAX_VALUE : preset;
-            tx = WalletManager.deposit(serverPlayer, type, requested);
-        } else {
-            long requested = preset < 0 ? Long.MAX_VALUE : preset;
-            tx = WalletManager.withdraw(serverPlayer, type, requested);
-        }
+        WalletManager.Exchange result = mode == MODE_TO_CASH
+                ? WalletManager.exchangeToCash(serverPlayer, type, preset)
+                : WalletManager.exchangeToCoins(serverPlayer, type, preset);
 
-        if (tx.isEmpty()) {
-            serverPlayer.displayClientMessage(
-                    Component.translatable(mode == MODE_DEPOSIT
-                                    ? "message.athens_coins.no_cash"
-                                    : "message.athens_coins.no_funds",
-                            type.displayName()).withStyle(ChatFormatting.RED),
+        if (result.isEmpty()) {
+            serverPlayer.displayClientMessage(Component.translatable(
+                            mode == MODE_TO_CASH
+                                    ? "message.athens_coins.no_coins"
+                                    : "message.athens_coins.no_cash",
+                            type.shortName()).withStyle(ChatFormatting.RED),
                     true);
         } else {
-            serverPlayer.displayClientMessage(
-                    Component.translatable(mode == MODE_DEPOSIT
-                                    ? "message.athens_coins.deposited"
-                                    : "message.athens_coins.withdrawn",
-                            tx.cash(), type.displayName()).withStyle(ChatFormatting.GREEN),
+            serverPlayer.displayClientMessage(Component.translatable(
+                            mode == MODE_TO_CASH
+                                    ? "message.athens_coins.exchanged_to_cash"
+                                    : "message.athens_coins.exchanged_to_coins",
+                            result.coins(), type.shortName(),
+                            Money.format(result.cents(), symbol))
+                            .withStyle(ChatFormatting.GREEN),
                     true);
             serverPlayer.level().playSound(null, serverPlayer.blockPosition(),
-                    net.minecraft.sounds.SoundEvents.NOTE_BLOCK_BELL.value(),
-                    SoundSource.BLOCKS, 0.4F, mode == MODE_DEPOSIT ? 1.4F : 1.0F);
+                    SoundEvents.NOTE_BLOCK_BELL.value(), SoundSource.BLOCKS,
+                    0.4F, mode == MODE_TO_CASH ? 1.4F : 1.0F);
         }
 
         refreshFrom(serverPlayer);
-        ModNetwork.toPlayer(serverPlayer, new S2CWalletSyncPacket(digital, cash, atmNearby));
+        ModNetwork.toPlayer(serverPlayer, new S2CWalletSyncPacket(cashCents, coinCounts, true));
         return true;
     }
 
     // ------------------------------------------------------------------ state
 
     public void refreshFrom(ServerPlayer player) {
-        Wallet wallet = WalletManager.walletOf(player);
-        for (CoinType type : CoinType.ORDERED) {
-            digital[type.ordinal()] = wallet.get(type);
-            cash[type.ordinal()] = WalletManager.countCash(player, type);
-        }
-        atmNearby = true;
-    }
-
-    public static void writeState(FriendlyByteBuf buffer, ServerPlayer player) {
-        Wallet wallet = WalletManager.walletOf(player);
-        for (CoinType type : CoinType.ORDERED) {
-            buffer.writeVarLong(wallet.get(type));
-            buffer.writeVarInt(WalletManager.countCash(player, type));
-        }
-    }
-
-    private void readState(FriendlyByteBuf buffer) {
-        for (CoinType type : CoinType.ORDERED) {
-            digital[type.ordinal()] = buffer.readVarLong();
-            cash[type.ordinal()] = buffer.readVarInt();
-        }
+        this.cashCents = WalletManager.accountOf(player).balance();
+        int[] counts = WalletManager.countAllCoins(player);
+        System.arraycopy(counts, 0, coinCounts, 0, counts.length);
+        this.display = DisplaySettings.fromConfig();
     }
 
     @Override
-    public void applyState(long[] newDigital, int[] newCash, boolean newAtmNearby) {
-        System.arraycopy(newDigital, 0, digital, 0, digital.length);
-        System.arraycopy(newCash, 0, cash, 0, cash.length);
-        this.atmNearby = newAtmNearby;
+    public void applyState(long newCash, int[] newCounts, boolean atmNearby) {
+        this.cashCents = newCash;
+        System.arraycopy(newCounts, 0, coinCounts, 0, coinCounts.length);
     }
 
     // ------------------------------------------------------------------ accessors
 
-    public long digital(CoinType type) {
-        return digital[type.ordinal()];
+    public long cashCents() {
+        return cashCents;
     }
 
-    public int cash(CoinType type) {
-        return cash[type.ordinal()];
+    public int coinCount(CoinType type) {
+        return coinCounts[type.ordinal()];
+    }
+
+    public DisplaySettings display() {
+        return display;
     }
 
     // ------------------------------------------------------------------ menu contract

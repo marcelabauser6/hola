@@ -1,7 +1,8 @@
 package com.athensmc.athenscoins.menu;
 
+import com.athensmc.athenscoins.config.DisplaySettings;
 import com.athensmc.athenscoins.wallet.CoinType;
-import com.athensmc.athenscoins.wallet.Wallet;
+import com.athensmc.athenscoins.wallet.Money;
 import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -13,80 +14,71 @@ import net.minecraft.world.item.ItemStack;
 import java.util.UUID;
 
 /**
- * Read-only menu backing the wallet GUI.
+ * Read-only menu behind the wallet GUI.
  *
- * <p>It holds no slots at all: the screen paints everything itself, which keeps the wallet
- * purely informational and means nothing can be dragged out of it.</p>
+ * <p>Carries both halves of the economy: the Fantastic Cash balance and the Fantastic Coins the
+ * player is physically carrying. It has no slots at all, so nothing can be taken out of it.</p>
  */
 public class WalletMenu extends AbstractContainerMenu implements WalletStateHolder {
 
-    private final long[] digital = new long[CoinType.ORDERED.length];
-    private final int[] cash = new int[CoinType.ORDERED.length];
+    private long cashCents;
+    private final int[] coinCounts = new int[CoinType.ORDERED.length];
     private UUID ownerId = new UUID(0L, 0L);
     private String ownerName = "";
     private boolean atmNearby;
+    private DisplaySettings display = DisplaySettings.fromConfig();
 
-    /** Server-side: snapshot the target player's wallet and pockets. */
+    /** Server-side. */
     public WalletMenu(int containerId, Inventory inventory, ServerPlayer target) {
         super(ModMenus.WALLET.get(), containerId);
-        applyState(target);
+        this.cashCents = WalletManager.accountOf(target).balance();
+        int[] counts = WalletManager.countAllCoins(target);
+        System.arraycopy(counts, 0, coinCounts, 0, counts.length);
+        this.ownerId = target.getUUID();
+        this.ownerName = target.getGameProfile().getName();
+        this.atmNearby = WalletManager.findNearbyAtm(target) != null;
+        this.display = DisplaySettings.fromConfig();
     }
 
-    /** Client-side: rebuild the snapshot from the network. */
+    /** Client-side. */
     public WalletMenu(int containerId, Inventory inventory, FriendlyByteBuf buffer) {
         super(ModMenus.WALLET.get(), containerId);
-        readState(buffer);
-    }
-
-    // ------------------------------------------------------------------ state
-
-    public void applyState(ServerPlayer target) {
-        Wallet wallet = WalletManager.walletOf(target);
-        for (CoinType type : CoinType.ORDERED) {
-            digital[type.ordinal()] = wallet.get(type);
-            cash[type.ordinal()] = WalletManager.countCash(target, type);
+        this.cashCents = buffer.readVarLong();
+        for (int i = 0; i < coinCounts.length; i++) {
+            coinCounts[i] = buffer.readVarInt();
         }
-        ownerId = target.getUUID();
-        ownerName = target.getGameProfile().getName();
-        atmNearby = WalletManager.findNearbyAtm(target) != null;
-    }
-
-    @Override
-    public void applyState(long[] newDigital, int[] newCash, boolean newAtmNearby) {
-        System.arraycopy(newDigital, 0, digital, 0, digital.length);
-        System.arraycopy(newCash, 0, cash, 0, cash.length);
-        atmNearby = newAtmNearby;
+        this.ownerId = buffer.readUUID();
+        this.ownerName = buffer.readUtf(32);
+        this.atmNearby = buffer.readBoolean();
+        this.display = DisplaySettings.read(buffer);
     }
 
     public static void writeState(FriendlyByteBuf buffer, ServerPlayer target) {
-        Wallet wallet = WalletManager.walletOf(target);
+        buffer.writeVarLong(WalletManager.accountOf(target).balance());
         for (CoinType type : CoinType.ORDERED) {
-            buffer.writeVarLong(wallet.get(type));
-            buffer.writeVarInt(WalletManager.countCash(target, type));
+            buffer.writeVarInt(WalletManager.countCoins(target, type));
         }
         buffer.writeUUID(target.getUUID());
         buffer.writeUtf(target.getGameProfile().getName(), 32);
         buffer.writeBoolean(WalletManager.findNearbyAtm(target) != null);
+        DisplaySettings.fromConfig().write(buffer);
     }
 
-    public void readState(FriendlyByteBuf buffer) {
-        for (CoinType type : CoinType.ORDERED) {
-            digital[type.ordinal()] = buffer.readVarLong();
-            cash[type.ordinal()] = buffer.readVarInt();
-        }
-        ownerId = buffer.readUUID();
-        ownerName = buffer.readUtf(32);
-        atmNearby = buffer.readBoolean();
+    @Override
+    public void applyState(long newCash, int[] newCounts, boolean newAtmNearby) {
+        this.cashCents = newCash;
+        System.arraycopy(newCounts, 0, coinCounts, 0, coinCounts.length);
+        this.atmNearby = newAtmNearby;
     }
 
     // ------------------------------------------------------------------ accessors
 
-    public long digital(CoinType type) {
-        return digital[type.ordinal()];
+    public long cashCents() {
+        return cashCents;
     }
 
-    public int cash(CoinType type) {
-        return cash[type.ordinal()];
+    public int coinCount(CoinType type) {
+        return coinCounts[type.ordinal()];
     }
 
     public UUID ownerId() {
@@ -101,20 +93,22 @@ public class WalletMenu extends AbstractContainerMenu implements WalletStateHold
         return atmNearby;
     }
 
-    public long totalDigitalInBronze() {
+    public DisplaySettings display() {
+        return display;
+    }
+
+    /** Cash value of every coin in the inventory. */
+    public long coinsValueCents() {
         long total = 0L;
         for (CoinType type : CoinType.ORDERED) {
-            total += digital[type.ordinal()] * (long) type.bronzeValue();
+            total += Money.multiply(display.valueOf(type), coinCounts[type.ordinal()]);
         }
         return total;
     }
 
-    public long totalCashInBronze() {
-        long total = 0L;
-        for (CoinType type : CoinType.ORDERED) {
-            total += (long) cash[type.ordinal()] * (long) type.bronzeValue();
-        }
-        return total;
+    /** Cash plus the value of the carried coins. */
+    public long netWorthCents() {
+        return Money.clampBalance(cashCents + coinsValueCents());
     }
 
     // ------------------------------------------------------------------ menu contract

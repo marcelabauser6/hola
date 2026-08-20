@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.wallet;
 
+import com.athensmc.athenscoins.config.CurrencyConfig;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -11,13 +12,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * World-persistent storage for every player's digital wallet.
+ * World-persistent Fantastic Cash accounts, keyed by player UUID.
  *
- * <p>Stored once per save in the overworld's data storage
- * ({@code <world>/data/athens_coins_wallets.dat}) so balances survive restarts and work even
- * for offline players.</p>
+ * <p>Saved as part of the world in {@code <world>/data/athens_coins_wallets.dat}, so balances
+ * survive restarts and remain readable for offline players. Keying on UUID rather than name
+ * means a player rename does not lose their money.</p>
  */
 public class WalletData extends SavedData {
+
     public static final String DATA_NAME = "athens_coins_wallets";
 
     private final Map<UUID, Wallet> wallets = new HashMap<>();
@@ -27,9 +29,14 @@ public class WalletData extends SavedData {
                 .computeIfAbsent(WalletData::load, WalletData::new, DATA_NAME);
     }
 
-    /** Returns the wallet for the given player, creating an empty one on first use. */
-    public Wallet wallet(UUID owner) {
-        return wallets.computeIfAbsent(owner, id -> new Wallet());
+    /** Returns the account for a player, opening one with the configured starting balance. */
+    public Wallet account(UUID owner) {
+        return wallets.computeIfAbsent(owner,
+                id -> new Wallet(CurrencyConfig.get().startingCents()));
+    }
+
+    public boolean hasAccount(UUID owner) {
+        return wallets.containsKey(owner);
     }
 
     public Map<UUID, Wallet> all() {
@@ -48,6 +55,7 @@ public class WalletData extends SavedData {
             list.add(entry);
         });
         tag.put("Wallets", list);
+        tag.putInt("DataVersion", 2);
         return tag;
     }
 

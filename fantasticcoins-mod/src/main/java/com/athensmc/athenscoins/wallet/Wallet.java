@@ -1,61 +1,81 @@
 package com.athensmc.athenscoins.wallet;
 
+import com.athensmc.athenscoins.config.CurrencyConfig;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * A player's <em>digital</em> coin balance.
+ * A player's Fantastic Cash account.
  *
- * <p>This is deliberately a completely separate pool from the physical coins carried in the
- * inventory: depositing at an ATM removes cash from the inventory and credits it here, and
- * withdrawing does the reverse. The two numbers are independent.</p>
+ * <p>The balance is a count of cents, never a decimal, so it can only ever represent values with
+ * two decimal places.</p>
  */
 public class Wallet {
-    private final long[] amounts = new long[CoinType.ORDERED.length];
 
-    public long get(CoinType type) {
-        return amounts[type.ordinal()];
+    private static final String KEY_CASH = "cash";
+
+    private long cents;
+
+    public Wallet() {
+        this(0L);
     }
 
-    public void set(CoinType type, long value) {
-        amounts[type.ordinal()] = Math.max(0L, value);
+    public Wallet(long cents) {
+        this.cents = Money.clampBalance(cents);
     }
 
-    /** Adds (or removes, for negative deltas) an amount, clamped at zero. */
-    public void add(CoinType type, long delta) {
-        set(type, get(type) + delta);
+    public long balance() {
+        return cents;
     }
 
-    public boolean isEmpty() {
-        for (long amount : amounts) {
-            if (amount > 0L) {
-                return false;
-            }
+    public void set(long newCents) {
+        this.cents = Money.clampBalance(newCents);
+    }
+
+    public void add(long delta) {
+        set(cents + delta);
+    }
+
+    public boolean canAfford(long amount) {
+        return amount > 0L && cents >= amount;
+    }
+
+    /** Debits the account only if the full amount is available. */
+    public boolean withdraw(long amount) {
+        if (!canAfford(amount)) {
+            return false;
         }
+        cents -= amount;
         return true;
     }
 
-    /** Total digital worth expressed in bronze units. */
-    public long totalInBronze() {
-        long total = 0L;
-        for (CoinType type : CoinType.ORDERED) {
-            total += get(type) * (long) type.bronzeValue();
-        }
-        return total;
+    public boolean isEmpty() {
+        return cents <= 0L;
     }
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
-        for (CoinType type : CoinType.ORDERED) {
-            tag.putLong(type.nbtKey(), get(type));
-        }
+        tag.putLong(KEY_CASH, cents);
         return tag;
     }
 
     public static Wallet load(CompoundTag tag) {
-        Wallet wallet = new Wallet();
-        for (CoinType type : CoinType.ORDERED) {
-            wallet.set(type, tag.getLong(type.nbtKey()));
+        if (tag.contains(KEY_CASH)) {
+            return new Wallet(tag.getLong(KEY_CASH));
         }
-        return wallet;
+        // Migration: the first wallet build stored three separate digital coin pools.
+        // Convert them into cash at the configured rates so nobody loses their balance.
+        long migrated = 0L;
+        boolean legacy = false;
+        for (CoinType type : CoinType.ORDERED) {
+            if (!tag.contains(type.id())) {
+                continue;
+            }
+            legacy = true;
+            migrated += Money.multiply(type.cashValueCents(), tag.getLong(type.id()));
+        }
+        if (legacy) {
+            return new Wallet(migrated);
+        }
+        return new Wallet(CurrencyConfig.get().startingCents());
     }
 }

@@ -6,7 +6,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-/** Client-side application of {@link S2CWalletSyncPacket}. Never touched by a dedicated server. */
+/** Client-side application of {@link S2CWalletSyncPacket}. */
 @OnlyIn(Dist.CLIENT)
 final class ClientWalletSync {
 
@@ -20,7 +20,7 @@ final class ClientWalletSync {
         }
         AbstractContainerMenu menu = minecraft.player.containerMenu;
         if (menu instanceof WalletStateHolder holder) {
-            holder.applyState(packet.digital(), packet.cash(), packet.atmNearby());
+            holder.applyState(packet.cashCents(), packet.coinCounts(), packet.atmNearby());
         }
     }
 }

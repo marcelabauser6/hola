@@ -8,43 +8,42 @@ import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
-/** Pushes fresh wallet + pocket figures to whichever wallet-aware screen the player has open. */
+/** Pushes a fresh cash balance and coin counts to whichever wallet screen the player has open. */
 public class S2CWalletSyncPacket {
 
-    private final long[] digital;
-    private final int[] cash;
+    private final long cashCents;
+    private final int[] coinCounts;
     private final boolean atmNearby;
 
-    public S2CWalletSyncPacket(long[] digital, int[] cash, boolean atmNearby) {
-        this.digital = digital.clone();
-        this.cash = cash.clone();
+    public S2CWalletSyncPacket(long cashCents, int[] coinCounts, boolean atmNearby) {
+        this.cashCents = cashCents;
+        this.coinCounts = coinCounts.clone();
         this.atmNearby = atmNearby;
     }
 
     public S2CWalletSyncPacket(FriendlyByteBuf buffer) {
-        this.digital = new long[CoinType.ORDERED.length];
-        this.cash = new int[CoinType.ORDERED.length];
-        for (int i = 0; i < CoinType.ORDERED.length; i++) {
-            this.digital[i] = buffer.readVarLong();
-            this.cash[i] = buffer.readVarInt();
+        this.cashCents = buffer.readVarLong();
+        this.coinCounts = new int[CoinType.ORDERED.length];
+        for (int i = 0; i < coinCounts.length; i++) {
+            this.coinCounts[i] = buffer.readVarInt();
         }
         this.atmNearby = buffer.readBoolean();
     }
 
     public void encode(FriendlyByteBuf buffer) {
-        for (int i = 0; i < CoinType.ORDERED.length; i++) {
-            buffer.writeVarLong(digital[i]);
-            buffer.writeVarInt(cash[i]);
+        buffer.writeVarLong(cashCents);
+        for (int count : coinCounts) {
+            buffer.writeVarInt(count);
         }
         buffer.writeBoolean(atmNearby);
     }
 
-    public long[] digital() {
-        return digital;
+    public long cashCents() {
+        return cashCents;
     }
 
-    public int[] cash() {
-        return cash;
+    public int[] coinCounts() {
+        return coinCounts;
     }
 
     public boolean atmNearby() {
@@ -54,7 +53,7 @@ public class S2CWalletSyncPacket {
     public void handle(Supplier<NetworkEvent.Context> context) {
         NetworkEvent.Context ctx = context.get();
         ctx.enqueueWork(() -> {
-            // Client-only code lives in a separate class so the dedicated server never loads it.
+            // Client-only code lives in a separate class so a dedicated server never loads it.
             if (FMLEnvironment.dist == Dist.CLIENT) {
                 ClientWalletSync.apply(this);
             }

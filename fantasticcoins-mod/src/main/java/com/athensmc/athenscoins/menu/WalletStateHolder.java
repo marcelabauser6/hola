@@ -1,6 +1,6 @@
 package com.athensmc.athenscoins.menu;
 
-/** Implemented by menus that display live wallet/cash figures and can be refreshed. */
+/** Implemented by menus that show live balances and can be refreshed from the server. */
 public interface WalletStateHolder {
-    void applyState(long[] digital, int[] cash, boolean atmNearby);
+    void applyState(long cashCents, int[] coinCounts, boolean atmNearby);
 }

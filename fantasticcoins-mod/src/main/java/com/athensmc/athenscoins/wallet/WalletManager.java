@@ -1,7 +1,7 @@
 package com.athensmc.athenscoins.wallet;
 
 import com.athensmc.athenscoins.block.ModBlocks;
-import com.athensmc.athenscoins.config.CoinsConfig;
+import com.athensmc.athenscoins.config.CurrencyConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -13,40 +13,45 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
- * Bridge between physical coins (inventory "cash") and digital coins (the wallet).
+ * The bank. Converts physical Fantastic Coins into Fantastic Cash and back, and moves cash
+ * between accounts.
  */
 public final class WalletManager {
 
-    /** Result of a deposit/withdrawal: how much cash moved and how much digital value moved. */
-    public record Tx(int cash, long digital) {
-        public boolean isEmpty() {
-            return cash <= 0 && digital <= 0;
-        }
+    /** Result of an exchange: coins moved and the cash amount involved. */
+    public record Exchange(int coins, long cents) {
+        public static final Exchange NONE = new Exchange(0, 0L);
 
-        public static final Tx NONE = new Tx(0, 0L);
+        public boolean isEmpty() {
+            return coins <= 0;
+        }
     }
 
     private WalletManager() {
     }
 
-    // ------------------------------------------------------------------ wallet access
+    // ------------------------------------------------------------------ account access
 
     public static WalletData data(ServerPlayer player) {
         return WalletData.get(player.server);
     }
 
-    public static Wallet walletOf(ServerPlayer player) {
-        return data(player).wallet(player.getUUID());
+    public static Wallet accountOf(ServerPlayer player) {
+        return data(player).account(player.getUUID());
+    }
+
+    public static Wallet accountOf(ServerPlayer context, UUID owner) {
+        return data(context).account(owner);
     }
 
     public static void markDirty(ServerPlayer player) {
         data(player).setDirty();
     }
 
-    // ------------------------------------------------------------------ cash helpers
+    // ------------------------------------------------------------------ physical coins
 
-    /** Counts the physical coins of one denomination carried by the player. */
-    public static int countCash(Player player, CoinType type) {
+    /** Counts the physical coins of one denomination in the player's inventory. */
+    public static int countCoins(Player player, CoinType type) {
         Inventory inventory = player.getInventory();
         int total = 0;
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
@@ -58,16 +63,24 @@ public final class WalletManager {
         return total;
     }
 
-    public static int[] countAllCash(Player player) {
-        int[] cash = new int[CoinType.ORDERED.length];
+    public static int[] countAllCoins(Player player) {
+        int[] counts = new int[CoinType.ORDERED.length];
         for (CoinType type : CoinType.ORDERED) {
-            cash[type.ordinal()] = countCash(player, type);
+            counts[type.ordinal()] = countCoins(player, type);
         }
-        return cash;
+        return counts;
     }
 
-    /** Removes up to {@code amount} physical coins, returning how many were actually taken. */
-    public static int removeCash(Player player, CoinType type, int amount) {
+    /** Total cash value of every coin the player is carrying. */
+    public static long inventoryValueCents(Player player) {
+        long total = 0L;
+        for (CoinType type : CoinType.ORDERED) {
+            total += Money.multiply(type.cashValueCents(), countCoins(player, type));
+        }
+        return Money.clampBalance(total);
+    }
+
+    private static int removeCoins(Player player, CoinType type, int amount) {
         if (amount <= 0) {
             return 0;
         }
@@ -88,8 +101,7 @@ public final class WalletManager {
         return amount - remaining;
     }
 
-    /** Gives physical coins to the player, dropping whatever does not fit. */
-    public static void giveCash(Player player, CoinType type, int amount) {
+    private static void giveCoins(Player player, CoinType type, int amount) {
         int remaining = amount;
         while (remaining > 0) {
             ItemStack stack = new ItemStack(type.item());
@@ -102,81 +114,98 @@ public final class WalletManager {
         }
     }
 
-    // ------------------------------------------------------------------ transactions
+    // ------------------------------------------------------------------ exchange
 
     /**
-     * Moves cash from the inventory into the digital wallet.
+     * Coins to cash: takes physical coins out of the inventory and credits the account.
      *
-     * @param requested how many coins to deposit; clamped to what the player actually carries
+     * @param requested how many coins to hand in; {@code -1} means everything carried
      */
-    public static Tx deposit(ServerPlayer player, CoinType type, int requested) {
-        int available = countCash(player, type);
-        int amount = Math.min(requested, available);
+    public static Exchange exchangeToCash(ServerPlayer player, CoinType type, int requested) {
+        CurrencyConfig.Settings settings = CurrencyConfig.get();
+        int carried = countCoins(player, type);
+        int amount = requested < 0 ? carried : Math.min(requested, carried);
+        amount = Math.min(amount, settings.maxCoinsPerExchange);
         if (amount <= 0) {
-            return Tx.NONE;
+            return Exchange.NONE;
         }
-        int taken = removeCash(player, type, amount);
+
+        long gross = Money.multiply(type.cashValueCents(), amount);
+        long credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
+        if (credited <= 0L) {
+            return Exchange.NONE;
+        }
+
+        int taken = removeCoins(player, type, amount);
         if (taken <= 0) {
-            return Tx.NONE;
+            return Exchange.NONE;
         }
-        long credited = afterFee(taken, CoinsConfig.DEPOSIT_FEE_PERCENT.get());
-        walletOf(player).add(type, credited);
+        if (taken != amount) {
+            // Inventory changed underneath us; only pay for what we actually got.
+            gross = Money.multiply(type.cashValueCents(), taken);
+            credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
+        }
+
+        accountOf(player).add(credited);
         markDirty(player);
         syncInventory(player);
-        return new Tx(taken, credited);
+        return new Exchange(taken, credited);
     }
 
     /**
-     * Moves digital funds back out as physical coins.
+     * Cash to coins: debits the account and hands over physical coins.
      *
-     * @param requested how much digital value to withdraw; clamped to the wallet balance
+     * @param requested how many coins to buy; {@code -1} means as many as affordable
      */
-    public static Tx withdraw(ServerPlayer player, CoinType type, long requested) {
-        Wallet wallet = walletOf(player);
-        long amount = Math.min(requested, wallet.get(type));
-        // Never hand out more items than the configured cap: without this, "withdraw everything"
-        // on a huge balance would try to spawn millions of item stacks and hang the server.
-        amount = Math.min(amount, CoinsConfig.MAX_WITHDRAW_PER_TRANSACTION.get());
+    public static Exchange exchangeToCoins(ServerPlayer player, CoinType type, int requested) {
+        CurrencyConfig.Settings settings = CurrencyConfig.get();
+        long unitPrice = Money.plusFee(type.cashValueCents(), settings.exchangeToCoinsFeePercent);
+        if (unitPrice <= 0L) {
+            return Exchange.NONE;
+        }
+
+        Wallet account = accountOf(player);
+        long affordable = account.balance() / unitPrice;
+        int amount = requested < 0
+                ? (int) Math.min(affordable, settings.maxCoinsPerExchange)
+                : (int) Math.min(Math.min(requested, affordable), settings.maxCoinsPerExchange);
         if (amount <= 0) {
-            return Tx.NONE;
+            return Exchange.NONE;
         }
-        long payout = afterFee(amount, CoinsConfig.WITHDRAW_FEE_PERCENT.get());
-        if (payout <= 0) {
-            return Tx.NONE;
+
+        long cost = Money.multiply(unitPrice, amount);
+        if (!account.withdraw(cost)) {
+            return Exchange.NONE;
         }
-        wallet.add(type, -amount);
         markDirty(player);
-        giveCash(player, type, (int) payout);
+        giveCoins(player, type, amount);
         syncInventory(player);
-        return new Tx((int) payout, amount);
+        return new Exchange(amount, cost);
     }
 
-    /**
-     * Pushes the player's inventory back to the client.
-     *
-     * <p>Necessary because the ATM menu has no slots: while it is open the vanilla per-tick
-     * sync runs against that menu, so coins added to or removed from the inventory would not
-     * reach the client until the screen closed.</p>
-     */
-    private static void syncInventory(ServerPlayer player) {
-        player.inventoryMenu.broadcastFullState();
-    }
+    // ------------------------------------------------------------------ transfers
 
-    private static long afterFee(long amount, int feePercent) {
-        if (feePercent <= 0) {
-            return amount;
+    /** Moves cash between two accounts. Returns false if the sender cannot cover it. */
+    public static boolean transfer(ServerPlayer from, ServerPlayer to, long cents) {
+        if (cents <= 0L) {
+            return false;
         }
-        long fee = amount * feePercent / 100L;
-        return Math.max(0L, amount - fee);
+        Wallet source = accountOf(from);
+        if (!source.withdraw(cents)) {
+            return false;
+        }
+        accountOf(to).add(cents);
+        markDirty(from);
+        return true;
     }
 
     // ------------------------------------------------------------------ ATM proximity
 
-    /** Finds an ATM block within the configured range, or null if the player is not at a bank. */
+    /** Finds the closest ATM within the configured range, or null if none is in reach. */
     @Nullable
     public static BlockPos findNearbyAtm(Player player) {
         Level level = player.level();
-        int range = CoinsConfig.ATM_RANGE.get();
+        int range = CurrencyConfig.get().atmDetectionRange;
         BlockPos origin = player.blockPosition();
         BlockPos best = null;
         double bestDistance = Double.MAX_VALUE;
@@ -194,9 +223,15 @@ public final class WalletManager {
         return best;
     }
 
-    // ------------------------------------------------------------------ misc
+    // ------------------------------------------------------------------ sync
 
-    public static Wallet walletOf(ServerPlayer contextPlayer, UUID owner) {
-        return data(contextPlayer).wallet(owner);
+    /**
+     * Pushes the player's inventory back to the client.
+     *
+     * <p>Needed because the ATM menu has no slots: while it is open, vanilla's per-tick sync runs
+     * against that menu, so coins added or removed would not reach the client until it closed.</p>
+     */
+    public static void syncInventory(ServerPlayer player) {
+        player.inventoryMenu.broadcastFullState();
     }
 }
