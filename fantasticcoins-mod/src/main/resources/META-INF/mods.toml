@@ -1,0 +1,32 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="All Rights Reserved"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+credits="Wallet GUI artwork by SrJulioXD (WalletGUI 1.1)"
+logoFile="fantasticcoins_logo.png"
+description='''
+A simple coin mod to be used with handing out for quests rewards that can be used in the shop.
+
+Adds a digital wallet on top of the physical coins: cash lives in your inventory, digital funds
+live in your wallet, and an ATM block lets you move value between the two.
+Use /fscoins wallet to open the wallet GUI and /fscoins balance for a quick chat summary.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
