@@ -55,18 +55,6 @@ public final class PropHuntActs {
     */
    private static final double STEP_DISTANCE = 1.0 / 0.6;
    private static final double TELEPORT_DISTANCE = 1.5;
-   /**
-    * Amplitud de marcha por unidad de atributo de velocidad.
-    *
-    * <p>Una criatura suelta camina mucho más despacio que un jugador: medida en este mismo mod, una
-    * vaca (atributo 0,20) avanza 0,0537 bloques por tick, que con la fórmula de animación de vanilla
-    * (distancia × 4) da una amplitud de 0,215. De ahí sale la proporción 0,215 / 0,20 ≈ 1,07.
-    *
-    * <p>Se usa como <b>techo</b>: al caminar despacio manda la distancia real, y al ir a velocidad
-    * jugable las patas no pasan del ritmo que tendría la criatura de verdad. Sin este techo la
-    * amplitud saturaba en 1,0 —el máximo del juego— y las patas iban como locas.
-    */
-   private static final double GAIT_PER_ATTRIBUTE = 1.07;
    /** Correcciones de posición del servidor por debajo de esto no son caminar. */
    private static final double MOTION_EPSILON = 0.002;
    private static final long COOLDOWN = 12L;
@@ -299,11 +287,10 @@ public final class PropHuntActs {
          distance = 0.0;
       }
 
-      // Fórmula de vanilla (distancia × 4) acotada al ritmo propio de la criatura imitada.
-      double natural = snapshot.movementSpeed() > 0.0F
-         ? Math.min(1.0, (double)snapshot.movementSpeed() * GAIT_PER_ATTRIBUTE)
-         : 1.0;
-      float walk = (float)Math.min(natural, distance * 4.0);
+      // Exactamente la fórmula de vanilla sobre la distancia realmente recorrida: las patas van al
+      // ritmo al que se mueve el jugador. Acotarlas al paso natural del animal las dejaba lentas y
+      // deslizando, porque un disfraz se mueve mucho más rápido que la criatura suelta.
+      float walk = (float)Math.min(1.0, distance * 4.0);
       boolean starting = walk > 0.0F && state.lastSpeed == 0.0F;
       boolean stopping = walk == 0.0F && state.lastSpeed > 0.0F;
       state.ticksSinceSync++;

@@ -33,22 +33,31 @@ public final class PaintHud {
             if (locked && FreeCam.active() && !WorldBrush.paintMode()) {
                drawViewfinderCorners(graphics, mc);
                boolean compactHud = RoundBar.inRound();
-               List<String[]> fcHints = new ArrayList<>();
-               fcHints.add(new String[]{"F", compactHud ? "" : Component.m_237115_("fantastic.hint.paint").getString()});
-               fcHints.add(new String[]{"Esc", compactHud ? "" : Component.m_237115_("fantastic.hint.leave").getString()});
-               if (FreeCam.canCycle()) {
-                  fcHints.add(new String[]{"[ / ]", compactHud ? "" : Component.m_237115_("fantastic.hint.switch").getString()});
+               // Prop Hunt ya no abre un panel al fijarse, para no perder el control del ratón. Sus dos
+               // acciones se anuncian en una tarjeta abajo a la derecha, lejos del marcador.
+               if (PropHuntClient.isPropHunt()) {
+                  List<String[]> propHintsxx = new ArrayList<>(3);
+                  propHintsxx.add(new String[]{"Space", Component.m_237115_("fantastic.prophunt.detach").getString()});
+                  propHintsxx.add(
+                     new String[]{keyName(LockControls.poseWheelKey, "R"), Component.m_237115_("fantastic.prophunt.revert").getString()}
+                  );
+                  if (FreeCam.canCycle()) {
+                     propHintsxx.add(new String[]{"[ / ]", Component.m_237115_("fantastic.hint.switch").getString()});
+                  }
+
+                  ControlHints.legendCardBottomRight(
+                     graphics, mc.f_91062_, mc.m_91268_().m_85445_() - 4, mc.m_91268_().m_85446_() - 4, propHintsxx, 0.72F
+                  );
                }
 
-               // PaintHud se dibuja antes que RoundBar; bottom() todavía puede ser el del frame
-               // anterior. El suelo de 46 cubre la barra de dos filas y, usando sólo keycaps durante
-               // la ronda, la fila tampoco invade la tarjeta de sala de la izquierda.
+               // Ya no se dibuja la fila de recuadros en el centro arriba: parecían botones y no lo
+               // eran, no se podían pulsar y encima competían con el marcador. Las teclas que sí
+               // existen se anuncian en la tarjeta de la esquina.
                int fcY = compactHud ? Math.max(RoundBar.bottom(), 46) + 4 : RoundBar.bottom() + 4;
-               ControlHints.rowCentered(graphics, mc.f_91062_, cx, fcY, fcHints);
                String fcWatched = FreeCam.watchedName();
                if (fcWatched != null) {
                   String fcLabel = Component.m_237110_("fantastic.freecam.spectating", new Object[]{fcWatched}).getString();
-                  Gfx.text(graphics, mc.f_91062_, fcLabel, cx - mc.f_91062_.m_92895_(fcLabel) / 2, fcY + 16, -8875);
+                  Gfx.text(graphics, mc.f_91062_, fcLabel, cx - mc.f_91062_.m_92895_(fcLabel) / 2, fcY, -8875);
                }
             } else if (locked && !FreeCam.active()) {
                // Debajo de la barra de ronda: arriba fijo se solapaba con las cabezas y el reloj. El
@@ -56,23 +65,23 @@ public final class PaintHud {
                int topY = RoundBar.inRound() ? Math.max(RoundBar.bottom(), 42) + 4 : 4;
                String mode = "● " + Component.m_237115_("fantastic.hud.hiding").getString();
                Gfx.text(graphics, mc.f_91062_, mode, cx - mc.f_91062_.m_92895_(mode) / 2, topY, -11141291);
-               // En Prop Hunt no se dibuja fila de teclas: parecían botones y no lo eran, y las dos
-               // acciones que existen (desacoplar y revertir) ya están como botones de verdad en el
-               // panel lateral. En Meccha sí se muestran, porque ahí no hay panel.
-               if (!PropHuntClient.isPropHunt()) {
-                  ControlHints.rowCentered(
-                     graphics,
-                     mc.f_91062_,
-                     cx,
-                     topY + 10,
-                     List.of(
-                        new String[]{"Space", Component.m_237115_("fantastic.hint.move").getString()},
-                        new String[]{"F", Component.m_237115_("fantastic.hint.paint").getString()},
-                        new String[]{"R", Component.m_237115_("fantastic.hint.pose").getString()},
-                        new String[]{"Esc", Component.m_237115_("fantastic.hint.menu").getString()}
-                     )
+               // Tampoco aquí: eran etiquetas con aspecto de botón. Las teclas reales se listan en la
+               // tarjeta de la esquina inferior derecha, que sí es claramente una leyenda.
+               List<String[]> lockedHints = new ArrayList<>(4);
+               if (PropHuntClient.isPropHunt()) {
+                  lockedHints.add(new String[]{"Space", Component.m_237115_("fantastic.prophunt.detach").getString()});
+                  lockedHints.add(
+                     new String[]{keyName(LockControls.poseWheelKey, "R"), Component.m_237115_("fantastic.prophunt.revert").getString()}
                   );
+               } else {
+                  lockedHints.add(new String[]{"Space", Component.m_237115_("fantastic.hint.move").getString()});
+                  lockedHints.add(new String[]{keyName(LockControls.paintKey, "F"), Component.m_237115_("fantastic.hint.paint").getString()});
+                  lockedHints.add(new String[]{keyName(LockControls.poseWheelKey, "R"), Component.m_237115_("fantastic.hint.pose").getString()});
                }
+
+               ControlHints.legendCardBottomRight(
+                  graphics, mc.f_91062_, mc.m_91268_().m_85445_() - 4, mc.m_91268_().m_85446_() - 4, lockedHints, 0.72F
+               );
             }
 
             if (!locked && !FreeCam.active() && WindowLayouts.flag("HotkeyCard", true) && ChameleonArmor.fullCoverage(mc.f_91074_)) {

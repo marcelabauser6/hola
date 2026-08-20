@@ -247,10 +247,11 @@ public final class LockControls {
                   ClientNet.sendToServer(new PosePayload(true, 0));
                }
 
+               // Prop Hunt ya no abre un panel al fijarse. Cualquier pantalla le quita el foco al juego,
+               // y con el foco perdido el ratón deja de girar la vista: la cámara quedaba en un punto
+               // fijo, sin la libertad que sí tiene Meccha. Las dos acciones siguen accesibles por
+               // tecla (espacio o agacharse para soltar, R para revertir) y se anuncian en el HUD.
                lock(mc);
-               if (propHunt && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)) {
-                  mc.m_91152_(new PropHuntLockedScreen());
-               }
             }
 
             // En Prop Hunt F solo fija durante COUNTDOWN/HIDING/SEEKING y siendo hider. Fuera de

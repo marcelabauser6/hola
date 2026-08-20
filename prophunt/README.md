@@ -1,3 +1,22 @@
+# Fantastic Chameleon 1.2.22 — cámara libre con control real y patas al ritmo del jugador
+
+> **1.2.22 — ajustes pedidos sobre 1.2.21.**
+> - **La cámara de Prop Hunt se mueve y gira como la de Meccha.** Al fijarse ya no se abre ningún panel:
+>   cualquier pantalla le quita el foco al juego y, sin foco, el ratón no gira la vista, así que la cámara
+>   quedaba en un punto fijo. Las dos acciones siguen ahí por tecla —**espacio** o agacharse para soltar y
+>   **R** para revertir— y se anuncian en una tarjeta abajo a la derecha, lejos del marcador.
+> - **La cámara libre se activa siempre que estés fijado.** Antes exigía además estar adherido a la cara
+>   de un bloque o tener el pintor abierto, así que fijarse de pie, encima de un bloque o sin pared al
+>   lado te dejaba en primera persona.
+> - **Las patas van al ritmo al que te mueves.** Se quita el tope al paso natural del animal: hacía que
+>   corriendo se vieran lentas y deslizando. Vuelve la fórmula del juego sobre la distancia realmente
+>   recorrida, que es lo que hace cualquier criatura del mundo.
+> - **El muñeco se hunde menos:** 0,12 en lugar de 0,2. El torso queda casi a ras y la cabeza asoma unos
+>   0,13, así que se ve que hay algo pegado sin quedar sepultado.
+> - **Fuera los recuadros del centro de la pantalla.** Al fijarse aparecían tres etiquetas con aspecto de
+>   botón que no se podían pulsar y competían con el marcador. Las teclas que sí existen se listan en la
+>   tarjeta de la esquina inferior derecha.
+>
 # Fantastic Chameleon 1.2.21 — cámara arreglada tras hundir el cuerpo
 
 > **1.2.21 — corrige dos regresiones de 1.2.20 y blinda el reloj de la partida.**

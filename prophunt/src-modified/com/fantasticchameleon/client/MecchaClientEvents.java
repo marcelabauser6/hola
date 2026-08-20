@@ -82,7 +82,10 @@ public final class MecchaClientEvents {
 
       boolean locked = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.LOCKED));
       boolean attached = Boolean.TRUE.equals(Services.PLATFORM.getOrNull(mc.f_91074_, PaintAttachments.ATTACHED));
-      boolean want = locked && (attached || WorldBrush.paintMode());
+      // Basta con estar fijado. Antes se exigía además estar adherido a una cara o tener el pintor
+      // abierto, así que fijarse de pie en campo abierto, encima de un bloque o sin pared al lado se
+      // quedaba en primera persona y sin cámara libre.
+      boolean want = locked;
       if (want && !cameraWanted) {
          // Nuevo acople confirmado: cualquier supresión de la sesión anterior deja de aplicar.
          userSuppressed = false;
