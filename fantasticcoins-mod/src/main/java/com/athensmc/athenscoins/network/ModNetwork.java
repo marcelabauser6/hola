@@ -10,7 +10,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
 
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "2";
 
     private static SimpleChannel channel;
 
@@ -29,6 +29,12 @@ public final class ModNetwork {
                 .encoder(S2CWalletSyncPacket::encode)
                 .decoder(S2CWalletSyncPacket::new)
                 .consumerMainThread(S2CWalletSyncPacket::handle)
+                .add();
+
+        channel.messageBuilder(S2COpenWalletPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenWalletPacket::encode)
+                .decoder(S2COpenWalletPacket::new)
+                .consumerMainThread(S2COpenWalletPacket::handle)
                 .add();
     }
 

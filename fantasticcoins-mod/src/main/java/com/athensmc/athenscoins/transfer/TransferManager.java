@@ -56,6 +56,27 @@ public final class TransferManager {
         PENDING.remove(id);
     }
 
+    /** True while this player has at least one request waiting for their answer. */
+    public static synchronized boolean hasPendingFor(UUID target) {
+        long now = System.currentTimeMillis();
+        return PENDING.values().stream()
+                .anyMatch(pending -> pending.target().equals(target) && !pending.isExpired(now));
+    }
+
+    /**
+     * Resends the command tree to a player.
+     *
+     * <p>{@code accept} and {@code deny} are gated behind "do you actually have a request?", which
+     * keeps them out of tab-completion the rest of the time. The client only learns about that
+     * change when the tree is resent, so this runs whenever a player's pending state flips.</p>
+     */
+    public static void refreshCommands(MinecraftServer server, UUID playerId) {
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
+        if (player != null) {
+            server.getCommands().sendCommands(player);
+        }
+    }
+
     /** Number of requests currently awaiting an answer. Used by the reload report. */
     public static synchronized int pendingCount() {
         return PENDING.size();
@@ -94,6 +115,8 @@ public final class TransferManager {
             notify(server, pending.target(), Component.translatable(
                             "message.athens_coins.transfer_expired_target", amount, pending.senderName())
                     .withStyle(ChatFormatting.GRAY));
+            // The recipient no longer has anything to answer, so drop accept/deny again.
+            refreshCommands(server, pending.target());
         }
     }
 

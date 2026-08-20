@@ -1,5 +1,5 @@
 {
-  "creative_tab.athens_coins_tab": "FantasticCoins",
+  "creative_tab.athens_coins_tab": "Fantastic Currency",
   "item.athens_coins.bronze_coin": "Fantastic de Bronce",
   "item.athens_coins.silver_coin": "Fantastic de Plata",
   "item.athens_coins.gold_coin": "Fantastic de Oro",
@@ -7,13 +7,13 @@
   "coin.athens_coins.silver": "Plata",
   "coin.athens_coins.gold": "Oro",
 
-  "block.athens_coins.atm": "Cajero automático",
+  "block.athens_coins.atm": "Cajero Automático",
 
   "gui.athens_coins.wallet": "Cartera",
-  "gui.athens_coins.atm": "Cajero automático",
-  "gui.athens_coins.mode_to_cash": "Monedas > Cash",
-  "gui.athens_coins.mode_to_coins": "Cash > Monedas",
-  "gui.athens_coins.mode_tooltip": "Haz clic para cambiar el sentido del cambio",
+  "gui.athens_coins.atm": "Cajero Automático",
+  "gui.athens_coins.mode_to_cash": "Monedas a Cash",
+  "gui.athens_coins.mode_to_coins": "Cash a Monedas",
+  "gui.athens_coins.mode_tooltip": "Haz clic para invertir el sentido del cambio",
   "gui.athens_coins.flow_to_cash": "Entregas monedas y se abona a tu cuenta",
   "gui.athens_coins.flow_to_coins": "Se cobra de tu cuenta y recibes monedas",
   "gui.athens_coins.amount": "%s monedas",

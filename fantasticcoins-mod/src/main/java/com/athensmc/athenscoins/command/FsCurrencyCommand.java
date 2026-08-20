@@ -1,62 +1,45 @@
 package com.athensmc.athenscoins.command;
 
 import com.athensmc.athenscoins.config.CurrencyConfig;
-import com.athensmc.athenscoins.menu.WalletMenu;
+import com.athensmc.athenscoins.network.ModNetwork;
+import com.athensmc.athenscoins.network.S2COpenWalletPacket;
 import com.athensmc.athenscoins.transfer.PendingTransfer;
 import com.athensmc.athenscoins.transfer.TransferManager;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
 import com.athensmc.athenscoins.wallet.Wallet;
 import com.athensmc.athenscoins.wallet.WalletManager;
+import com.athensmc.athenscoins.wallet.WalletSnapshot;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkHooks;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * {@code /fscurrency} — the Fantastic Currency command.
+ * {@code /fscurrency} — the Fantastic Currency command. Command names stay in English on purpose;
+ * everything the player reads is translated.
  *
  * <pre>
- * /fscurrency wallet  [player]        opens the wallet GUI
- * /fscurrency balance [player]        prints coins and cash to chat
- * /fscurrency transfer &lt;amount&gt; &lt;player&gt;   asks a player to accept a payment
- * /fscurrency transfer accept|deny &lt;id&gt;    answer a request (used by the chat buttons)
- * /fscurrency reload                  re-reads the config from disk (permission 2)
+ * /fscurrency wallet  [player]              opens the wallet
+ * /fscurrency balance [player]              coins and cash in chat
+ * /fscurrency transfer &lt;amount&gt; &lt;player&gt;    asks a player to accept a payment
+ * /fscurrency reload                        re-reads the config (permission 2)
  * </pre>
+ *
+ * <p>{@code transfer accept|deny <id>} also exists, but only while the player actually has a
+ * request waiting: it backs the chat buttons and stays out of tab-completion otherwise.</p>
  */
 public final class FsCurrencyCommand {
-
-    /** Handy amounts, plus whatever the player can actually afford. */
-    private static final SuggestionProvider<CommandSourceStack> AMOUNT_SUGGESTIONS =
-            (context, builder) -> {
-                List<String> options = new ArrayList<>(List.of("1", "5", "10", "50", "100"));
-                if (context.getSource().getEntity() instanceof ServerPlayer player) {
-                    long balance = WalletManager.accountOf(player).balance();
-                    if (balance > 0L) {
-                        options.add(0, Money.plain(balance));
-                    }
-                }
-                // Goes through SharedSuggestionProvider so entries are filtered by what the
-                // player has typed so far.
-                return SharedSuggestionProvider.suggest(options, builder);
-            };
 
     private FsCurrencyCommand() {
     }
@@ -78,16 +61,18 @@ public final class FsCurrencyCommand {
                                         EntityArgument.getPlayer(context, "target"), false))))
 
                 .then(Commands.literal("transfer")
-                        // Literals are matched before arguments, so "accept"/"deny" never
-                        // collide with an amount (an amount has to parse as a number).
+                        // Hidden unless there is something to answer, so the amount argument is
+                        // the only thing suggested during a normal transfer.
                         .then(Commands.literal("accept")
+                                .requires(FsCurrencyCommand::hasPendingTransfer)
                                 .then(Commands.argument("id", IntegerArgumentType.integer(1))
                                         .executes(context -> answer(context, true))))
                         .then(Commands.literal("deny")
+                                .requires(FsCurrencyCommand::hasPendingTransfer)
                                 .then(Commands.argument("id", IntegerArgumentType.integer(1))
                                         .executes(context -> answer(context, false))))
+                        // No suggestions here: the amount is typed by hand.
                         .then(Commands.argument("amount", StringArgumentType.word())
-                                .suggests(AMOUNT_SUGGESTIONS)
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
 
@@ -96,12 +81,13 @@ public final class FsCurrencyCommand {
                         .executes(FsCurrencyCommand::reload)));
     }
 
-    private static ServerPlayer self(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        return context.getSource().getPlayerOrException();
+    private static boolean hasPendingTransfer(CommandSourceStack source) {
+        return source.getEntity() instanceof ServerPlayer player
+                && TransferManager.hasPendingFor(player.getUUID());
     }
 
-    private static String symbol() {
-        return CurrencyConfig.get().currencySymbol;
+    private static ServerPlayer self(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        return context.getSource().getPlayerOrException();
     }
 
     // ------------------------------------------------------------------ wallet
@@ -109,11 +95,8 @@ public final class FsCurrencyCommand {
     private static int openWallet(CommandContext<CommandSourceStack> context, ServerPlayer target)
             throws CommandSyntaxException {
         ServerPlayer viewer = self(context);
-        NetworkHooks.openScreen(viewer,
-                new SimpleMenuProvider(
-                        (containerId, inventory, player) -> new WalletMenu(containerId, inventory, target),
-                        Component.translatable("gui.athens_coins.wallet")),
-                buffer -> WalletMenu.writeState(buffer, target));
+        // Sent as a plain packet, not a container menu, so nothing touches the player's inventory.
+        ModNetwork.toPlayer(viewer, new S2COpenWalletPacket(WalletSnapshot.of(target)));
         return 1;
     }
 
@@ -129,7 +112,6 @@ public final class FsCurrencyCommand {
                         target.getGameProfile().getName())
                 .withStyle(ChatFormatting.GOLD), false);
 
-        // Fantastic Cash
         source.sendSuccess(() -> Component.literal(" ")
                 .append(Component.literal(settings.currencyName)
                         .withStyle(style -> style.withColor(settings.cashColorRgb())))
@@ -137,7 +119,6 @@ public final class FsCurrencyCommand {
                 .append(Component.literal(Money.format(account.balance(), settings.currencySymbol))
                         .withStyle(ChatFormatting.WHITE)), false);
 
-        // Physical coins
         source.sendSuccess(() -> Component.translatable("message.athens_coins.coins_header")
                 .withStyle(ChatFormatting.GRAY), false);
         for (CoinType type : CoinType.ORDERED) {
@@ -205,7 +186,6 @@ public final class FsCurrencyCommand {
         PendingTransfer request = TransferManager.create(sender, target, cents);
         String amount = Money.format(cents, settings.currencySymbol);
 
-        // The recipient decides.
         target.sendSystemMessage(Component.translatable("message.athens_coins.transfer_incoming",
                         Component.literal(sender.getGameProfile().getName())
                                 .withStyle(ChatFormatting.WHITE),
@@ -220,6 +200,8 @@ public final class FsCurrencyCommand {
                 .append(button("message.athens_coins.button_deny", ChatFormatting.RED,
                         "/fscurrency transfer deny " + request.id(),
                         "message.athens_coins.button_deny_hover")));
+        // Let the recipient's client know accept/deny are available to them right now.
+        TransferManager.refreshCommands(target.server, target.getUUID());
 
         context.getSource().sendSuccess(() -> Component.translatable("message.athens_coins.transfer_sent",
                         amount, target.getGameProfile().getName(),
@@ -255,7 +237,7 @@ public final class FsCurrencyCommand {
             return 0;
         }
         if (request.isExpired(System.currentTimeMillis())) {
-            TransferManager.remove(id);
+            finish(id, responder);
             context.getSource().sendFailure(Component.translatable("message.athens_coins.transfer_unknown"));
             return 0;
         }
@@ -264,7 +246,7 @@ public final class FsCurrencyCommand {
         String amount = Money.format(request.cents(), settings.currencySymbol);
 
         if (!accepted) {
-            TransferManager.remove(id);
+            finish(id, responder);
             responder.sendSystemMessage(Component.translatable("message.athens_coins.transfer_rejected_target",
                     amount, request.senderName()).withStyle(ChatFormatting.GRAY));
             if (sender != null) {
@@ -275,14 +257,14 @@ public final class FsCurrencyCommand {
         }
 
         if (sender == null) {
-            TransferManager.remove(id);
+            finish(id, responder);
             context.getSource().sendFailure(
                     Component.translatable("message.athens_coins.transfer_sender_offline", request.senderName()));
             return 0;
         }
         // Re-check funds: nothing was held in escrow while the request was pending.
         if (!WalletManager.transfer(sender, responder, request.cents())) {
-            TransferManager.remove(id);
+            finish(id, responder);
             context.getSource().sendFailure(
                     Component.translatable("message.athens_coins.transfer_sender_broke", request.senderName()));
             sender.sendSystemMessage(Component.translatable("message.athens_coins.insufficient_funds", amount)
@@ -290,7 +272,7 @@ public final class FsCurrencyCommand {
             return 0;
         }
 
-        TransferManager.remove(id);
+        finish(id, responder);
         responder.sendSystemMessage(Component.translatable("message.athens_coins.transfer_received",
                         amount, request.senderName())
                 .withStyle(style -> style.withColor(settings.cashColorRgb())));
@@ -298,6 +280,12 @@ public final class FsCurrencyCommand {
                         amount, request.targetName())
                 .withStyle(style -> style.withColor(settings.cashColorRgb())));
         return 1;
+    }
+
+    /** Drops the request and hides accept/deny again if nothing else is pending. */
+    private static void finish(int id, ServerPlayer responder) {
+        TransferManager.remove(id);
+        TransferManager.refreshCommands(responder.server, responder.getUUID());
     }
 
     // ------------------------------------------------------------------ reload

@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-2.0.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-2.1.0-1.20.1.jar")
 
 problems = []
 notes = []
@@ -215,7 +215,10 @@ else:
             "com/athensmc/athenscoins/client/screen/AtmScreen.class",
             "com/athensmc/athenscoins/block/AtmBlock.class",
             "com/athensmc/athenscoins/wallet/WalletData.class",
+            "com/athensmc/athenscoins/wallet/WalletSnapshot.class",
             "com/athensmc/athenscoins/menu/AtmMenu.class",
+            "com/athensmc/athenscoins/network/S2COpenWalletPacket.class",
+            "com/athensmc/athenscoins/api/FantasticCurrencyAPI.class",
             "com/athensmc/athenscoins/network/ModNetwork.class",
         ]
         for entry in required:
@@ -234,6 +237,66 @@ else:
         blob = zf.read("com/athensmc/athenscoins/block/AtmBlock.class")
         if b"m_" not in blob:
             problems.append("AtmBlock.class does not look reobfuscated to SRG names")
+
+# ---------------------------------------------------------------- 5. regression guards
+
+# (a) Item textures must stay small. A 1024x1024 sprite in Minecraft's item atlas is what
+#     produced the coloured sparkles on the coins.
+import struct
+for base, _, files in os.walk(os.path.join(RES, "assets/athens_coins/textures/item")):
+    for name in files:
+        if not name.endswith(".png"):
+            continue
+        path = os.path.join(base, name)
+        with open(path, "rb") as fh:
+            head = fh.read(24)
+        w, h = struct.unpack(">II", head[16:24])
+        if w > 128 or h > 128:
+            problems.append(f"item texture {name} is {w}x{h}; keep item sprites <=128x128 "
+                            f"or the atlas mipmaps produce sparkles")
+    notes.append(f"item textures checked: all <=128x128")
+
+# (b) The wallet must not be a container screen: that is what pulled the inventory in.
+wallet_screen = open(os.path.join(SRC, "com/athensmc/athenscoins/client/screen/WalletScreen.java"),
+                     encoding="utf-8").read()
+if "AbstractContainerScreen" in wallet_screen:
+    problems.append("WalletScreen extends AbstractContainerScreen again; it must be a plain Screen "
+                    "so opening the wallet cannot involve the player's inventory")
+if "class WalletScreen extends Screen" not in wallet_screen:
+    problems.append("WalletScreen no longer extends Screen")
+else:
+    notes.append("wallet is a plain Screen (no container, no inventory interaction)")
+
+if os.path.exists(os.path.join(SRC, "com/athensmc/athenscoins/menu/WalletMenu.java")):
+    problems.append("WalletMenu.java is back; the wallet should have no container menu")
+
+# (c) The transfer amount must not have suggestions, and accept/deny must stay gated.
+cmd = open(os.path.join(SRC, "com/athensmc/athenscoins/command/FsCurrencyCommand.java"),
+           encoding="utf-8").read()
+if "AMOUNT_SUGGESTIONS" in cmd or re.search(r'"amount".*\n?.*\.suggests\(', cmd):
+    problems.append("the transfer amount argument has suggestions again; it is typed manually")
+else:
+    notes.append("transfer amount has no suggestions")
+for literal in ("accept", "deny"):
+    pattern = r'literal\("' + literal + r'"\)\s*\.requires\(FsCurrencyCommand::hasPendingTransfer\)'
+    if not re.search(pattern, cmd):
+        problems.append(f"'{literal}' is no longer gated behind hasPendingTransfer; "
+                        f"it would show up in tab-completion")
+if "hasPendingTransfer" in cmd:
+    notes.append("accept/deny gated behind having a pending request")
+
+# (d) Every locale must carry the same translated text (the mod ships in Spanish everywhere).
+lang_dir = os.path.join(RES, "assets/athens_coins/lang")
+reference = None
+for locale in ("en_us", "es_es", "es_mx", "es_ar"):
+    with open(os.path.join(lang_dir, f"{locale}.json"), encoding="utf-8") as fh:
+        data = json.load(fh)
+    if reference is None:
+        reference = data
+    elif data != reference:
+        differing = sorted(k for k in reference if data.get(k) != reference.get(k))
+        problems.append(f"{locale}.json text differs from en_us: {differing[:5]}")
+notes.append("all four locales carry identical Spanish text")
 
 # ---------------------------------------------------------------- report
 print("=" * 70)
