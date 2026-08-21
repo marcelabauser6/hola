@@ -159,6 +159,16 @@ public final class Rooms {
       return null;
    }
 
+   /**
+    * Arena que protege a quien esté dentro, sin importar la fase ni si es miembro de la sala.
+    *
+    * <p>Comparte la caché por tick con la barrera de mobs, así que consultarlo por cada evento de daño
+    * no recorre todas las salas.
+    */
+   public static Room arenaProtecting(Entity entity) {
+      return blockingArena(entity);
+   }
+
    public static Room roomOf(ServerPlayer p) {
       return p == null ? null : MEMBER_ROOM.get(p.m_20148_());
    }

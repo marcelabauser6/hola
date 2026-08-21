@@ -1,3 +1,21 @@
+# Fantastic Chameleon 1.2.23 — cuerpo visible, botones dentro de su panel y zona libre de mobs
+
+> **1.2.23 — ajustes pedidos sobre 1.2.22.**
+> - **Ahora se ve el cuerpo, no sólo la cabeza.** El hundido baja de 0,12 a **0,06**: el torso y los
+>   brazos asoman unos 0,065 y la cabeza 0,19. Con 0,12 el torso quedaba justo a ras de la superficie y
+>   sólo se distinguía la cabeza.
+> - **Los botones del pintor ya no se salen de su ventana.** El marco se dibujaba sin la escala del
+>   panel, así que cuatro botones de 11 px ocupaban 46 px fijos: en un panel reducido eran más anchos que
+>   él y aparecían flotando por fuera. Ahora su separación se adapta al ancho real y el glifo se omite si
+>   no cabe. Comprobado para todos los anchos de 8 a 260: **nunca sobresalen**.
+> - **Agacharse ya no te desacopla al bajar la cámara.** Con la cámara libre en Prop Hunt, saltar y
+>   agacharse la suben y la bajan; para soltarse se usa **la misma tecla con la que te colocaste (F)**.
+>   Sin esto, bajar la vista era imposible sin soltar el prop.
+> - **La zona de juego está vetada a los mobs siempre.** Antes la barrera y la protección sólo existían
+>   durante las fases activas de la ronda, así que al terminar la partida los mobs volvían a entrar y a
+>   atacar. Ahora, con la arena delimitada, ningún mob entra ni hace daño dentro **en ningún momento**:
+>   antes de empezar, durante y después, y también a quien no sea miembro de la sala.
+>
 # Fantastic Chameleon 1.2.22 — cámara libre con control real y patas al ritmo del jugador
 
 > **1.2.22 — ajustes pedidos sobre 1.2.21.**

@@ -249,9 +249,13 @@ public final class LockControls {
 
                // Prop Hunt ya no abre un panel al fijarse. Cualquier pantalla le quita el foco al juego,
                // y con el foco perdido el ratón deja de girar la vista: la cámara quedaba en un punto
-               // fijo, sin la libertad que sí tiene Meccha. Las dos acciones siguen accesibles por
-               // tecla (espacio o agacharse para soltar, R para revertir) y se anuncian en el HUD.
+               // fijo, sin la libertad que sí tiene Meccha. Las acciones van por tecla y se anuncian en
+               // el HUD.
                lock(mc);
+            } else if (propHunt && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED)) {
+               // La misma tecla suelta: con la cámara libre, saltar y agacharse mueven la vista en
+               // vertical, así que ya no pueden servir para desacoplarse.
+               detach(mc);
             }
 
             // En Prop Hunt F solo fija durante COUNTDOWN/HIDING/SEEKING y siendo hider. Fuera de
@@ -271,7 +275,12 @@ public final class LockControls {
          boolean space = mc.f_91074_ != null && InputConstants.m_84830_(mc.m_91268_().m_85439_(), 32);
          boolean sneak = mc.f_91066_ != null && mc.f_91066_.f_92090_.m_90857_();
          boolean releaseScreen = ClientShims.screen(mc) == null || ClientShims.screen(mc) instanceof PropHuntLockedScreen;
+         // Con la cámara libre en Prop Hunt, saltar y agacharse la suben y la bajan: si además
+         // soltaran el prop, bajar la cámara era imposible sin desacoplarse. Ahí se suelta con la misma
+         // tecla con la que te colocaste.
+         boolean freeCamVertical = PropHuntClient.isPropHunt() && FreeCam.active();
          boolean canRelease = releaseScreen
+            && !freeCamVertical
             && mc.f_91074_ != null
             && Services.PLATFORM.get(mc.f_91074_, PaintAttachments.LOCKED);
          if (canRelease && (space && !spaceWasDown || sneak && !sneakWasDown)) {

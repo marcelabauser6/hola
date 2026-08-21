@@ -432,8 +432,11 @@ public final class PaintModeScreen extends Screen {
       g.m_280509_(fx1, fy1, fx1 + 1, fy2, line);
       g.m_280509_(fx2 - 1, fy1, fx2, fy2, line);
       int n = p.canMin ? 4 : 3;
+      float pitch = chromePitch(fx1, fx2, n);
+      int bw = Math.max(2, Math.round(pitch) - 1);
+      int bh = Math.min(10, bw);
       if (title != null) {
-         int room = fx2 - n * 11 - 6 - (fx1 + 4);
+         int room = fx2 - Math.round((float)n * pitch) - 6 - (fx1 + 4);
          String shown = this.f_96547_.m_92895_(title) > room ? this.f_96547_.m_92834_(title, Math.max(0, room)) : title;
          if (room > 6) {
             Gfx.text(g, this.f_96547_, shown, fx1 + 4, fy1 + 3, -4604988, false);
@@ -443,26 +446,49 @@ public final class PaintModeScreen extends Screen {
       String[] glyphs = p.canMin ? new String[]{"-", "+", "↺", "»"} : new String[]{"-", "+", "↺"};
 
       for (int i = 0; i < n; i++) {
-         int bx = fx2 - (n - i) * 11 - 2;
+         int bx = chromeButtonX(fx2, n, i, pitch);
          int by = fy1 + 1;
-         boolean hover = mx >= (double)bx && mx < (double)(bx + 10) && my >= (double)by && my < (double)(by + 10);
-         g.m_280509_(bx, by, bx + 10, by + 10, hover ? -1069528480 : -1876940750);
-         Gfx.centeredText(g, this.f_96547_, glyphs[i], bx + 5, by + 1, hover ? -1 : -4671304);
+         boolean hover = mx >= (double)bx && mx < (double)(bx + bw) && my >= (double)by && my < (double)(by + bh);
+         g.m_280509_(bx, by, bx + bw, by + bh, hover ? -1069528480 : -1876940750);
+         // Con el panel muy pequeño el glifo no cabe dentro del botón y se salía del marco.
+         if (bw >= 7) {
+            Gfx.centeredText(g, this.f_96547_, glyphs[i], bx + bw / 2, by + 1, hover ? -1 : -4671304);
+         }
       }
 
       p.pop(g);
    }
 
-   private int panelButtonAt(PaintModeScreen.Panel p, int x2, int y1, double rawMx, double rawMy) {
+   /**
+    * Separación de los botones del marco, reducida cuando el panel es más estrecho que ellos.
+    *
+    * <p>El marco se dibuja sin la escala del panel, así que cuatro botones de 11 px ocupaban 46 px
+    * fijos: en un panel reducido eran más anchos que él y se salían por la izquierda, como si flotaran
+    * fuera de su ventana.
+    */
+   private static float chromePitch(int fx1, int fx2, int n) {
+      float available = Math.max(1.0F, (float)(fx2 - fx1) - 4.0F);
+      return Math.min(11.0F, available / (float)n);
+   }
+
+   private static int chromeButtonX(int fx2, int n, int index, float pitch) {
+      return Math.round((float)fx2 - (float)(n - index) * pitch - 2.0F);
+   }
+
+   private int panelButtonAt(PaintModeScreen.Panel p, int x1, int x2, int y1, double rawMx, double rawMy) {
       int n = p.canMin ? 4 : 3;
       double mx = p.toChromeX(rawMx);
       double my = p.toChromeY(rawMy);
+      int fx1 = Math.round(p.cx((double)x1));
       int fx2 = Math.round(p.cx((double)x2));
       int fy1 = Math.round(p.cyTop((double)y1));
-      if (!(my < (double)(fy1 + 1)) && !(my >= (double)(fy1 + 1 + 10))) {
+      float pitch = chromePitch(fx1, fx2, n);
+      int bw = Math.max(2, Math.round(pitch) - 1);
+      int bh = Math.min(10, bw);
+      if (!(my < (double)(fy1 + 1)) && !(my >= (double)(fy1 + 1 + bh))) {
          for (int i = 0; i < n; i++) {
-            int bx = fx2 - (n - i) * 11 - 2;
-            if (mx >= (double)bx && mx < (double)(bx + 10)) {
+            int bx = chromeButtonX(fx2, n, i, pitch);
+            if (mx >= (double)bx && mx < (double)(bx + bw)) {
                return i;
             }
          }
@@ -488,7 +514,7 @@ public final class PaintModeScreen extends Screen {
    }
 
    private boolean clickFrame(PaintModeScreen.Panel p, int x1, int y1, int x2, int y2, double lx, double ly) {
-      int btn = this.panelButtonAt(p, x2, y1, lx, ly);
+      int btn = this.panelButtonAt(p, x1, x2, y1, lx, ly);
       if (btn >= 0) {
          switch (btn) {
             case 0:
@@ -701,19 +727,19 @@ public final class PaintModeScreen extends Screen {
 
          int wb = -1;
          if (!this.legendPanel.min) {
-            wb = this.panelButtonAt(this.legendPanel, legWh[0] + 8, 2, (double)mouseX, (double)mouseY);
+            wb = this.panelButtonAt(this.legendPanel, 0, legWh[0] + 8, 2, (double)mouseX, (double)mouseY);
          }
 
          if (wb < 0 && hideVisible) {
-            wb = this.panelButtonAt(this.hidePanel, this.hideW(), 2, (double)mouseX, (double)mouseY);
+            wb = this.panelButtonAt(this.hidePanel, 0, this.hideW(), 2, (double)mouseX, (double)mouseY);
          }
 
          if (wb < 0 && mapVisible) {
-            wb = this.panelButtonAt(this.mapPanel, MAP_SIZE + 8, 2, (double)mouseX, (double)mouseY);
+            wb = this.panelButtonAt(this.mapPanel, 0, MAP_SIZE + 8, 2, (double)mouseX, (double)mouseY);
          }
 
          if (wb < 0) {
-            wb = this.panelButtonAt(this.pickerPanel, 182, 6, (double)mouseX, (double)mouseY);
+            wb = this.panelButtonAt(this.pickerPanel, 4, 182, 6, (double)mouseX, (double)mouseY);
          }
 
          if (wb >= 0 && wb < WIN_TIP.length) {

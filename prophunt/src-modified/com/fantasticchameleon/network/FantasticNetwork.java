@@ -85,15 +85,15 @@ public final class FantasticNetwork {
    /**
     * Cuánto se hunde el cuerpo por dentro de la superficie del bloque.
     *
-    * <p>El torso tiene 0,125 de semiprofundidad y la cabeza 0,25, así que con 0,12 el torso queda casi
-    * a ras de la superficie y la cabeza asoma alrededor de 0,13: se ve que hay algo pegado sin que
-    * quede sepultado. La iluminación no depende de esta posición, porque el render toma la luz del aire
-    * de la cara de acople; sin eso, hundirse dejaba el cuerpo totalmente negro.
+    * <p>El torso tiene 0,125 de semiprofundidad y la cabeza 0,25. Con 0,06 el torso y los brazos asoman
+    * unos 0,065 y la cabeza 0,19: el cuerpo se ve, poco pero se ve, que es lo pedido. Con 0,12 el torso
+    * quedaba justo a ras y sólo se distinguía la cabeza. La iluminación no depende de esta posición,
+    * porque el render toma la luz del aire de la cara de acople.
     *
     * <p>Sólo aplica a las cuatro caras laterales. Encima de un bloque el cuerpo se apoya en la
     * superficie, porque hundirlo ahí lo dejaría con los pies bajo el suelo.
     */
-   private static final double BODY_SINK_DEPTH = 0.12;
+   private static final double BODY_SINK_DEPTH = 0.06;
    /** Conserva exactamente el margen de hueco exterior que se exigía antes de hundir el cuerpo. */
    private static final double SURFACE_PROBE_MARGIN = 0.04;
    private static final double VANILLA_LAND_REFERENCE = 0.23;

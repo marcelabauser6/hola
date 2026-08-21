@@ -173,6 +173,12 @@ public final class ArenaMobEvents {
    }
 
    private static boolean protectedTarget(Mob mob, ServerPlayer player) {
+      // Estar dentro de una zona de juego delimitada basta, sea o no miembro de la sala y esté la
+      // partida empezada o no: dentro de la arena ningún mob debe hacer daño en ningún momento.
+      if (Rooms.arenaProtecting(player) != null) {
+         return true;
+      }
+
       Room room = Rooms.roomOf(player);
       if (room == null || !room.protectsFromWildMobs(player.m_20148_())) {
          return false;

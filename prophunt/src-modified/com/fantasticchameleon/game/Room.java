@@ -1849,17 +1849,22 @@ public final class Room {
       );
    }
 
-   /** True mientras una arena delimitada debe actuar como barrera física para mobs. */
+   /**
+    * True mientras una arena delimitada debe actuar como barrera física para mobs.
+    *
+    * <p>No depende de la fase: la zona de juego está vetada a los mobs siempre, también en el lobby y
+    * después de terminar la ronda. Antes la barrera se levantaba al acabar y los mobs volvían a entrar
+    * y a atacar dentro de la arena.
+    */
    public boolean hasActiveMobBarrier() {
-      return this.config.arenaSet
-         && (this.phase == Room.Phase.COUNTDOWN || this.phase == Room.Phase.HIDING || this.phase == Room.Phase.SEEKING);
+      return this.config.arenaSet;
    }
 
    public String arenaDimension() {
       return this.config.arenaDim;
    }
 
-   /** Detecta cualquier parte de un mob dentro de una arena activa, no sólo la posición de sus pies. */
+   /** Detecta cualquier parte de una entidad dentro de la arena, no sólo la posición de sus pies. */
    public boolean blocksWildMob(Entity entity) {
       return this.hasActiveMobBarrier()
          && entity != null
