@@ -1,6 +1,8 @@
 package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
+import com.athensmc.athenscoins.client.layout.ScreenLayout;
+import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.config.DisplaySettings;
 import com.athensmc.athenscoins.item.ModItems;
 import com.athensmc.athenscoins.wallet.CoinType;
@@ -72,6 +74,7 @@ public class WalletScreen extends Screen {
     private int theme;
     private int leftPos;
     private int topPos;
+    private String footerTooltip;
 
     public WalletScreen(WalletSnapshot snapshot) {
         super(Component.translatable("gui.athens_coins.wallet"));
@@ -81,8 +84,9 @@ public class WalletScreen extends Screen {
 
     @Override
     protected void init() {
-        this.leftPos = (this.width - ART_W) / 2;
-        this.topPos = (this.height - TOTAL_H) / 2;
+        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, ART_W, TOTAL_H);
+        this.leftPos = panel.x();
+        this.topPos = panel.y();
     }
 
     /** Keep the world running underneath, like any inventory-style screen. */
@@ -124,14 +128,20 @@ public class WalletScreen extends Screen {
         graphics.fill(x0 + 1, y0 + 1, x1 - 1, y0 + 2, 0xFF000000 | themeColor(2));
 
         int textY = y0 + (FOOTER_H - 8) / 2;
-        graphics.drawString(font, Component.literal(display.currencyName()),
-                x0 + 6, textY, themeColor(3), false);
-
-        String amount = snapshot.bank().hasAccount()
+        String fullName = display.currencyName();
+        String fullAmount = snapshot.bank().hasAccount()
                 ? Money.format(snapshot.cashCents(), display.currencySymbol())
                 : Component.translatable("gui.athens_coins.no_bank_short").getString();
-        graphics.drawString(font, amount,
-                x1 - 6 - font.width(amount), textY, display.cashColor(), true);
+        int innerWidth = ART_W - 12;
+        int amountBudget = Math.min(innerWidth * 3 / 5, Math.max(42, font.width(fullAmount)));
+        int nameBudget = Math.max(24, innerWidth - amountBudget - 6);
+        String name = ScreenText.fit(font, fullName, nameBudget);
+        String amount = ScreenText.fit(font, fullAmount, amountBudget);
+        footerTooltip = ScreenText.wasTruncated(font, fullName, nameBudget)
+                || ScreenText.wasTruncated(font, fullAmount, amountBudget)
+                ? fullName + ": " + fullAmount : null;
+        graphics.drawString(font, name, x0 + 6, textY, themeColor(3), false);
+        graphics.drawString(font, amount, x1 - 6 - font.width(amount), textY, display.cashColor(), true);
     }
 
     private void renderFace(GuiGraphics graphics) {
@@ -187,6 +197,11 @@ public class WalletScreen extends Screen {
         int hovered = cellAt(mouseX, mouseY);
         if (hovered >= 0) {
             graphics.renderComponentTooltip(font, tooltipFor(hovered), mouseX, mouseY);
+            return;
+        }
+        if (footerTooltip != null && mouseX >= leftPos && mouseX < leftPos + ART_W
+                && mouseY >= topPos + FOOTER_Y && mouseY < topPos + TOTAL_H) {
+            graphics.renderTooltip(font, Component.literal(footerTooltip), mouseX, mouseY);
         }
     }
 

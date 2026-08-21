@@ -114,7 +114,7 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
             return false;
         }
         BankAccount account = BankManager.accountOf(serverPlayer);
-        if (account == null) {
+        if (account == null || !account.bankId().equals(bank.id())) {
             serverPlayer.displayClientMessage(Component
                     .translatable("message.athens_coins.atm_needs_account")
                     .withStyle(ChatFormatting.RED), true);

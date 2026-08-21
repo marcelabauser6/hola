@@ -11,7 +11,7 @@ GUI = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "../src/main/resources/assets/athens_coins/textures/gui")
 os.makedirs(GUI, exist_ok=True)
 
-PANEL_W, PANEL_H = 248, 178
+PANEL_W, PANEL_H = 248, 198
 
 # Bank-terminal navy, deliberately distinct from the wallet's burgundy.
 FRAME       = (18, 26, 32, 255)
@@ -74,8 +74,11 @@ for index, y in enumerate(ROW_Y):
 d.line([(RULE_X, 54), (RULE_X, 147)], fill=FRAME)
 d.line([(RULE_X + 1, 72), (RULE_X + 1, 147)], fill=(38, 58, 72, 255))
 
-# ---- footer band, y 152..172, roomy enough for two lines of text
+# ---- transfer-action band, y 152..172
 box(5, 152, PANEL_W - 6, 172, CARD, FRAME)
+
+# ---- information footer, y 175..195; kept clear of widgets
+box(5, 175, PANEL_W - 6, 195, TABLE_BG, FRAME)
 
 img.save(os.path.join(GUI, "atm.png"))
 print(f"atm.png written ({PANEL_W}x{PANEL_H}) - navy bank terminal")

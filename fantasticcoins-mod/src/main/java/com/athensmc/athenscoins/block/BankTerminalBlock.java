@@ -128,14 +128,16 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
      * minting the money it claims.</p>
      */
     private static void redeemCard(ServerPlayer player, Bank bank, ItemStack card) {
-        long amount = com.athensmc.athenscoins.item.BankCardItem.amountOf(player.server, card);
-        if (amount < 0L) {
+        com.athensmc.athenscoins.item.BankCardItem.ValidatedCard validated =
+                com.athensmc.athenscoins.item.BankCardItem.validateFor(player.server, player, card);
+        if (validated == null) {
             player.sendSystemMessage(Component.translatable("message.athens_coins.card_invalid")
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        BankManager.OpenResult result = BankManager.openAccount(player.server, bank,
-                player.getUUID(), player.getGameProfile().getName(), amount);
+        BankManager.OpenResult result = BankManager.redeemCardAccount(player.server, bank,
+                player.getUUID(), player.getGameProfile().getName(),
+                validated.token(), validated.amount());
         if (!result.ok()) {
             player.sendSystemMessage(Component.translatable(result.messageKey())
                     .withStyle(ChatFormatting.RED));

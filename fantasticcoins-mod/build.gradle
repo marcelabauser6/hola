@@ -66,3 +66,31 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar.finalizedBy('reobfJar')
+
+
+// Pure-JVM layout guard: validates screen geometry without launching Minecraft.
+tasks.register('verifyScreenLayouts', JavaExec) {
+    group = 'verification'
+    description = 'Checks responsive GUI rectangles for common logical resolutions.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.athenscoins.client.layout.ScreenLayoutStaticTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyScreenLayouts')
+}
+
+
+// Pure-JVM financial persistence guard: NBT migration, ledger compatibility and card anti-replay.
+tasks.register('verifyFinancialCore', JavaExec) {
+    group = 'verification'
+    description = 'Checks financial persistence and transaction invariants without starting Minecraft.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.athenscoins.bank.FinancialPersistenceStaticTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyFinancialCore')
+}

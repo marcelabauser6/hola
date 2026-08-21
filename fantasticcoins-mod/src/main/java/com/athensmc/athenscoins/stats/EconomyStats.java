@@ -1,98 +1,68 @@
 package com.athensmc.athenscoins.stats;
 
+import com.athensmc.athenscoins.bank.BankAccount;
+import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.config.DisplaySettings;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
-import com.athensmc.athenscoins.wallet.Wallet;
-import com.athensmc.athenscoins.wallet.WalletData;
 import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
-/** Builds an {@link EconomySnapshot} from the saved accounts and the online players. */
+/** Builds economy statistics from canonical bank accounts and online physical inventories. */
 public final class EconomyStats {
-
     private static final int TOP_ROWS = 6;
-
-    private EconomyStats() {
-    }
+    private EconomyStats() {}
 
     public static EconomySnapshot compute(MinecraftServer server) {
-        Map<UUID, Wallet> accounts = WalletData.get(server).all();
-
+        List<BankAccount> accounts = BankData.get(server).allAccounts();
         List<long[]> balances = new ArrayList<>(accounts.size());
         long total = 0L;
-        for (Map.Entry<UUID, Wallet> entry : accounts.entrySet()) {
-            long cents = entry.getValue().balance();
-            total += cents;
+        for (BankAccount account : accounts) {
+            long cents = Money.canAdd(account.balance(), account.walletBalance())
+                    ? account.balance() + account.walletBalance() : Money.MAX_CENTS;
+            total = Money.canAdd(total, cents) ? total + cents : Money.MAX_CENTS;
             balances.add(new long[] { cents });
         }
         balances.sort(Comparator.comparingLong(value -> -value[0]));
-
         int count = balances.size();
         long average = count == 0 ? 0L : total / count;
-        long median = 0L;
-        if (count > 0) {
-            median = count % 2 == 1
-                    ? balances.get(count / 2)[0]
-                    : (balances.get(count / 2 - 1)[0] + balances.get(count / 2)[0]) / 2L;
-        }
+        long median = count == 0 ? 0L : count % 2 == 1 ? balances.get(count / 2)[0]
+                : safeAverage(balances.get(count / 2 - 1)[0], balances.get(count / 2)[0]);
         long richest = count == 0 ? 0L : balances.get(0)[0];
-
-        // Wealth concentration: what share of all cash the ten largest accounts hold.
         long topTen = 0L;
-        for (int i = 0; i < Math.min(10, count); i++) {
-            topTen += balances.get(i)[0];
-        }
+        for (int i = 0; i < Math.min(10, count); i++)
+            topTen = Money.canAdd(topTen, balances.get(i)[0]) ? topTen + balances.get(i)[0] : Money.MAX_CENTS;
         int share = total <= 0L ? 0 : (int) Math.round(100.0D * topTen / total);
 
-        // Named leaderboard, resolving UUIDs through the profile cache so offline players show up.
         List<EconomySnapshot.Holder> top = new ArrayList<>();
-        accounts.entrySet().stream()
-                .sorted(Comparator.comparingLong(entry -> -entry.getValue().balance()))
-                .limit(TOP_ROWS)
-                .forEach(entry -> top.add(new EconomySnapshot.Holder(
-                        nameOf(server, entry.getKey()), entry.getValue().balance())));
+        accounts.stream().sorted(Comparator.comparingLong(EconomyStats::wealth).reversed()).limit(TOP_ROWS)
+                .forEach(account -> top.add(new EconomySnapshot.Holder(nameOf(server, account.owner()), wealth(account))));
 
-        // Coins are only countable for loaded inventories, so this covers online players only.
-        long[] coinCounts = new long[CoinType.ORDERED.length];
-        long coinValue = 0L;
+        long[] coinCounts = new long[CoinType.ORDERED.length]; long coinValue = 0L;
         List<ServerPlayer> online = server.getPlayerList().getPlayers();
-        for (ServerPlayer player : online) {
-            for (CoinType type : CoinType.ORDERED) {
-                int carried = WalletManager.countCoins(player, type);
-                coinCounts[type.ordinal()] += carried;
-                coinValue += Money.multiply(type.cashValueCents(), carried);
-            }
+        for (ServerPlayer player : online) for (CoinType type : CoinType.ORDERED) {
+            int carried = WalletManager.countCoins(player, type); coinCounts[type.ordinal()] += carried;
+            long value = Money.multiply(type.cashValueCents(), carried);
+            coinValue = Money.canAdd(coinValue, value) ? coinValue + value : Money.MAX_CENTS;
         }
-
         long[] rates = new long[CoinType.ORDERED.length];
-        for (CoinType type : CoinType.ORDERED) {
-            rates[type.ordinal()] = type.cashValueCents();
-        }
-
+        for (CoinType type : CoinType.ORDERED) rates[type.ordinal()] = type.cashValueCents();
         return new EconomySnapshot(count, online.size(), total, average, median, richest, share,
                 coinCounts, coinValue, rates, top, DisplaySettings.fromConfig());
     }
 
+    private static long wealth(BankAccount account) {
+        return Money.canAdd(account.balance(), account.walletBalance())
+                ? account.balance() + account.walletBalance() : Money.MAX_CENTS;
+    }
+    private static long safeAverage(long left, long right) { return left / 2L + right / 2L + (left % 2L + right % 2L) / 2L; }
     private static String nameOf(MinecraftServer server, UUID id) {
-        Optional<com.mojang.authlib.GameProfile> profile = server.getProfileCache() == null
-                ? Optional.empty()
-                : server.getProfileCache().get(id);
-        if (profile.isPresent() && profile.get().getName() != null) {
-            return profile.get().getName();
-        }
+        Optional<com.mojang.authlib.GameProfile> profile = server.getProfileCache() == null ? Optional.empty() : server.getProfileCache().get(id);
+        if (profile.isPresent() && profile.get().getName() != null) return profile.get().getName();
         ServerPlayer player = server.getPlayerList().getPlayer(id);
-        if (player != null) {
-            return player.getGameProfile().getName();
-        }
-        return id.toString().substring(0, 8);
+        return player != null ? player.getGameProfile().getName() : id.toString().substring(0, 8);
     }
 }

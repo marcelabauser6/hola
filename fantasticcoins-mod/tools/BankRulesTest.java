@@ -92,6 +92,9 @@ public class BankRulesTest {
         eq("half a day is carried over, not dropped", now - moved, BankRules.DAY_MILLIS / 2);
 
         eq("fee total", BankRules.commissionTotal(250L, 3), 750L);
+        eq("fee total saturates instead of overflowing",
+                BankRules.commissionTotal(Long.MAX_VALUE, Integer.MAX_VALUE),
+                com.athensmc.athenscoins.wallet.Money.MAX_CENTS);
         eq("no charges, no total", BankRules.commissionTotal(250L, 0), 0L);
 
         System.out.println("-- loans on business days --");

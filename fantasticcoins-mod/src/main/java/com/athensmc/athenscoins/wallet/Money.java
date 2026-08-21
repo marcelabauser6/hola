@@ -171,4 +171,25 @@ public final class Money {
     public static long clampBalance(long cents) {
         return Math.max(0L, Math.min(cents, MAX_CENTS));
     }
+
+    /** True when two non-negative money values can be combined without overflow or saturation. */
+    public static boolean canAdd(long left, long right) {
+        return left >= 0L && right >= 0L && left <= MAX_CENTS && right <= MAX_CENTS - left;
+    }
+
+    /** Adds money exactly, rejecting overflow instead of silently minting or losing cents. */
+    public static long addExact(long left, long right) {
+        if (!canAdd(left, right)) {
+            throw new ArithmeticException("Fantastic Cash balance overflow");
+        }
+        return left + right;
+    }
+
+    /** Subtracts non-negative money exactly. */
+    public static long subtractExact(long left, long right) {
+        if (left < 0L || right < 0L || right > left) {
+            throw new ArithmeticException("Fantastic Cash balance underflow");
+        }
+        return left - right;
+    }
 }

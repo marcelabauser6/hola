@@ -134,7 +134,7 @@ public final class BankRules {
         if (feeCents <= 0L || charges <= 0) {
             return 0L;
         }
-        return feeCents * charges;
+        return com.athensmc.athenscoins.wallet.Money.multiply(feeCents, charges);
     }
 
     // ================================================================== loans
@@ -198,11 +198,11 @@ public final class BankRules {
         if (owedCents <= 0L || days <= 0 || dailyBasisPoints <= 0) {
             return 0L;
         }
-        long perDay = owedCents * dailyBasisPoints / 10_000L;
+        long perDay = com.athensmc.athenscoins.wallet.Money.multiply(owedCents, dailyBasisPoints) / 10_000L;
         if (perDay <= 0L) {
-            perDay = 1L;          // never let a rounding floor stall the interest entirely
+            perDay = 1L;
         }
-        return perDay * days;
+        return com.athensmc.athenscoins.wallet.Money.multiply(perDay, days);
     }
 
     /**

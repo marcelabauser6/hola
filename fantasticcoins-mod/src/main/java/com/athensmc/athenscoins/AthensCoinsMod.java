@@ -72,6 +72,13 @@ public class AthensCoinsMod {
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
         // Seed the client's balance cache so other mods' GUIs have a figure from the first frame.
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            com.athensmc.athenscoins.bank.BankManager.migrateLegacyWallets(player.server);
+            com.athensmc.athenscoins.bank.Bank bank =
+                    com.athensmc.athenscoins.bank.BankManager.bankOf(player);
+            if (bank != null) {
+                com.athensmc.athenscoins.bank.BankManager.setWalletLimit(
+                        player.server, bank, bank.walletLimit(), player.getUUID());
+            }
             com.athensmc.athenscoins.wallet.WalletManager.pushBalance(player);
         }
     }
@@ -81,6 +88,11 @@ public class AthensCoinsMod {
         // Pick up any edits made to the config file while the game was closed.
         CurrencyConfig.load();
         TransferManager.clear();
+        com.athensmc.athenscoins.bank.BankManager.migrateLegacyWallets(event.getServer());
+        for (com.athensmc.athenscoins.bank.BankAccount account
+                : com.athensmc.athenscoins.bank.BankData.get(event.getServer()).allAccounts()) {
+            account.resetCommissionSession();
+        }
     }
 
     @SubscribeEvent

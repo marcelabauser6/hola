@@ -1,6 +1,8 @@
 package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.bank.Bank;
+import com.athensmc.athenscoins.client.layout.ScreenLayout;
+import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.network.C2STerminalActionPacket;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenTerminalPacket;
@@ -15,19 +17,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
+import java.util.UUID;
 
-/**
- * The bank terminal.
- *
- * <p>Tabs are gated by role: staff can open accounts and read the register, but only an operator
- * can appoint bankers or change the bank's terms. The server re-checks all of it.</p>
- */
+/** Responsive bank terminal. Server-side permission and accounting checks remain authoritative. */
 public class BankTerminalScreen extends Screen {
-
     private static final int PANEL_W = 340;
     private static final int PANEL_H = 232;
     private static final int ROW_H = 14;
-    private static final int LIST_ROWS = 9;
+    private static final int PAD = 8;
 
     private enum Tab {
         USERS("gui.athens_coins.tab_users", true),
@@ -52,20 +49,21 @@ public class BankTerminalScreen extends Screen {
     private final List<S2COpenTerminalPacket.PlayerRow> players;
 
     private Tab tab;
-    private int leftPos;
-    private int topPos;
+    private ScreenLayout.Regions layout;
+    private ScreenLayout.Rect listArea;
     private int scroll;
     private EditBox nameBox;
     private EditBox valueBox;
+    private Component hoverTooltip;
 
     public BankTerminalScreen(S2COpenTerminalPacket packet) {
         super(Component.literal(packet.bank().name()));
-        this.bank = packet.bank();
-        this.pos = packet.pos();
-        this.operator = packet.operator();
-        this.accounts = packet.accounts();
-        this.players = packet.players();
-        this.tab = operator ? Tab.USERS : Tab.OPEN;
+        bank = packet.bank();
+        pos = packet.pos();
+        operator = packet.operator();
+        accounts = packet.accounts();
+        players = packet.players();
+        tab = operator ? Tab.USERS : Tab.OPEN;
     }
 
     private int accent() {
@@ -79,111 +77,143 @@ public class BankTerminalScreen extends Screen {
 
     @Override
     protected void init() {
-        leftPos = (width - PANEL_W) / 2;
-        topPos = (height - PANEL_H) / 2;
+        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
+        layout = ScreenLayout.regions(panel, 20, 22, 28);
         scroll = 0;
         rebuild();
     }
 
     private void rebuild() {
         clearWidgets();
+        nameBox = null;
+        valueBox = null;
 
-        int x = leftPos + 8;
+        long visibleTabs = java.util.Arrays.stream(Tab.values())
+                .filter(candidate -> operator || !candidate.operatorOnly).count();
+        ScreenLayout.Rect tabs = layout.tabs().inset(4);
+        int gap = 2;
+        int tabWidth = ScreenLayout.gridCellWidth(tabs, (int) visibleTabs, gap);
+        int x = tabs.x();
         for (Tab candidate : Tab.values()) {
             if (candidate.operatorOnly && !operator) {
                 continue;
             }
-            final Tab target = candidate;
-            Button button = Button.builder(Component.translatable(candidate.key), b -> {
+            Tab target = candidate;
+            Component label = Component.translatable(candidate.key);
+            Button button = Button.builder(label, ignored -> {
                         tab = target;
                         scroll = 0;
                         rebuild();
                     })
-                    .bounds(x, topPos + 22, 78, 16)
+                    .bounds(x, tabs.y(), tabWidth, Math.min(18, tabs.height()))
+                    .tooltip(Tooltip.create(label))
                     .build();
             button.active = candidate != tab;
             addRenderableWidget(button);
-            x += 80;
+            x += tabWidth + gap;
         }
 
+        ScreenLayout.Rect content = layout.content().inset(PAD);
+        listArea = new ScreenLayout.Rect(content.x(), content.y() + 16,
+                content.width(), Math.max(0, content.height() - 18));
         if (tab == Tab.SETTINGS) {
-            buildSettings();
-        }
-        if (tab == Tab.ATMS) {
-            buildAtms();
+            buildSettings(content);
+        } else if (tab == Tab.ATMS) {
+            buildAtms(content);
         }
 
+        ScreenLayout.Rect footer = layout.footer().inset(6);
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.close"),
-                        b -> onClose())
-                .bounds(leftPos + PANEL_W - 90, topPos + PANEL_H - 26, 82, 18)
+                        ignored -> onClose())
+                .bounds(footer.right() - Math.min(82, footer.width()), footer.y(),
+                        Math.min(82, footer.width()), Math.min(18, footer.height()))
                 .build());
     }
 
-    private void buildSettings() {
-        nameBox = new EditBox(font, leftPos + 90, topPos + 48, 150, 16,
+    private void buildSettings(ScreenLayout.Rect content) {
+        int labelWidth = Math.min(78, Math.max(54, content.width() / 4));
+        int saveWidth = Math.min(60, Math.max(44, content.width() / 5));
+        int fieldX = content.x() + labelWidth + 4;
+        int fieldWidth = Math.max(44, content.right() - fieldX - saveWidth - 4);
+
+        nameBox = new EditBox(font, fieldX, content.y(), fieldWidth, 16,
                 Component.translatable("gui.athens_coins.bank_name"));
         nameBox.setValue(bank.name());
         nameBox.setMaxLength(32);
         addRenderableWidget(nameBox);
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.theme_save"),
-                        b -> send(C2STerminalActionPacket.Action.SET_NAME, 0L, nameBox.getValue()))
-                .bounds(leftPos + 244, topPos + 48, 60, 16).build());
+                        ignored -> send(C2STerminalActionPacket.Action.SET_NAME, 0L, nameBox.getValue()))
+                .bounds(content.right() - saveWidth, content.y(), saveWidth, 16).build());
 
-        // One numeric box reused by whichever setting the operator presses, which keeps the panel
-        // readable instead of stacking eight fields.
-        valueBox = new EditBox(font, leftPos + 90, topPos + 70, 150, 16,
+        valueBox = new EditBox(font, fieldX, content.y() + 20,
+                Math.max(44, content.right() - fieldX), 16,
                 Component.translatable("gui.athens_coins.bank_value"));
         valueBox.setValue("0");
         valueBox.setMaxLength(12);
         addRenderableWidget(valueBox);
 
-        int y = topPos + 92;
-        addSetting(y, "gui.athens_coins.bank_wallet_limit", C2STerminalActionPacket.Action.SET_WALLET_LIMIT,
-                "gui.athens_coins.hint_cents");
-        addSetting(y += 18, "gui.athens_coins.bank_fee", C2STerminalActionPacket.Action.SET_FEE,
-                "gui.athens_coins.hint_cents");
-        addSetting(y += 18, "gui.athens_coins.bank_fee_days", C2STerminalActionPacket.Action.SET_FEE_DAYS,
-                "gui.athens_coins.hint_days");
-        addSetting(y += 18, "gui.athens_coins.bank_rate_bronze", C2STerminalActionPacket.Action.SET_RATE_BRONZE,
-                "gui.athens_coins.hint_rate");
-        addSetting(y += 18, "gui.athens_coins.bank_rate_silver", C2STerminalActionPacket.Action.SET_RATE_SILVER,
-                "gui.athens_coins.hint_rate");
-        addSetting(y += 18, "gui.athens_coins.bank_rate_gold", C2STerminalActionPacket.Action.SET_RATE_GOLD,
-                "gui.athens_coins.hint_rate");
-        addSetting(y += 18, "gui.athens_coins.bank_loan_max", C2STerminalActionPacket.Action.SET_LOAN_MAX,
-                "gui.athens_coins.hint_cents");
-        addSetting(y += 18, "gui.athens_coins.bank_loan_days", C2STerminalActionPacket.Action.SET_LOAN_DAYS,
-                "gui.athens_coins.hint_days");
-
+        String[] labels = {
+                "gui.athens_coins.bank_wallet_limit", "gui.athens_coins.bank_fee",
+                "gui.athens_coins.bank_fee_days", "gui.athens_coins.bank_rate_bronze",
+                "gui.athens_coins.bank_rate_silver", "gui.athens_coins.bank_rate_gold",
+                "gui.athens_coins.bank_loan_max", "gui.athens_coins.bank_loan_days"
+        };
+        C2STerminalActionPacket.Action[] actions = {
+                C2STerminalActionPacket.Action.SET_WALLET_LIMIT,
+                C2STerminalActionPacket.Action.SET_FEE,
+                C2STerminalActionPacket.Action.SET_FEE_DAYS,
+                C2STerminalActionPacket.Action.SET_RATE_BRONZE,
+                C2STerminalActionPacket.Action.SET_RATE_SILVER,
+                C2STerminalActionPacket.Action.SET_RATE_GOLD,
+                C2STerminalActionPacket.Action.SET_LOAN_MAX,
+                C2STerminalActionPacket.Action.SET_LOAN_DAYS
+        };
+        String[] hints = {
+                "gui.athens_coins.hint_cents", "gui.athens_coins.hint_cents",
+                "gui.athens_coins.hint_days", "gui.athens_coins.hint_rate",
+                "gui.athens_coins.hint_rate", "gui.athens_coins.hint_rate",
+                "gui.athens_coins.hint_cents", "gui.athens_coins.hint_days"
+        };
+        ScreenLayout.Rect grid = new ScreenLayout.Rect(content.x(), content.y() + 40,
+                content.width(), Math.max(0, content.height() - 60));
+        int gap = 4;
+        int cellWidth = ScreenLayout.gridCellWidth(grid, 2, gap);
+        for (int i = 0; i < labels.length; i++) {
+            int column = i / 4;
+            int row = i % 4;
+            int bx = grid.x() + column * (cellWidth + gap);
+            int by = grid.y() + row * 18;
+            addSetting(bx, by, cellWidth, labels[i], actions[i], hints[i]);
+        }
         addRenderableWidget(Button.builder(Component.translatable(bank.loansEnabled()
                                 ? "gui.athens_coins.bank_loans_on"
                                 : "gui.athens_coins.bank_loans_off"),
-                        b -> send(C2STerminalActionPacket.Action.SET_LOANS_ENABLED,
+                        ignored -> send(C2STerminalActionPacket.Action.SET_LOANS_ENABLED,
                                 bank.loansEnabled() ? 0L : 1L, ""))
-                .bounds(leftPos + 90, y + 20, 150, 16).build());
+                .bounds(content.x(), content.bottom() - 18, content.width(), 16).build());
     }
 
-    private void buildAtms() {
-        int y = topPos + 60;
-        for (int count : new int[] { 1, 4, 8 }) {
-            final int amount = count;
-            addRenderableWidget(Button.builder(
-                            Component.translatable("gui.athens_coins.issue_atm", amount),
-                            b -> send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, ""))
-                    .bounds(leftPos + 8, y, 150, 18).build());
+    private void buildAtms(ScreenLayout.Rect content) {
+        int buttonWidth = Math.min(150, Math.max(90, content.width() / 2 - 4));
+        int y = content.y() + 18;
+        for (int count : new int[] {1, 4, 8}) {
+            int amount = count;
+            addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.issue_atm", amount),
+                            ignored -> send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, ""))
+                    .bounds(content.x(), y, buttonWidth, 18).build());
             y += 22;
         }
     }
 
-    private void addSetting(int y, String labelKey, C2STerminalActionPacket.Action action, String hintKey) {
-        addRenderableWidget(Button.builder(Component.translatable(labelKey),
-                        b -> send(action, parseValue(), ""))
-                .bounds(leftPos + 90, y, 214, 16)
-                .tooltip(Tooltip.create(Component.translatable(hintKey)))
+    private void addSetting(int x, int y, int width, String labelKey,
+                            C2STerminalActionPacket.Action action, String hintKey) {
+        Component label = Component.translatable(labelKey);
+        addRenderableWidget(Button.builder(label, ignored -> send(action, parseValue(), ""))
+                .bounds(x, y, width, 16)
+                .tooltip(Tooltip.create(label.copy().append("\n").append(Component.translatable(hintKey))))
                 .build());
     }
 
-    /** Reads the shared numeric box, tolerating decimals so a rate can be typed as 0.17. */
     private long parseValue() {
         String raw = valueBox == null ? "0" : valueBox.getValue().trim();
         if (raw.contains(".") || raw.contains(",")) {
@@ -204,194 +234,200 @@ public class BankTerminalScreen extends Screen {
         ModNetwork.toServer(new C2STerminalActionPacket(pos, action, null, value, text));
     }
 
-    private void sendFor(C2STerminalActionPacket.Action action, java.util.UUID target) {
+    private void sendFor(C2STerminalActionPacket.Action action, UUID target) {
         ModNetwork.toServer(new C2STerminalActionPacket(pos, action, target, 0L, ""));
     }
-
-    // ------------------------------------------------------------------ rendering
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
+        hoverTooltip = null;
+        ScreenLayout.Rect panel = layout.panel();
+        graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
+        StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), accent());
+        graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, accent());
 
-        graphics.fill(leftPos, topPos, leftPos + PANEL_W, topPos + PANEL_H, 0xF0140F0C);
-        StatsScreen.outline(graphics, leftPos, topPos, PANEL_W, PANEL_H, accent());
-        graphics.fill(leftPos + 1, topPos + 1, leftPos + PANEL_W - 1, topPos + 18, accent());
-
-        String header = bank.name() + "   " + Component
-                .translatable("gui.athens_coins.bank_reserve").getString() + " "
-                + Money.format(bank.reserve(), "$");
-        graphics.drawString(font, header, leftPos + PANEL_W / 2 - font.width(header) / 2,
-                topPos + 6, 0xFFFFFFFF, true);
+        String reserveLabel = Component.translatable("gui.athens_coins.bank_reserve").getString();
+        String header = bank.name() + " · " + reserveLabel + " " + Money.format(bank.reserve(), "$");
+        drawFitted(graphics, header, panel.x() + PAD, panel.y() + 6,
+                panel.width() - PAD * 2, 0xFFFFFFFF, mouseX, mouseY);
 
         switch (tab) {
             case USERS -> renderPlayers(graphics, mouseX, mouseY, true);
             case OPEN -> renderPlayers(graphics, mouseX, mouseY, false);
-            case ACCOUNTS -> renderAccounts(graphics);
-            case ATMS -> renderAtms(graphics);
-            case SETTINGS -> renderSettings(graphics);
+            case ACCOUNTS -> renderAccounts(graphics, mouseX, mouseY);
+            case ATMS -> renderAtms(graphics, mouseX, mouseY);
+            case SETTINGS -> renderSettings(graphics, mouseX, mouseY);
         }
-
         super.render(graphics, mouseX, mouseY, partialTick);
+        if (hoverTooltip != null) {
+            graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
+        }
     }
 
     private void renderPlayers(GuiGraphics graphics, int mouseX, int mouseY, boolean bankerMode) {
-        graphics.drawString(font, Component.translatable(bankerMode
-                        ? "gui.athens_coins.users_hint"
-                        : "gui.athens_coins.open_hint"),
-                leftPos + 8, topPos + 44, 0xFFB0A090, false);
+        Component hint = Component.translatable(bankerMode
+                ? "gui.athens_coins.users_hint" : "gui.athens_coins.open_hint");
+        drawFitted(graphics, hint.getString(), listArea.x(), layout.content().y() + PAD,
+                listArea.width(), 0xFFB0A090, mouseX, mouseY);
         if (players.isEmpty()) {
-            graphics.drawString(font, Component.translatable("gui.athens_coins.nobody_online"),
-                    leftPos + 8, topPos + 60, 0xFF888888, false);
+            drawFitted(graphics, Component.translatable("gui.athens_coins.nobody_online").getString(),
+                    listArea.x(), listArea.y() + 2, listArea.width(), 0xFF888888, mouseX, mouseY);
             return;
         }
-        int y = topPos + 58;
-        for (int i = scroll; i < Math.min(players.size(), scroll + LIST_ROWS); i++) {
+        int rows = visibleRows();
+        int y = listArea.y();
+        for (int i = scroll; i < Math.min(players.size(), scroll + rows); i++) {
             S2COpenTerminalPacket.PlayerRow row = players.get(i);
-            boolean hovered = mouseY >= y && mouseY < y + ROW_H
-                    && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8;
-            if (hovered) {
-                graphics.fill(leftPos + 8, y, leftPos + PANEL_W - 8, y + ROW_H - 1, 0x30FFFFFF);
+            if (listArea.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + ROW_H) {
+                graphics.fill(listArea.x(), y, listArea.right(), y + ROW_H - 1, 0x30FFFFFF);
             }
-            graphics.drawString(font, row.name(), leftPos + 12, y + 3, 0xFFFFFFFF, false);
-            String state;
-            int color;
-            if (bankerMode) {
-                state = Component.translatable(row.banker()
-                        ? "gui.athens_coins.is_banker"
-                        : "gui.athens_coins.not_banker").getString();
-                color = row.banker() ? 0xFF6BE06B : 0xFF888888;
-            } else {
-                state = Component.translatable(row.hasAccount()
-                        ? "gui.athens_coins.has_account"
-                        : "gui.athens_coins.no_account").getString();
-                color = row.hasAccount() ? 0xFFE0C060 : 0xFF6BE06B;
-            }
-            graphics.drawString(font, state, leftPos + PANEL_W - 12 - font.width(state), y + 3,
-                    color, false);
+            String state = Component.translatable(bankerMode
+                    ? (row.banker() ? "gui.athens_coins.is_banker" : "gui.athens_coins.not_banker")
+                    : (row.hasAccount() ? "gui.athens_coins.has_account" : "gui.athens_coins.no_account")).getString();
+            int color = bankerMode ? (row.banker() ? 0xFF6BE06B : 0xFF888888)
+                    : (row.hasAccount() ? 0xFFE0C060 : 0xFF6BE06B);
+            int stateWidth = Math.min(listArea.width() / 2, font.width(state));
+            drawFitted(graphics, row.name(), listArea.x() + 4, y + 3,
+                    Math.max(8, listArea.width() - stateWidth - 12), 0xFFFFFFFF, mouseX, mouseY);
+            String fittedState = ScreenText.fit(font, state, stateWidth);
+            graphics.drawString(font, fittedState, listArea.right() - 4 - font.width(fittedState), y + 3, color, false);
             y += ROW_H;
         }
     }
 
-    private void renderAccounts(GuiGraphics graphics) {
-        graphics.drawString(font, Component.translatable("gui.athens_coins.accounts_hint2"),
-                leftPos + 8, topPos + 44, 0xFFB0A090, false);
+    private void renderAccounts(GuiGraphics graphics, int mouseX, int mouseY) {
+        drawFitted(graphics, Component.translatable("gui.athens_coins.accounts_hint2").getString(),
+                listArea.x(), layout.content().y() + PAD, listArea.width(), 0xFFB0A090, mouseX, mouseY);
         if (accounts.isEmpty()) {
-            graphics.drawString(font, Component.translatable("gui.athens_coins.no_accounts"),
-                    leftPos + 8, topPos + 60, 0xFF888888, false);
+            drawFitted(graphics, Component.translatable("gui.athens_coins.no_accounts").getString(),
+                    listArea.x(), listArea.y() + 2, listArea.width(), 0xFF888888, mouseX, mouseY);
             return;
         }
-        int y = topPos + 58;
-        for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
+        int rows = visibleRows();
+        int y = listArea.y();
+        for (int i = scroll; i < Math.min(accounts.size(), scroll + rows); i++) {
             S2COpenTerminalPacket.AccountRow row = accounts.get(i);
-            graphics.drawString(font, "#" + row.number(), leftPos + 12, y + 3, 0xFFE0C060, false);
-            graphics.drawString(font, row.owner(), leftPos + 62, y + 3, 0xFFFFFFFF, false);
+            String number = "#" + row.number();
             String balance = Money.format(row.balance(), "$");
-            graphics.drawString(font, balance, leftPos + 250 - font.width(balance), y + 3,
+            String loan = row.hasLoan() ? Component.translatable("gui.athens_coins.has_loan").getString() : "";
+            int rightWidth = Math.min(listArea.width() / 2,
+                    font.width(balance) + (loan.isEmpty() ? 0 : font.width(loan) + 6));
+            int loanBudget = loan.isEmpty() ? 0 : Math.max(20, (rightWidth - 6) / 2);
+            int balanceBudget = loan.isEmpty() ? rightWidth : Math.max(20, rightWidth - loanBudget - 6);
+            graphics.drawString(font, ScreenText.fit(font, number, 48), listArea.x() + 4, y + 3,
+                    0xFFE0C060, false);
+            drawFitted(graphics, row.owner(), listArea.x() + 54, y + 3,
+                    Math.max(8, listArea.width() - 58 - rightWidth), 0xFFFFFFFF, mouseX, mouseY);
+            int right = listArea.right() - 4;
+            if (!loan.isEmpty()) {
+                String fitted = ScreenText.fit(font, loan, loanBudget);
+                graphics.drawString(font, fitted, right - font.width(fitted), y + 3, 0xFFE06B6B, false);
+                if (ScreenText.wasTruncated(font, loan, loanBudget)
+                        && mouseX >= right - loanBudget && mouseX < right
+                        && mouseY >= y && mouseY < y + ROW_H) {
+                    hoverTooltip = Component.literal(loan);
+                }
+                right -= loanBudget + 6;
+            }
+            String fittedBalance = ScreenText.fit(font, balance, balanceBudget);
+            graphics.drawString(font, fittedBalance, right - font.width(fittedBalance), y + 3,
                     0xFF6BE06B, false);
-            if (row.hasLoan()) {
-                graphics.drawString(font, Component.translatable("gui.athens_coins.has_loan"),
-                        leftPos + 258, y + 3, 0xFFE06B6B, false);
+            if (ScreenText.wasTruncated(font, balance, balanceBudget)
+                    && mouseX >= right - balanceBudget && mouseX < right
+                    && mouseY >= y && mouseY < y + ROW_H) {
+                hoverTooltip = Component.literal(balance);
             }
             y += ROW_H;
         }
     }
 
-    private void renderAtms(GuiGraphics graphics) {
-        graphics.drawString(font, Component.translatable("gui.athens_coins.atms_hint"),
-                leftPos + 8, topPos + 44, 0xFFB0A090, false);
-        int y = topPos + 60;
+    private void renderAtms(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect content = layout.content().inset(PAD);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.atms_hint").getString(),
+                content.x(), content.y(), content.width(), 0xFFB0A090, mouseX, mouseY);
+        int x = content.x() + Math.min(158, content.width() / 2 + 4);
+        int y = content.y() + 20;
         for (CoinType type : CoinType.ORDERED) {
             String line = type.shortName().getString() + ": " + Money.format(bank.syncedRate(type), "$");
-            graphics.drawString(font, line, leftPos + 176, y, 0xFF9EC5D8, false);
-            y += 12;
+            drawFitted(graphics, line, x, y, Math.max(20, content.right() - x), 0xFF9EC5D8, mouseX, mouseY);
+            y += 14;
         }
-        graphics.drawString(font, Component.translatable("gui.athens_coins.atms_note"),
-                leftPos + 8, topPos + PANEL_H - 44, 0xFF8A7A6A, false);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.atms_note").getString(),
+                content.x(), content.bottom() - 12, content.width(), 0xFF8A7A6A, mouseX, mouseY);
     }
 
-    private void renderSettings(GuiGraphics graphics) {
-        graphics.drawString(font, Component.translatable("gui.athens_coins.bank_name"),
-                leftPos + 8, topPos + 52, 0xFFB0A090, false);
-        graphics.drawString(font, Component.translatable("gui.athens_coins.bank_value"),
-                leftPos + 8, topPos + 74, 0xFFB0A090, false);
-
-        // Show the current terms and the band the rates have to sit inside.
-        int y = topPos + PANEL_H - 46;
-        String terms = Component.translatable("gui.athens_coins.bank_terms",
-                Money.format(bank.walletLimit(), "$"),
-                Money.format(bank.commissionFee(), "$"),
-                bank.commissionPeriodDays()).getString();
-        graphics.drawString(font, terms, leftPos + 8, y, 0xFFD8C0A0, false);
-
-        StringBuilder band = new StringBuilder();
-        for (CoinType type : CoinType.ORDERED) {
-            long own = bank.syncedRate(type);
-            band.append(type.shortName().getString()).append(" ")
-                    .append(Money.format(own, "$")).append("   ");
-        }
-        graphics.drawString(font, band.toString(), leftPos + 8, y + 10, 0xFF9EC5D8, false);
+    private void renderSettings(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect content = layout.content().inset(PAD);
+        int labelWidth = Math.min(78, Math.max(54, content.width() / 4));
+        drawFitted(graphics, Component.translatable("gui.athens_coins.bank_name").getString(),
+                content.x(), content.y() + 4, labelWidth, 0xFFB0A090, mouseX, mouseY);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.bank_value").getString(),
+                content.x(), content.y() + 24, labelWidth, 0xFFB0A090, mouseX, mouseY);
     }
 
-    // ------------------------------------------------------------------ input
+    private void drawFitted(GuiGraphics graphics, String text, int x, int y, int maxWidth,
+                            int color, int mouseX, int mouseY) {
+        String fitted = ScreenText.fit(font, text, maxWidth);
+        graphics.drawString(font, fitted, x, y, color, false);
+        if (ScreenText.wasTruncated(font, text, maxWidth)
+                && mouseX >= x && mouseX < x + maxWidth && mouseY >= y && mouseY < y + 10) {
+            hoverTooltip = Component.literal(text);
+        }
+    }
+
+    private int visibleRows() {
+        return Math.max(1, ScreenLayout.visibleRows(listArea, ROW_H));
+    }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        int rows = visibleRows();
         if (tab == Tab.USERS || tab == Tab.OPEN) {
-            int y = topPos + 58;
-            List<S2COpenTerminalPacket.PlayerRow> rows = players;
-            for (int i = scroll; i < Math.min(rows.size(), scroll + LIST_ROWS); i++) {
-                if (mouseY >= y && mouseY < y + ROW_H
-                        && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
-                    S2COpenTerminalPacket.PlayerRow row = rows.get(i);
-                    if (tab == Tab.USERS) {
-                        sendFor(row.banker()
-                                ? C2STerminalActionPacket.Action.REMOVE_BANKER
-                                : C2STerminalActionPacket.Action.ADD_BANKER, row.id());
-                    } else if (!row.hasAccount()) {
-                        sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
-                    }
-                    return true;
+            int index = rowAt(mouseX, mouseY, players.size(), rows);
+            if (index >= 0) {
+                S2COpenTerminalPacket.PlayerRow row = players.get(index);
+                if (tab == Tab.USERS) {
+                    sendFor(row.banker() ? C2STerminalActionPacket.Action.REMOVE_BANKER
+                            : C2STerminalActionPacket.Action.ADD_BANKER, row.id());
+                } else if (!row.hasAccount()) {
+                    sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
                 }
-                y += ROW_H;
+                return true;
             }
-        }
-        if (tab == Tab.ACCOUNTS && button == 0) {
-            int y = topPos + 58;
-            for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
-                if (mouseY >= y && mouseY < y + ROW_H
-                        && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
-                    ModNetwork.toServer(new com.athensmc.athenscoins.network
-                            .C2SRequestAccountPacket(pos, accounts.get(i).number()));
-                    return true;
-                }
-                y += ROW_H;
-            }
-        }
-        if (tab == Tab.ACCOUNTS && button == 1) {
-            int y = topPos + 58;
-            for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
-                if (mouseY >= y && mouseY < y + ROW_H
-                        && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
-                    // Right click closes the account and issues the card; deliberately not the
-                    // left button, which is easy to hit by accident.
+        } else if (tab == Tab.ACCOUNTS && (button == 0 || button == 1)) {
+            int index = rowAt(mouseX, mouseY, accounts.size(), rows);
+            if (index >= 0) {
+                if (button == 0) {
+                    ModNetwork.toServer(new com.athensmc.athenscoins.network.C2SRequestAccountPacket(
+                            pos, accounts.get(index).number()));
+                } else {
                     ModNetwork.toServer(new C2STerminalActionPacket(pos,
                             C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
-                            accounts.get(i).number(), 0L, ""));
-                    return true;
+                            accounts.get(index).number(), 0L, ""));
                 }
-                y += ROW_H;
+                return true;
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int size = tab == Tab.ACCOUNTS ? accounts.size() : players.size();
-        int max = Math.max(0, size - LIST_ROWS);
-        scroll = Math.max(0, Math.min(max, scroll - (int) Math.signum(delta)));
-        return true;
+    private int rowAt(double mouseX, double mouseY, int size, int rows) {
+        if (!listArea.contains(mouseX, mouseY)) {
+            return -1;
+        }
+        int index = scroll + (int) ((mouseY - listArea.y()) / ROW_H);
+        return index < Math.min(size, scroll + rows) ? index : -1;
     }
 
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (tab != Tab.ACCOUNTS && tab != Tab.USERS && tab != Tab.OPEN) {
+            return super.mouseScrolled(mouseX, mouseY, delta);
+        }
+        int size = tab == Tab.ACCOUNTS ? accounts.size() : players.size();
+        int max = Math.max(0, size - visibleRows());
+        scroll = ScreenLayout.clamp(scroll - (int) Math.signum(delta), 0, max);
+        return true;
+    }
 }

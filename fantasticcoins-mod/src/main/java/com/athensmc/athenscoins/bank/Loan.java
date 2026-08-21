@@ -48,10 +48,12 @@ public class Loan {
         this.lastInterestAt = value;
     }
 
-    public void addInterest(long amount) {
-        if (amount > 0L) {
-            owed += amount;
+    public boolean addInterest(long amount) {
+        if (amount <= 0L || !com.athensmc.athenscoins.wallet.Money.canAdd(owed, amount)) {
+            return false;
         }
+        owed += amount;
+        return true;
     }
 
     /** Pays what it can and returns how much was actually applied. */

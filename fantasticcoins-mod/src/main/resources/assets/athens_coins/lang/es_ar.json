@@ -210,6 +210,8 @@
   "message.athens_coins.atm_nothing_to_move": "No hay nada que mover",
   "message.athens_coins.bank_atm_issued": "Cajeros entregados",
   "message.athens_coins.bank_no_such_account": "Esa cuenta no es de este banco",
+  "message.athens_coins.bank_close_has_debt": "No se puede cerrar la cuenta sin liquidar sus deudas",
+  "message.athens_coins.bank_close_insufficient": "El saldo total no alcanza para liquidar préstamo y comisiones",
   "message.athens_coins.bank_closed_account": "Cuenta de %s cerrada, %s en la tarjeta",
   "message.athens_coins.bank_closed_yours": "%s cerró tu cuenta y entregó tu dinero en tarjeta",
   "message.athens_coins.card_invalid": "Esa tarjeta no es válida",

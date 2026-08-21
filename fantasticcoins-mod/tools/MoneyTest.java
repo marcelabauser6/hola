@@ -131,6 +131,19 @@ public class MoneyTest {
         eq("multiply negative count", Money.multiply(1000L, -5), 0L);
         eq("clamp negative", Money.clampBalance(-100L), 0L);
         eq("clamp over max", Money.clampBalance(Long.MAX_VALUE), Money.MAX_CENTS);
+        eq("can add exactly to max", Money.canAdd(Money.MAX_CENTS - 1L, 1L), true);
+        eq("cannot add beyond max", Money.canAdd(Money.MAX_CENTS, 1L), false);
+        eq("cannot add wrapped negative", Money.canAdd(Long.MAX_VALUE, Long.MAX_VALUE), false);
+        eq("exact add", Money.addExact(125L, 375L), 500L);
+        checks++;
+        try {
+            Money.addExact(Money.MAX_CENTS, 1L);
+            failures++;
+            System.out.println("  FAIL addExact overflow should throw");
+        } catch (ArithmeticException expected) {
+            // expected: financial mutations must reject rather than saturate
+        }
+        eq("exact subtraction", Money.subtractExact(500L, 125L), 375L);
 
         System.out.println("-- compact forms --");
         eq("compact(50000)", Money.compact(50000L, "$"), "$500.00");

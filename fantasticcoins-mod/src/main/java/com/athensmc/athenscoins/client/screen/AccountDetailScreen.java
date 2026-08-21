@@ -4,6 +4,8 @@ import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankRules;
 import com.athensmc.athenscoins.bank.LedgerEntry;
 import com.athensmc.athenscoins.bank.Loan;
+import com.athensmc.athenscoins.client.layout.ScreenLayout;
+import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.network.C2STerminalActionPacket;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenAccountPacket;
@@ -21,18 +23,11 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/**
- * One account in full: balances, terms, any live loan, and the register of movements.
- *
- * <p>Only cash appears here. Physical coins live in inventories and are not the bank's business.</p>
- */
+/** Responsive account summary and paginated ledger. */
 public class AccountDetailScreen extends Screen {
-
     private static final int PANEL_W = 340;
     private static final int PANEL_H = 232;
     private static final int ROW_H = 11;
-    private static final int LEDGER_ROWS = 9;
-
     private static final DateTimeFormatter STAMP =
             DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.systemDefault());
 
@@ -48,29 +43,27 @@ public class AccountDetailScreen extends Screen {
     private final long reserve;
     private final List<LedgerEntry> ledger;
 
-    private int leftPos;
-    private int topPos;
+    private ScreenLayout.Regions layout;
+    private ScreenLayout.Columns columns;
     private int page;
     private EditBox amountBox;
+    private Component hoverTooltip;
 
     public AccountDetailScreen(Screen parent, S2COpenAccountPacket packet) {
-        super(Component.literal("#" + packet.account().number() + "  "
-                + packet.account().ownerName()));
+        super(Component.literal("#" + packet.account().number() + " · " + packet.account().ownerName()));
         this.parent = parent;
-        this.pos = packet.pos();
-        this.account = packet.account();
-        this.bankName = packet.bankName();
-        this.commissionFee = packet.commissionFee();
-        this.commissionDays = packet.commissionDays();
-        this.loanMax = packet.loanMax();
-        this.loanDays = packet.loanDays();
-        this.loanInterest = packet.loanInterest();
-        this.reserve = packet.reserve();
-        // The account arrives with its newest entries first.
-        this.ledger = account.ledger();
+        pos = packet.pos();
+        account = packet.account();
+        bankName = packet.bankName();
+        commissionFee = packet.commissionFee();
+        commissionDays = packet.commissionDays();
+        loanMax = packet.loanMax();
+        loanDays = packet.loanDays();
+        loanInterest = packet.loanInterest();
+        reserve = packet.reserve();
+        ledger = account.ledger();
     }
 
-    /** Lets a refresh of this screen keep the original back target. */
     public Screen parentScreen() {
         return parent;
     }
@@ -82,42 +75,45 @@ public class AccountDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        leftPos = (width - PANEL_W) / 2;
-        topPos = (height - PANEL_H) / 2;
+        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
+        layout = ScreenLayout.regions(panel, 20, 0, 54);
+        columns = ScreenLayout.columns(layout.content().inset(8), 10);
+        ScreenLayout.Rect footer = layout.footer().inset(6);
+        int gap = 4;
+        int cell = ScreenLayout.gridCellWidth(footer, 4, gap);
+        int y = footer.y();
 
-        amountBox = new EditBox(font, leftPos + 8, topPos + PANEL_H - 48, 90, 16,
+        amountBox = new EditBox(font, footer.x(), y, cell, 16,
                 Component.translatable("gui.athens_coins.bank_value"));
         amountBox.setValue("0");
         amountBox.setMaxLength(12);
         addRenderableWidget(amountBox);
 
-        addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.acct_lend"),
-                        b -> act(C2STerminalActionPacket.Action.GRANT_LOAN, amount()))
-                .bounds(leftPos + 102, topPos + PANEL_H - 48, 74, 16)
-                .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.acct_lend_tip",
-                                Money.format(loanMax, "$"), loanDays,
-                                String.format(java.util.Locale.ROOT, "%.2f", loanInterest / 100.0D))))
-                .build());
-
-        addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.acct_repay"),
-                        b -> act(C2STerminalActionPacket.Action.REPAY_LOAN, amount()))
-                .bounds(leftPos + 180, topPos + PANEL_H - 48, 74, 16)
-                .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.acct_repay_tip")))
-                .build());
-
+        addActionButton(footer.x() + cell + gap, y, cell, "gui.athens_coins.acct_lend",
+                C2STerminalActionPacket.Action.GRANT_LOAN,
+                Tooltip.create(Component.translatable("gui.athens_coins.acct_lend_tip",
+                        Money.format(loanMax, "$"), loanDays,
+                        String.format(java.util.Locale.ROOT, "%.2f", loanInterest / 100.0D))));
+        addActionButton(footer.x() + (cell + gap) * 2, y, cell, "gui.athens_coins.acct_repay",
+                C2STerminalActionPacket.Action.REPAY_LOAN,
+                Tooltip.create(Component.translatable("gui.athens_coins.acct_repay_tip")));
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.acct_close"),
-                        b -> act(C2STerminalActionPacket.Action.WITHDRAW_ALL, 0L))
-                .bounds(leftPos + 258, topPos + PANEL_H - 48, 74, 16)
+                        ignored -> act(C2STerminalActionPacket.Action.WITHDRAW_ALL, 0L))
+                .bounds(footer.x() + (cell + gap) * 3, y, cell, 16)
                 .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.acct_close_tip")))
                 .build());
-
+        int backWidth = Math.min(82, footer.width());
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.back"),
-                        b -> minecraft.setScreen(parent))
-                .bounds(leftPos + PANEL_W - 90, topPos + PANEL_H - 26, 82, 18)
-                .build());
+                        ignored -> minecraft.setScreen(parent))
+                .bounds(footer.right() - backWidth, footer.y() + 24, backWidth, 18).build());
     }
 
-    /** Reads the shared amount box, accepting decimals so cents can be typed. */
+    private void addActionButton(int x, int y, int width, String key,
+                                 C2STerminalActionPacket.Action action, Tooltip tooltip) {
+        addRenderableWidget(Button.builder(Component.translatable(key), ignored -> act(action, amount()))
+                .bounds(x, y, width, 16).tooltip(tooltip).build());
+    }
+
     private long amount() {
         String raw = amountBox == null ? "0" : amountBox.getValue().trim();
         if (raw.contains(".") || raw.contains(",")) {
@@ -139,95 +135,133 @@ public class AccountDetailScreen extends Screen {
                 account.number(), value, ""));
     }
 
-    // ------------------------------------------------------------------ rendering
-
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
-        graphics.fill(leftPos, topPos, leftPos + PANEL_W, topPos + PANEL_H, 0xF0140F0C);
-        StatsScreen.outline(graphics, leftPos, topPos, PANEL_W, PANEL_H, 0xFFC9A227);
-        graphics.fill(leftPos + 1, topPos + 1, leftPos + PANEL_W - 1, topPos + 18, 0xFF3A2A1E);
-        graphics.drawString(font, title, leftPos + PANEL_W / 2 - font.width(title) / 2,
-                topPos + 6, 0xFFFFD98F, true);
+        hoverTooltip = null;
+        ScreenLayout.Rect panel = layout.panel();
+        graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
+        StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFFC9A227);
+        graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, 0xFF3A2A1E);
+        drawFitted(graphics, title.getString(), panel.x() + 8, panel.y() + 6,
+                panel.width() - 16, 0xFFFFD98F, mouseX, mouseY);
 
-        int y = topPos + 24;
-        line(graphics, y, "gui.athens_coins.acct_bank", bankName, 0xFFD8C0A0);
-        line(graphics, y += ROW_H, "gui.athens_coins.acct_opened",
-                STAMP.format(Instant.ofEpochMilli(account.openedAt())), 0xFFB0A090);
-        line(graphics, y += ROW_H, "gui.athens_coins.acct_balance",
-                Money.format(account.balance(), "$"), 0xFF6BE06B);
-        line(graphics, y += ROW_H, "gui.athens_coins.acct_fee",
-                Money.format(commissionFee, "$") + " / " + commissionDays + "d", 0xFFB0A090);
-        if (account.commissionDebt() > 0L) {
-            line(graphics, y += ROW_H, "gui.athens_coins.acct_fee_debt",
-                    Money.format(account.commissionDebt(), "$"), 0xFFE06B6B);
-        }
-
-        Loan loan = account.loan();
-        if (loan != null && !loan.settled()) {
-            long now = System.currentTimeMillis();
-            int overdue = BankRules.overdueBusinessDays(loan.dueAt(), now);
-            line(graphics, y += ROW_H, "gui.athens_coins.acct_loan",
-                    Money.format(loan.owed(), "$"), 0xFFE0C060);
-            String due = STAMP.format(Instant.ofEpochMilli(loan.dueAt()));
-            line(graphics, y += ROW_H, "gui.athens_coins.acct_loan_due",
-                    overdue > 0
-                            ? Component.translatable("gui.athens_coins.acct_overdue", overdue).getString()
-                            : due,
-                    overdue > 0 ? 0xFFE06B6B : 0xFFB0A090);
-        } else {
-            line(graphics, y += ROW_H, "gui.athens_coins.acct_loan",
-                    Component.translatable("gui.athens_coins.acct_no_loan").getString(), 0xFF888888);
-        }
-        line(graphics, y += ROW_H, "gui.athens_coins.acct_reserve",
-                Money.format(reserve, "$"), 0xFF9EC5D8);
-
-        // ---- register
-        int ledgerTop = topPos + 24;
-        graphics.drawString(font, Component.translatable("gui.athens_coins.acct_ledger"),
-                leftPos + 176, ledgerTop, 0xFFD8B48C, false);
-        graphics.fill(leftPos + 176, ledgerTop + 10, leftPos + PANEL_W - 8, ledgerTop + 11, 0x40FFFFFF);
-
-        int rowY = ledgerTop + 14;
-        int from = page * LEDGER_ROWS;
-        if (ledger.isEmpty()) {
-            graphics.drawString(font, Component.translatable("gui.athens_coins.acct_no_moves"),
-                    leftPos + 176, rowY, 0xFF888888, false);
-        }
-        for (int i = from; i < Math.min(ledger.size(), from + LEDGER_ROWS); i++) {
-            LedgerEntry entry = ledger.get(i);
-            graphics.drawString(font, STAMP.format(Instant.ofEpochMilli(entry.at())),
-                    leftPos + 176, rowY, 0xFF7A6A5A, false);
-            String label = Component.translatable(entry.kind().translationKey()).getString();
-            graphics.drawString(font, font.plainSubstrByWidth(label, 74),
-                    leftPos + 232, rowY, 0xFFC0B0A0, false);
-            if (entry.amount() != 0L) {
-                String amount = (entry.amount() > 0 ? "+" : "")
-                        + Money.format(entry.amount(), "$");
-                graphics.drawString(font, amount, leftPos + PANEL_W - 10 - font.width(amount), rowY,
-                        entry.amount() > 0 ? 0xFF6BE06B : 0xFFE0956B, false);
-            }
-            rowY += ROW_H;
-        }
-
-        int pages = Math.max(1, (ledger.size() + LEDGER_ROWS - 1) / LEDGER_ROWS);
-        String pager = (page + 1) + " / " + pages;
-        graphics.drawString(font, pager, leftPos + 176, topPos + PANEL_H - 62, 0xFF8A7A6A, false);
-        graphics.drawString(font, Component.translatable("gui.athens_coins.acct_scroll"),
-                leftPos + 210, topPos + PANEL_H - 62, 0xFF6A5A4A, false);
-
+        renderSummary(graphics, mouseX, mouseY);
+        renderLedger(graphics, mouseX, mouseY);
         super.render(graphics, mouseX, mouseY, partialTick);
+        if (hoverTooltip != null) {
+            graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
+        }
     }
 
-    private void line(GuiGraphics graphics, int y, String labelKey, String value, int color) {
-        graphics.drawString(font, Component.translatable(labelKey), leftPos + 8, y, 0xFF8A7A6A, false);
-        graphics.drawString(font, value, leftPos + 96, y, color, false);
+    private void renderSummary(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect area = columns.first();
+        int y = area.y() + 2;
+        y = line(graphics, area, y, "gui.athens_coins.acct_bank", bankName, 0xFFD8C0A0, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_opened",
+                STAMP.format(Instant.ofEpochMilli(account.openedAt())), 0xFFB0A090, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_balance",
+                Money.format(account.balance(), "$"), 0xFF6BE06B, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_fee",
+                Money.format(commissionFee, "$") + " / " + commissionDays + "d", 0xFFB0A090, mouseX, mouseY);
+        if (account.commissionDebt() > 0L) {
+            y = line(graphics, area, y, "gui.athens_coins.acct_fee_debt",
+                    Money.format(account.commissionDebt(), "$"), 0xFFE06B6B, mouseX, mouseY);
+        }
+        Loan loan = account.loan();
+        if (loan != null && !loan.settled()) {
+            int overdue = BankRules.overdueBusinessDays(loan.dueAt(), System.currentTimeMillis());
+            y = line(graphics, area, y, "gui.athens_coins.acct_loan",
+                    Money.format(loan.owed(), "$"), 0xFFE0C060, mouseX, mouseY);
+            String due = overdue > 0
+                    ? Component.translatable("gui.athens_coins.acct_overdue", overdue).getString()
+                    : STAMP.format(Instant.ofEpochMilli(loan.dueAt()));
+            y = line(graphics, area, y, "gui.athens_coins.acct_loan_due", due,
+                    overdue > 0 ? 0xFFE06B6B : 0xFFB0A090, mouseX, mouseY);
+        } else {
+            y = line(graphics, area, y, "gui.athens_coins.acct_loan",
+                    Component.translatable("gui.athens_coins.acct_no_loan").getString(),
+                    0xFF888888, mouseX, mouseY);
+        }
+        line(graphics, area, y, "gui.athens_coins.acct_reserve",
+                Money.format(reserve, "$"), 0xFF9EC5D8, mouseX, mouseY);
+    }
+
+    private int line(GuiGraphics graphics, ScreenLayout.Rect area, int y, String labelKey,
+                     String value, int color, int mouseX, int mouseY) {
+        int labelWidth = Math.max(38, area.width() * 48 / 100);
+        String label = Component.translatable(labelKey).getString();
+        drawFitted(graphics, label, area.x(), y, labelWidth - 3, 0xFF8A7A6A, mouseX, mouseY);
+        drawFitted(graphics, value, area.x() + labelWidth, y,
+                area.width() - labelWidth, color, mouseX, mouseY);
+        return y + ROW_H;
+    }
+
+    private void renderLedger(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect area = columns.second();
+        drawFitted(graphics, Component.translatable("gui.athens_coins.acct_ledger").getString(),
+                area.x(), area.y() + 2, area.width(), 0xFFD8B48C, mouseX, mouseY);
+        graphics.fill(area.x(), area.y() + 12, area.right(), area.y() + 13, 0x40FFFFFF);
+        ScreenLayout.Rect rowsArea = new ScreenLayout.Rect(area.x(), area.y() + 16,
+                area.width(), Math.max(0, area.height() - 30));
+        int rows = Math.max(1, ScreenLayout.visibleRows(rowsArea, ROW_H));
+        int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
+        page = Math.min(page, pages - 1);
+        int from = page * rows;
+        int y = rowsArea.y();
+        if (ledger.isEmpty()) {
+            drawFitted(graphics, Component.translatable("gui.athens_coins.acct_no_moves").getString(),
+                    area.x(), y, area.width(), 0xFF888888, mouseX, mouseY);
+        }
+        graphics.enableScissor(rowsArea.x(), rowsArea.y(), rowsArea.right(), rowsArea.bottom());
+        for (int i = from; i < Math.min(ledger.size(), from + rows); i++) {
+            LedgerEntry entry = ledger.get(i);
+            String stamp = STAMP.format(Instant.ofEpochMilli(entry.at()));
+            String amountText = entry.amount() == 0L ? "" : (entry.amount() > 0 ? "+" : "")
+                    + Money.format(entry.amount(), "$");
+            int amountWidth = Math.min(area.width() / 2, font.width(amountText));
+            int stampWidth = Math.min(58, area.width() / 3);
+            drawFitted(graphics, stamp, area.x(), y, stampWidth, 0xFF7A6A5A, mouseX, mouseY);
+            String label = Component.translatable(entry.kind().translationKey()).getString();
+            drawFitted(graphics, label, area.x() + stampWidth + 3, y,
+                    Math.max(8, area.width() - stampWidth - amountWidth - 8), 0xFFC0B0A0, mouseX, mouseY);
+            if (!amountText.isEmpty()) {
+                String fittedAmount = ScreenText.fit(font, amountText, amountWidth);
+                graphics.drawString(font, fittedAmount, area.right() - font.width(fittedAmount), y,
+                        entry.amount() > 0 ? 0xFF6BE06B : 0xFFE0956B, false);
+                if (ScreenText.wasTruncated(font, amountText, amountWidth)
+                        && rowsArea.contains(mouseX, mouseY)
+                        && mouseX >= area.right() - amountWidth && mouseX < area.right()
+                        && mouseY >= y && mouseY < y + ROW_H) {
+                    hoverTooltip = Component.literal(amountText);
+                }
+            }
+            y += ROW_H;
+        }
+        graphics.disableScissor();
+        String pager = (page + 1) + " / " + pages + " · "
+                + Component.translatable("gui.athens_coins.acct_scroll").getString();
+        drawFitted(graphics, pager, area.x(), area.bottom() - 10, area.width(),
+                0xFF8A7A6A, mouseX, mouseY);
+    }
+
+    private void drawFitted(GuiGraphics graphics, String text, int x, int y, int maxWidth,
+                            int color, int mouseX, int mouseY) {
+        String fitted = ScreenText.fit(font, text, maxWidth);
+        graphics.drawString(font, fitted, x, y, color, false);
+        if (ScreenText.wasTruncated(font, text, maxWidth)
+                && mouseX >= x && mouseX < x + maxWidth && mouseY >= y && mouseY < y + 10) {
+            hoverTooltip = Component.literal(text);
+        }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int pages = Math.max(1, (ledger.size() + LEDGER_ROWS - 1) / LEDGER_ROWS);
-        page = Math.max(0, Math.min(pages - 1, page - (int) Math.signum(delta)));
+        ScreenLayout.Rect area = columns.second();
+        int rows = Math.max(1, ScreenLayout.visibleRows(
+                new ScreenLayout.Rect(area.x(), area.y() + 16, area.width(), Math.max(0, area.height() - 30)), ROW_H));
+        int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
+        page = ScreenLayout.clamp(page - (int) Math.signum(delta), 0, pages - 1);
         return true;
     }
 

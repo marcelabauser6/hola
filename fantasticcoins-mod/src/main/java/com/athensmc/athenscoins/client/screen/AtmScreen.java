@@ -1,6 +1,7 @@
 package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
+import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.menu.AtmMenu;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
@@ -30,7 +31,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
             new ResourceLocation(AthensCoinsMod.MOD_ID, "textures/gui/atm.png");
 
     private static final int PANEL_W = 248;
-    private static final int PANEL_H = 178;
+    private static final int PANEL_H = 198;
 
     /** Title bar spans y 4..20 in the texture. */
     private static final int TITLE_Y = 8;
@@ -64,9 +65,9 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
     private static final int BUTTON_H = 18;
     private static final int[] BUTTON_X = { 160, 181, 202, 223 };
 
-    /** Footer band spans y 152..172, with room for two separated lines. */
-    private static final int FOOTER_LINE_1 = 154;
-    private static final int FOOTER_LINE_2 = 163;
+    /** Information footer is separate from the transfer-button band. */
+    private static final int FOOTER_LINE_1 = 177;
+    private static final int FOOTER_LINE_2 = 186;
 
     private static final int TITLE_COLOR = 0xFFD98F;
     /** Rows for moving cash between the wallet card and the account behind it. */
@@ -165,14 +166,16 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
         String symbol = "$";
         int accent = 0xFF000000 | menu.themeColor();
 
-        graphics.drawCenteredString(font, title, PANEL_W / 2, TITLE_Y, TITLE_COLOR);
+        String titleText = ScreenText.fit(font, title.getString(), PANEL_W - 20);
+        graphics.drawCenteredString(font, titleText, PANEL_W / 2, TITLE_Y, TITLE_COLOR);
 
         // Balance card: what is on the card now, and what the ceiling is.
         String label = trimToWidth(Component.translatable("gui.athens_coins.atm_card").getString(),
                 CARD_RIGHT - CARD_X - 10);
         graphics.drawString(font, label, CARD_X + 5, CARD_LABEL_Y, CARD_LABEL_COLOR, false);
-        String balance = Money.format(menu.cashCents(), symbol)
+        String fullBalance = Money.format(menu.cashCents(), symbol)
                 + (menu.walletLimit() > 0L ? " / " + Money.format(menu.walletLimit(), symbol) : "");
+        String balance = ScreenText.fit(font, fullBalance, CARD_RIGHT - CARD_X - 10);
         graphics.drawString(font, balance, CARD_RIGHT - 5 - font.width(balance),
                 CARD_VALUE_Y, 0xFF4CD964, true);
 
@@ -255,6 +258,14 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
                 graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
                 return;
             }
+        }
+        int cardX = leftPos + CARD_X;
+        int cardY = topPos + 23;
+        if (mouseX >= cardX && mouseX < leftPos + CARD_RIGHT && mouseY >= cardY && mouseY < topPos + 48) {
+            String balance = Money.format(menu.cashCents(), symbol)
+                    + (menu.walletLimit() > 0L ? " / " + Money.format(menu.walletLimit(), symbol) : "");
+            graphics.renderTooltip(font, Component.literal(balance), mouseX, mouseY);
+            return;
         }
         super.renderTooltip(graphics, mouseX, mouseY);
     }

@@ -31,8 +31,18 @@ public class Wallet {
         this.cents = Money.clampBalance(newCents);
     }
 
+    /** Adds only when the complete amount fits; no saturation and no partial mutation. */
+    public boolean tryAdd(long delta) {
+        if (delta <= 0L || !Money.canAdd(cents, delta)) {
+            return false;
+        }
+        cents += delta;
+        return true;
+    }
+
+    /** Compatibility helper. Prefer {@link #tryAdd(long)} in transactional code. */
     public void add(long delta) {
-        set(cents + delta);
+        tryAdd(delta);
     }
 
     public boolean canAfford(long amount) {

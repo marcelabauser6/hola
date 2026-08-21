@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.0.1-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.2.0-1.20.1.jar")
 
 problems = []
 notes = []
@@ -224,6 +224,8 @@ else:
             "com/athensmc/athenscoins/network/S2COpenStatsPacket.class",
             "com/athensmc/athenscoins/client/screen/StatsScreen.class",
             "com/athensmc/athenscoins/client/screen/StatsThemeEditorScreen.class",
+            "com/athensmc/athenscoins/client/layout/ScreenLayout.class",
+            "com/athensmc/athenscoins/client/layout/ScreenText.class",
             "com/athensmc/athenscoins/client/theme/StatsTheme.class",
             "com/athensmc/athenscoins/client/widget/ColorPicker.class",
             "com/athensmc/athenscoins/client/ClientCashCache.class",
@@ -260,6 +262,15 @@ else:
         for entry in required:
             if entry not in names:
                 problems.append(f"jar missing entry: {entry}")
+        # The source sprites receive detailed pixel checks below; byte equality ensures the JAR
+        # actually contains those checked files rather than stale resources from an older build.
+        for coin in ("bronze", "silver", "gold"):
+            entry = f"assets/athens_coins/textures/item/{coin}_coin.png"
+            source_texture = os.path.join(RES, entry)
+            with open(source_texture, "rb") as fh:
+                source_bytes = fh.read()
+            if entry in names and zf.read(entry) != source_bytes:
+                problems.append(f"jar coin texture differs from source resource: {entry}")
         # mods.toml must have been expanded (no leftover ${...})
         toml = zf.read("META-INF/mods.toml").decode("utf-8")
         if "${" in toml:
@@ -291,6 +302,32 @@ for base, _, files in os.walk(os.path.join(RES, "assets/athens_coins/textures/it
             problems.append(f"item texture {name} is {w}x{h}; keep item sprites <=128x128 "
                             f"or the atlas mipmaps produce sparkles")
     notes.append(f"item textures checked: all <=128x128")
+
+# Coin-specific content checks are stricter than the general atlas-size guard. They reproduce the
+# approved generator in memory, so manual edits or a filter regression cannot silently ship. The
+# metrics separately expose hidden RGB, alpha fringe, isolated highlights, local-palette overshoot,
+# and edge halos to make failures actionable.
+sys.path.insert(0, os.path.join(ROOT, "tools"))
+from PIL import Image
+from gen_coin_textures import COINS, FINAL_SIZE, load_source, measure, target_path, validation_errors
+
+for coin in COINS:
+    path = target_path(coin)
+    if not path.exists():
+        problems.append(f"coin texture missing: {path}")
+        continue
+    source = load_source(coin)
+    with Image.open(path) as opened:
+        coin_image = opened.copy()
+    metrics = measure(coin_image, source)
+    problems.extend(validation_errors(coin, coin_image, source))
+    notes.append(
+        f"{coin} coin {coin_image.size[0]}x{coin_image.size[1]}: "
+        f"partial={metrics.partial_alpha}, hiddenRGB={metrics.hidden_rgb}, "
+        f"isolatedHighlights={metrics.isolated_highlights}, "
+        f"localPalette={metrics.local_palette_violations}, halos={metrics.edge_halos}"
+    )
+notes.append(f"coin sprites match deterministic {FINAL_SIZE}x{FINAL_SIZE} premultiplied-area generation")
 
 # (b) The wallet must not be a container screen: that is what pulled the inventory in.
 wallet_screen = open(os.path.join(SRC, "com/athensmc/athenscoins/client/screen/WalletScreen.java"),
@@ -334,9 +371,10 @@ for locale in ("en_us", "es_es", "es_mx", "es_ar"):
         problems.append(f"{locale}.json text differs from en_us: {differing[:5]}")
 notes.append("all four locales carry identical Spanish text")
 
-# ---------------------------------------------------------------- 6. ATM layout arithmetic
-# The two footer lines used to sit 8px apart and visibly collided. Check every text row lands
-# inside the band the texture draws for it.
+# ---------------------------------------------------------------- 6. responsive screen layout arithmetic
+# The transfer controls and information footer must occupy separate bands. Check every text row
+# lands inside the band the texture draws for it, then verify all redesigned screens use the shared
+# fitting/geometry helpers for dynamic content.
 atm = open(os.path.join(SRC, "com/athensmc/athenscoins/client/screen/AtmScreen.java"),
            encoding="utf-8").read()
 
@@ -363,7 +401,8 @@ have_right, price_right = const("HAVE_RIGHT"), const("PRICE_RIGHT")
 # bands drawn by gen_atm_gui.py
 HEADER_BAND = (54, 70)
 TABLE = (53, 148)
-FOOTER_BAND = (152, 172)
+FOOTER_BAND = (175, 195)
+TRANSFER_BAND = (152, 172)
 
 if not (HEADER_BAND[0] <= header_y and header_y + FONT_H <= HEADER_BAND[1] + 1):
     problems.append(f"ATM header text at y={header_y} escapes the header band {HEADER_BAND}")
@@ -381,6 +420,13 @@ if f2 - f1 < FONT_H:
     problems.append(f"ATM footer lines only {f2 - f1}px apart; they will collide (need >= {FONT_H})")
 if f1 < FOOTER_BAND[0] or f2 + FONT_H > FOOTER_BAND[1] + 1:
     problems.append(f"ATM footer text ({f1}, {f2}) escapes the footer band {FOOTER_BAND}")
+card_row_y = const("CARD_ROW_Y")
+transfer_buttons = (card_row_y, card_row_y + 16)
+footer_text = (f1, f2 + FONT_H)
+if transfer_buttons[0] < TRANSFER_BAND[0] or transfer_buttons[1] > TRANSFER_BAND[1] + 1:
+    problems.append(f"ATM transfer buttons {transfer_buttons} escape band {TRANSFER_BAND}")
+if transfer_buttons[0] < footer_text[1] and transfer_buttons[1] > footer_text[0]:
+    problems.append(f"ATM transfer buttons {transfer_buttons} overlap footer text {footer_text}")
 if buttons[-1] + btn_w > panel_w - 5:
     problems.append(f"ATM buttons reach x={buttons[-1] + btn_w}, past the {panel_w}px panel edge")
 if price_right - have_right < 30:
@@ -396,6 +442,72 @@ if m and (int(m.group(1)), int(m.group(2))) != (panel_w, panel_h):
 m = re.search(r"ROW_Y = \(([^)]+)\)", gen)
 if m and [int(v) for v in m.group(1).split(",")] != rows:
     problems.append("gen_atm_gui.py row offsets do not match AtmScreen.ROW_Y")
+
+# Every dynamic-text-heavy screen must use the shared ellipsis helper. Screens whose widgets are
+# not texture-bound must also derive their panel/regions from the pure geometry utility.
+screen_dir = os.path.join(SRC, "com/athensmc/athenscoins/client/screen")
+redesigned = (
+    "BankTerminalScreen.java", "AccountDetailScreen.java", "CentralBankScreen.java",
+    "AtmScreen.java", "WalletScreen.java", "StatsScreen.java", "StatsThemeEditorScreen.java",
+)
+for name in redesigned:
+    source = open(os.path.join(screen_dir, name), encoding="utf-8").read()
+    if "ScreenText" not in source:
+        problems.append(f"{name} does not use ScreenText for bounded dynamic text")
+for name in set(redesigned) - {"AtmScreen.java"}:
+    source = open(os.path.join(screen_dir, name), encoding="utf-8").read()
+    if "ScreenLayout" not in source:
+        problems.append(f"{name} does not use shared responsive geometry")
+notes.append("seven redesigned screens use bounded text; six free-form screens use shared geometry")
+
+layout_test = os.path.join(ROOT, "src/test/java/com/athensmc/athenscoins/client/layout/ScreenLayoutStaticTest.java")
+if not os.path.exists(layout_test):
+    problems.append("responsive layout static test is missing")
+elif "{320, 240}" not in open(layout_test, encoding="utf-8").read():
+    problems.append("layout static test does not cover the 320x240 logical GUI viewport")
+else:
+    notes.append("responsive geometry test covers common logical GUI resolutions")
+
+# ---------------------------------------------------------------- 7. financial-core invariants
+financial_files = {
+    "api": "com/athensmc/athenscoins/api/FantasticCurrencyAPI.java",
+    "manager": "com/athensmc/athenscoins/bank/BankManager.java",
+    "bank_data": "com/athensmc/athenscoins/bank/BankData.java",
+    "wallet_data": "com/athensmc/athenscoins/wallet/WalletData.java",
+    "ledger": "com/athensmc/athenscoins/bank/LedgerEntry.java",
+    "card": "com/athensmc/athenscoins/item/BankCardItem.java",
+    "atm": "com/athensmc/athenscoins/block/AtmBlock.java",
+}
+financial = {name: open(os.path.join(SRC, path), encoding="utf-8").read()
+             for name, path in financial_files.items()}
+required_financial_guards = {
+    "API default deposit reaches principal account": ("api", "creditAccount(server,playerId"),
+    "API wallet charge is bank-gated manager operation": ("api", "chargeWallet(server,playerId"),
+    "wallet data persists zero initialization": ("wallet_data", "zero entries are intentional"),
+    "wallet migration has quarantine": ("wallet_data", "Quarantine"),
+    "bank data archives closed accounts": ("bank_data", "ClosedAccounts"),
+    "bank data retains orphan accounts": ("bank_data", "OrphanAccounts"),
+    "card has signed owner UUID": ("card", "TAG_OWNER"),
+    "card has unique token": ("card", "TAG_TOKEN"),
+    "card redemption is persisted": ("bank_data", "redeemCard"),
+    "ATM checks issuing bank ownership": ("atm", "ownsBank"),
+    "ledger stores before balance": ("ledger", 'putLong("before"'),
+    "ledger stores correlation id": ("ledger", 'putString("correlation"'),
+    "ledger stores actor": ("ledger", 'putString("actor"'),
+    "commission catch-up is session-budgeted": ("manager", "commissionCatchUpUsed"),
+    "wallet limit changes normalize excess": ("manager", "normalizacion de limite"),
+    "active wallet persists with principal account": ("manager", "account.walletBalance()"),
+}
+for label, (name, needle) in required_financial_guards.items():
+    if needle not in financial[name]:
+        problems.append(f"financial invariant missing: {label}")
+notes.append(f"{len(required_financial_guards)} financial-core static invariants checked")
+
+# Direct wallet mutation in the public API was the original bank-account bypass.
+if "WalletData.get(server).account(playerId)" in financial["api"]:
+    problems.append("FantasticCurrencyAPI directly creates/mutates wallets again")
+if "return wallets.computeIfAbsent" in financial["wallet_data"]:
+    problems.append("WalletData account creation no longer explicitly marks SavedData dirty")
 
 # ---------------------------------------------------------------- report
 print("=" * 70)

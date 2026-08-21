@@ -145,7 +145,7 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
                     .withStyle(ChatFormatting.RED));
             return InteractionResult.CONSUME;
         }
-        if (!BankManager.hasAccount(serverPlayer)) {
+        if (!BankManager.ownsBank(serverPlayer, bank)) {
             serverPlayer.sendSystemMessage(Component
                     .translatable("message.athens_coins.atm_needs_account")
                     .withStyle(ChatFormatting.RED));

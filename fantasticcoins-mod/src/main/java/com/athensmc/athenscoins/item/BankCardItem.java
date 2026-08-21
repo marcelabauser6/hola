@@ -1,126 +1,68 @@
 package com.athensmc.athenscoins.item;
 
+import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.wallet.Money;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.*;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
+import java.util.UUID;
 
-/**
- * A bearer card holding the balance of a closed account, used to move banks.
- *
- * <h2>Signed, not encrypted</h2>
- * Encrypting the amount would need the key on the server, so it would protect nothing: anyone who
- * can read the world can read the key. The real attack is editing the NBT to inflate the figure, so
- * the card is signed with an HMAC keyed on the world seed. The amount stays readable, because it is
- * the holder's own money, but a forged card fails verification and is refused.
- */
+/** Signed, owner-bound, uniquely registered transfer card with persistent anti-replay state. */
 public class BankCardItem extends Item {
+    public static final String TAG_AMOUNT="FcAmount", TAG_HOLDER="FcHolder", TAG_OWNER="FcOwnerUuid",
+            TAG_TOKEN="FcToken", TAG_PREV_ACCOUNT="FcPrevAccount", TAG_PREV_BANK="FcPrevBank", TAG_SIGNATURE="FcSig";
+    public BankCardItem(Properties properties){super(properties);}
 
-    public static final String TAG_AMOUNT = "FcAmount";
-    public static final String TAG_HOLDER = "FcHolder";
-    public static final String TAG_PREV_ACCOUNT = "FcPrevAccount";
-    public static final String TAG_PREV_BANK = "FcPrevBank";
-    public static final String TAG_SIGNATURE = "FcSig";
+    public record ValidatedCard(UUID token,UUID owner,long amount){}
 
-    public BankCardItem(Properties properties) {
-        super(properties);
+    public static ItemStack create(MinecraftServer server,long amount,UUID owner,String holder,int previousAccount,String previousBank){
+        long safe=Money.clampBalance(amount); BankData.CardRecord record=BankData.get(server).issueCard(owner,safe,previousAccount,previousBank);
+        return create(server, record, holder);
     }
 
-    // ------------------------------------------------------------------ creation
-
-    public static ItemStack create(MinecraftServer server, long amount, String holder,
-                                   int previousAccount, String previousBank) {
-        ItemStack stack = new ItemStack(ModItems.BANK_CARD.get());
-        CompoundTag tag = stack.getOrCreateTag();
-        tag.putLong(TAG_AMOUNT, Math.max(0L, amount));
-        tag.putString(TAG_HOLDER, holder == null ? "" : holder);
-        tag.putInt(TAG_PREV_ACCOUNT, previousAccount);
-        tag.putString(TAG_PREV_BANK, previousBank == null ? "" : previousBank);
-        tag.putString(TAG_SIGNATURE, sign(server, tag));
-        return stack;
+    /** Materializes an already registered close claim without issuing a second token. */
+    public static ItemStack create(MinecraftServer server, BankData.CardRecord record, String holder) {
+        ItemStack stack=new ItemStack(ModItems.BANK_CARD.get());CompoundTag tag=stack.getOrCreateTag();
+        tag.putLong(TAG_AMOUNT,record.amount());tag.putUUID(TAG_OWNER,record.owner());tag.putUUID(TAG_TOKEN,record.token());tag.putString(TAG_HOLDER,holder==null?"":holder);
+        tag.putInt(TAG_PREV_ACCOUNT,record.previousAccount());tag.putString(TAG_PREV_BANK,record.previousBank()==null?"":record.previousBank());tag.putString(TAG_SIGNATURE,sign(server,tag));return stack;
     }
 
-    /** Amount on a card, or -1 when it is missing, malformed or forged. */
-    public static long amountOf(MinecraftServer server, ItemStack stack) {
-        if (!stack.is(ModItems.BANK_CARD.get())) {
-            return -1L;
-        }
-        CompoundTag tag = stack.getTag();
-        if (tag == null || !tag.contains(TAG_SIGNATURE)) {
-            return -1L;
-        }
-        String expected = sign(server, tag);
-        if (!expected.equals(tag.getString(TAG_SIGNATURE))) {
-            return -1L;
-        }
-        return Math.max(0L, tag.getLong(TAG_AMOUNT));
+    /** Compatibility overload cannot safely invent ownership and therefore must not be used. */
+    @Deprecated public static ItemStack create(MinecraftServer server,long amount,String holder,int previousAccount,String previousBank){throw new IllegalArgumentException("owner UUID required");}
+
+    /** Validates signature, persistent issue record, anti-replay state and current holder UUID. */
+    @Nullable public static ValidatedCard validateFor(MinecraftServer server,ServerPlayer player,ItemStack stack){
+        if(!stack.is(ModItems.BANK_CARD.get()))return null;CompoundTag tag=stack.getTag();if(tag==null)return null;
+        if(!tag.hasUUID(TAG_OWNER)||!tag.hasUUID(TAG_TOKEN))return null; // legacy cards require audited manual recovery
+        UUID owner=tag.getUUID(TAG_OWNER),token=tag.getUUID(TAG_TOKEN);long amount=tag.getLong(TAG_AMOUNT);
+        if(!owner.equals(player.getUUID())||amount<0L||amount>Money.MAX_CENTS)return null;
+        byte[] expected=sign(server,tag).getBytes(StandardCharsets.UTF_8), actual=tag.getString(TAG_SIGNATURE).getBytes(StandardCharsets.UTF_8);
+        if(!MessageDigest.isEqual(expected,actual))return null;
+        BankData.CardRecord record=BankData.get(server).card(token);
+        if(record==null||record.redeemed()||!record.owner().equals(owner)||record.amount()!=amount)return null;
+        return new ValidatedCard(token,owner,amount);
     }
 
-    public static String holderOf(ItemStack stack) {
-        CompoundTag tag = stack.getTag();
-        return tag == null ? "" : tag.getString(TAG_HOLDER);
-    }
+    /** Marks an already-validated card redeemed. Replays return false and never mint twice. */
+    public static boolean markRedeemed(MinecraftServer server,ValidatedCard card){return BankData.get(server).redeemCard(card.token(),card.owner(),card.amount(),System.currentTimeMillis());}
 
-    // ------------------------------------------------------------------ signing
+    /** Registry-aware amount query for diagnostics. Owner-bound redemption must use validateFor. */
+    public static long amountOf(MinecraftServer server,ItemStack stack){CompoundTag tag=stack.getTag();if(tag==null||!tag.hasUUID(TAG_TOKEN)||!tag.hasUUID(TAG_OWNER))return -1L;BankData.CardRecord r=BankData.get(server).card(tag.getUUID(TAG_TOKEN));if(r==null||r.redeemed())return -1L;String expected=sign(server,tag);return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),tag.getString(TAG_SIGNATURE).getBytes(StandardCharsets.UTF_8))?r.amount():-1L;}
+    public static String holderOf(ItemStack stack){CompoundTag tag=stack.getTag();return tag==null?"":tag.getString(TAG_HOLDER);}
 
-    /** HMAC over the card's fields, keyed on the world seed. */
-    private static String sign(MinecraftServer server, CompoundTag tag) {
-        String payload = tag.getLong(TAG_AMOUNT) + "|" + tag.getString(TAG_HOLDER) + "|"
-                + tag.getInt(TAG_PREV_ACCOUNT) + "|" + tag.getString(TAG_PREV_BANK);
-        long seed = server.overworld().getSeed();
-        try {
-            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
-            mac.init(new javax.crypto.spec.SecretKeySpec(
-                    ("fantasticcurrency:" + seed).getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
-        } catch (java.security.GeneralSecurityException exception) {
-            // Without HMAC there is no safe way to accept a card, so make every check fail.
-            return "unavailable";
-        }
-    }
+    private static String sign(MinecraftServer server,CompoundTag tag){return hmac(server,tag.getLong(TAG_AMOUNT)+"|"+tag.getUUID(TAG_OWNER)+"|"+tag.getUUID(TAG_TOKEN)+"|"+tag.getString(TAG_HOLDER)+"|"+tag.getInt(TAG_PREV_ACCOUNT)+"|"+tag.getString(TAG_PREV_BANK));}
+    private static String hmac(MinecraftServer server,String payload){try{javax.crypto.Mac mac=javax.crypto.Mac.getInstance("HmacSHA256");mac.init(new javax.crypto.spec.SecretKeySpec(("fantasticcurrency:"+server.overworld().getSeed()).getBytes(StandardCharsets.UTF_8),"HmacSHA256"));byte[] digest=mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));StringBuilder hex=new StringBuilder(digest.length*2);for(byte b:digest){hex.append(Character.forDigit((b>>4)&15,16));hex.append(Character.forDigit(b&15,16));}return hex.toString();}catch(java.security.GeneralSecurityException e){return "unavailable";}}
 
-    // ------------------------------------------------------------------ display
-
-    @Override
-    public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip,
-                                TooltipFlag flag) {
-        CompoundTag tag = stack.getTag();
-        if (tag == null) {
-            return;
-        }
-        String symbol = CurrencyConfig.get().currencySymbol;
-        tooltip.add(Component.translatable("tooltip.athens_coins.card_amount",
-                        Component.literal(Money.format(tag.getLong(TAG_AMOUNT), symbol))
-                                .withStyle(ChatFormatting.WHITE))
-                .withStyle(ChatFormatting.GREEN));
-        tooltip.add(Component.translatable("tooltip.athens_coins.card_holder",
-                        tag.getString(TAG_HOLDER))
-                .withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("tooltip.athens_coins.card_from",
-                        tag.getString(TAG_PREV_BANK), tag.getInt(TAG_PREV_ACCOUNT))
-                .withStyle(ChatFormatting.DARK_GRAY));
-        tooltip.add(Component.translatable("tooltip.athens_coins.card_use")
-                .withStyle(ChatFormatting.DARK_GRAY));
-    }
-
-    @Override
-    public boolean isFoil(ItemStack stack) {
-        return true;
-    }
+    @Override public void appendHoverText(ItemStack stack,@Nullable Level level,List<Component> tooltip,TooltipFlag flag){CompoundTag tag=stack.getTag();if(tag==null)return;String symbol=CurrencyConfig.get().currencySymbol;tooltip.add(Component.translatable("tooltip.athens_coins.card_amount",Component.literal(Money.format(tag.getLong(TAG_AMOUNT),symbol)).withStyle(ChatFormatting.WHITE)).withStyle(ChatFormatting.GREEN));tooltip.add(Component.translatable("tooltip.athens_coins.card_holder",tag.getString(TAG_HOLDER)).withStyle(ChatFormatting.GRAY));tooltip.add(Component.translatable("tooltip.athens_coins.card_from",tag.getString(TAG_PREV_BANK),tag.getInt(TAG_PREV_ACCOUNT)).withStyle(ChatFormatting.DARK_GRAY));tooltip.add(Component.translatable("tooltip.athens_coins.card_use").withStyle(ChatFormatting.DARK_GRAY));}
+    @Override public boolean isFoil(ItemStack stack){return true;}
 }

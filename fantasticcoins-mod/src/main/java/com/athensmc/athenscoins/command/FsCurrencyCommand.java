@@ -111,7 +111,8 @@ public final class FsCurrencyCommand {
     private static int showBalance(CommandContext<CommandSourceStack> context, ServerPlayer target, boolean own) {
         CommandSourceStack source = context.getSource();
         CurrencyConfig.Settings settings = CurrencyConfig.get();
-        Wallet account = WalletManager.accountOf(target);
+        long cash = com.athensmc.athenscoins.api.FantasticCurrencyAPI.getBalance(
+                target.server, target.getUUID());
 
         source.sendSuccess(() -> Component.translatable(
                         own ? "message.athens_coins.balance_header" : "message.athens_coins.balance_header_other",
@@ -122,7 +123,7 @@ public final class FsCurrencyCommand {
                 .append(Component.literal(settings.currencyName)
                         .withStyle(style -> style.withColor(settings.cashColorRgb())))
                 .append(Component.literal(": ").withStyle(ChatFormatting.DARK_GRAY))
-                .append(Component.literal(Money.format(account.balance(), settings.currencySymbol))
+                .append(Component.literal(Money.format(cash, settings.currencySymbol))
                         .withStyle(ChatFormatting.WHITE)), false);
 
         source.sendSuccess(() -> Component.translatable("message.athens_coins.coins_header")
@@ -141,7 +142,7 @@ public final class FsCurrencyCommand {
         }
 
         long inventoryValue = WalletManager.inventoryValueCents(target);
-        long total = Money.clampBalance(account.balance() + inventoryValue);
+        long total = Money.canAdd(cash, inventoryValue) ? cash + inventoryValue : Money.MAX_CENTS;
         source.sendSuccess(() -> Component.translatable("message.athens_coins.balance_total",
                         Money.format(inventoryValue, settings.currencySymbol),
                         Money.format(total, settings.currencySymbol))
@@ -183,7 +184,12 @@ public final class FsCurrencyCommand {
                     Money.format(settings.maxTransferCents(), settings.currencySymbol)));
             return 0;
         }
-        if (!WalletManager.accountOf(sender).canAfford(cents)) {
+        if (!com.athensmc.athenscoins.bank.BankManager.hasAccount(sender)
+                || !com.athensmc.athenscoins.bank.BankManager.hasAccount(target)) {
+            context.getSource().sendFailure(Component.translatable("message.athens_coins.atm_needs_account"));
+            return 0;
+        }
+        if (!com.athensmc.athenscoins.api.FantasticCurrencyAPI.has(sender, cents)) {
             context.getSource().sendFailure(Component.translatable("message.athens_coins.insufficient_funds",
                     Money.format(cents, settings.currencySymbol)));
             return 0;

@@ -162,9 +162,12 @@ public class C2STerminalActionPacket {
                 feedback(player, "message.athens_coins.bank_saved");
             }
             case SET_WALLET_LIMIT -> {
-                bank.setWalletLimit(value);
-                data.setDirty();
-                feedback(player, "message.athens_coins.bank_saved");
+                if (BankManager.setWalletLimit(player.server, bank, value, player.getUUID())) {
+                    feedback(player, "message.athens_coins.bank_saved");
+                } else {
+                    player.sendSystemMessage(Component.translatable("message.athens_coins.amount_too_big")
+                            .withStyle(ChatFormatting.RED));
+                }
             }
             case SET_FEE -> {
                 bank.setCommissionFee(value);
@@ -173,6 +176,7 @@ public class C2STerminalActionPacket {
             }
             case SET_FEE_DAYS -> {
                 bank.setCommissionPeriodDays((int) value);
+                BankManager.resetCommissionPolicyClock(player.server, bank, System.currentTimeMillis());
                 data.setDirty();
                 feedback(player, "message.athens_coins.bank_saved");
             }
@@ -278,9 +282,16 @@ public class C2STerminalActionPacket {
         String holder = target.ownerName();
         int number = target.number();
         java.util.UUID ownerId = target.owner();
-        long payout = BankManager.closeAccount(player.server, target);
+        BankManager.CloseResult closed = BankManager.closeAccount(
+                player.server, target, true, player.getUUID());
+        if (!closed.ok()) {
+            player.sendSystemMessage(Component.translatable(closed.messageKey())
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        long payout = closed.payout();
         ItemStack card = com.athensmc.athenscoins.item.BankCardItem.create(
-                player.server, payout, holder, number, bank.name());
+                player.server, closed.card(), holder);
         if (!player.getInventory().add(card)) {
             player.drop(card, false);
         }

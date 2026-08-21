@@ -39,11 +39,15 @@ public final class WalletManager {
     }
 
     public static Wallet accountOf(ServerPlayer player) {
-        return data(player).account(player.getUUID());
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankManager.accountOf(player);
+        return new Wallet(account == null ? 0L : account.walletBalance());
     }
 
     public static Wallet accountOf(ServerPlayer context, UUID owner) {
-        return data(context).account(owner);
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankData.get(context.server).accountOf(owner);
+        return new Wallet(account == null ? 0L : account.walletBalance());
     }
 
     public static void markDirty(ServerPlayer player) {
@@ -152,11 +156,18 @@ public final class WalletManager {
             credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
         }
 
-        // Fill the wallet card up to the bank's ceiling and park the rest in the account.
-        com.athensmc.athenscoins.bank.BankManager.credit(player, credited,
-                com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_DEPOSIT, type.id());
-        markDirty(player);
+        // ATM coin deposits settle into the principal account. Refund inventory on any failure.
+        boolean paid = com.athensmc.athenscoins.bank.BankManager.creditAccount(player.server,
+                player.getUUID(), credited,
+                com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_DEPOSIT,
+                type.id(), "atm");
+        if (!paid) {
+            giveCoins(player, type, taken);
+            syncInventory(player);
+            return Exchange.NONE;
+        }
         syncInventory(player);
+        pushBalance(player);
         return new Exchange(taken, credited);
     }
 
@@ -176,8 +187,9 @@ public final class WalletManager {
             return Exchange.NONE;
         }
 
-        Wallet account = accountOf(player);
-        long affordable = account.balance() / unitPrice;
+        long available = com.athensmc.athenscoins.api.FantasticCurrencyAPI.getBalance(
+                player.server, player.getUUID());
+        long affordable = available / unitPrice;
         int amount = requested < 0
                 ? (int) Math.min(affordable, settings.maxCoinsPerExchange)
                 : (int) Math.min(Math.min(requested, affordable), settings.maxCoinsPerExchange);
@@ -186,10 +198,12 @@ public final class WalletManager {
         }
 
         long cost = Money.multiply(unitPrice, amount);
-        if (!account.withdraw(cost)) {
+        if (!com.athensmc.athenscoins.bank.BankManager.chargeWallet(player.server,
+                player.getUUID(), cost,
+                com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_WITHDRAW,
+                type.id(), "atm")) {
             return Exchange.NONE;
         }
-        markDirty(player);
         giveCoins(player, type, amount);
         syncInventory(player);
         pushBalance(player);
@@ -198,20 +212,15 @@ public final class WalletManager {
 
     // ------------------------------------------------------------------ transfers
 
-    /** Moves cash between two accounts. Returns false if the sender cannot cover it. */
+    /** Moves wallet cash between two banked players, atomically and under the receiver's ceiling. */
     public static boolean transfer(ServerPlayer from, ServerPlayer to, long cents) {
-        if (cents <= 0L) {
-            return false;
+        boolean moved = com.athensmc.athenscoins.bank.BankManager.transferWallet(
+                from.server, from.getUUID(), to.getUUID(), cents, "command");
+        if (moved) {
+            pushBalance(from);
+            pushBalance(to);
         }
-        Wallet source = accountOf(from);
-        if (!source.withdraw(cents)) {
-            return false;
-        }
-        accountOf(to).add(cents);
-        markDirty(from);
-        pushBalance(from);
-        pushBalance(to);
-        return true;
+        return moved;
     }
 
     /**
@@ -240,6 +249,13 @@ public final class WalletManager {
         for (BlockPos pos : BlockPos.betweenClosed(origin.offset(-range, -range, -range),
                 origin.offset(range, range, range))) {
             if (!level.getBlockState(pos).is(ModBlocks.ATM.get())) {
+                continue;
+            }
+            if (!(player instanceof ServerPlayer serverPlayer)
+                    || !(level.getBlockEntity(pos) instanceof com.athensmc.athenscoins.block.AtmBlockEntity atm)
+                    || atm.bankId() == null
+                    || !com.athensmc.athenscoins.bank.BankManager.ownsBank(serverPlayer,
+                    atm.bank(serverPlayer.server))) {
                 continue;
             }
             double distance = pos.distSqr(origin);

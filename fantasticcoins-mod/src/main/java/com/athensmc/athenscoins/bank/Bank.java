@@ -92,8 +92,13 @@ public class Bank {
         return reserve;
     }
 
-    public void addReserve(long amount) {
-        reserve = Math.max(0L, reserve + amount);
+    /** Adds to reserves only when the full amount fits. */
+    public boolean addReserve(long amount) {
+        if (amount <= 0L || !com.athensmc.athenscoins.wallet.Money.canAdd(reserve, amount)) {
+            return false;
+        }
+        reserve += amount;
+        return true;
     }
 
     /** Takes from the reserve only if it covers the amount. */
