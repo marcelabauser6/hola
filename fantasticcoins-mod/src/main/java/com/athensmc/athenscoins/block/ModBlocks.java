@@ -31,6 +31,16 @@ public class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .noOcclusion()));
 
+    /** Central bank. Operator only at every step. */
+    public static final RegistryObject<Block> CENTRAL_BANK_TERMINAL =
+            BLOCKS.register("central_bank_terminal", () -> new CentralBankTerminalBlock(
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_BLUE)
+                            .strength(5.0F, 12.0F)
+                            .sound(SoundType.METAL)
+                            .requiresCorrectToolForDrops()
+                            .noOcclusion()));
+
     public static void register(IEventBus eventBus) {
         BLOCKS.register(eventBus);
     }

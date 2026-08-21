@@ -39,6 +39,9 @@ public final class ShopService {
         if (!CoinEconomy.available()) {
             return Result.NO_CURRENCY;
         }
+        if (!ShopService.sellerBanked(buyer, shop)) {
+            return Result.NO_BANK_ACCOUNT;
+        }
         ShopOffer offer = shop.getOffers().get(offerIndex);
         int items = offer.getBundle() * amount;
         if (!offer.isInfinite() && offer.getStock() < items) {
@@ -69,6 +72,9 @@ public final class ShopService {
         }
         if (!shop.getOwner().equals(owner.m_20148_())) {
             return Result.NOT_OWNER;
+        }
+        if (!ShopService.refreshAccount(owner, shop)) {
+            return Result.NO_BANK_ACCOUNT;
         }
         Inventory inv = owner.m_150109_();
         if (slot < 0 || slot >= inv.m_6643_()) {
@@ -185,6 +191,30 @@ public final class ShopService {
         return Math.max(1L, Math.min(price, (Long)FShopConfig.MAX_UNIT_PRICE.get()));
     }
 
+    /**
+     * Re-reads the owner's account number onto the shop.
+     *
+     * <p>Called before listing so a shop picks up a new number by itself after its owner moves
+     * banks, and drops to frozen if they no longer have an account at all.</p>
+     */
+    private static boolean refreshAccount(ServerPlayer owner, PlayerShop shop) {
+        if (shop.isMain()) {
+            return true;        // the server shop is not anybody's account
+        }
+        int number = com.athensmc.athenscoins.api.FantasticCurrencyAPI.accountNumber(owner.f_8924_, owner.m_20148_());
+        shop.setAccountNumber(number);
+        return number > 0;
+    }
+
+    /** True when the shop can accept money: the server shop always can. */
+    private static boolean sellerBanked(ServerPlayer buyer, PlayerShop shop) {
+        if (shop.isMain()) {
+            return true;
+        }
+        return shop.canSell() && com.athensmc.athenscoins.api.FantasticCurrencyAPI.ownsAccount(
+                buyer.f_8924_, shop.getOwner(), shop.getAccountNumber());
+    }
+
     private static boolean isCoin(ItemStack s) {
         return s.m_41720_() == CoinEconomy.coinItem(0) || s.m_41720_() == CoinEconomy.coinItem(1) || s.m_41720_() == CoinEconomy.coinItem(2);
     }
@@ -229,6 +259,7 @@ public final class ShopService {
         NO_SHOP,
         NO_OFFER,
         NOT_OWNER,
+        NO_BANK_ACCOUNT,
         OUT_OF_STOCK,
         CANNOT_AFFORD,
         INVENTORY_FULL,

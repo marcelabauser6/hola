@@ -1,6 +1,8 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.client.screen.AccountDetailScreen;
 import com.athensmc.athenscoins.client.screen.BankTerminalScreen;
+import com.athensmc.athenscoins.client.screen.CentralBankScreen;
 import com.athensmc.athenscoins.client.screen.StatsScreen;
 import com.athensmc.athenscoins.client.screen.WalletScreen;
 import com.athensmc.athenscoins.client.ClientCashCache;
@@ -43,6 +45,26 @@ final class ClientWalletSync {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {
             minecraft.setScreen(new BankTerminalScreen(packet));
+        }
+    }
+
+    static void openAccount(S2COpenAccountPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
+        // Keep whatever is open as the back target, unless it is already a detail screen.
+        net.minecraft.client.gui.screens.Screen current = minecraft.screen;
+        if (current instanceof AccountDetailScreen detail) {
+            current = detail.parentScreen();
+        }
+        minecraft.setScreen(new AccountDetailScreen(current, packet));
+    }
+
+    static void openCentral(S2COpenCentralPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new CentralBankScreen(packet));
         }
     }
 

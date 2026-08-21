@@ -220,6 +220,39 @@ public final class FantasticCurrencyAPI {
         }
     }
 
+    // ------------------------------------------------------------------ bank accounts
+    //
+    // Shop mods need to know whether a player is banked before letting them take money.
+
+    /** The player's account number, or 0 when they have none. */
+    public static int accountNumber(MinecraftServer server, UUID playerId) {
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankData.get(server).accountOf(playerId);
+        return account == null ? 0 : account.number();
+    }
+
+    /** True when that account number exists and belongs to that player. */
+    public static boolean ownsAccount(MinecraftServer server, UUID playerId, int number) {
+        if (number <= 0) {
+            return false;
+        }
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankData.get(server).account(number);
+        return account != null && account.owner().equals(playerId);
+    }
+
+    /** Name of the bank holding that account, empty when it does not exist. */
+    public static String bankNameOf(MinecraftServer server, int number) {
+        com.athensmc.athenscoins.bank.BankData data =
+                com.athensmc.athenscoins.bank.BankData.get(server);
+        com.athensmc.athenscoins.bank.BankAccount account = data.account(number);
+        if (account == null) {
+            return "";
+        }
+        com.athensmc.athenscoins.bank.Bank bank = data.bank(account.bankId());
+        return bank == null ? "" : bank.name();
+    }
+
     // ------------------------------------------------------------------ physical coins
 
     /** Cash value of one physical coin of the given denomination, in cents. */

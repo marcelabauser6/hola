@@ -41,6 +41,10 @@ public class ModItems {
     public static final RegistryObject<Item> BANK_CARD = ITEMS.register("bank_card",
             () -> new BankCardItem(new Item.Properties().stacksTo(1)));
 
+    public static final RegistryObject<Item> CENTRAL_BANK_TERMINAL_ITEM =
+            ITEMS.register("central_bank_terminal", () -> new BlockItem(
+                    ModBlocks.CENTRAL_BANK_TERMINAL.get(), new Item.Properties()));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

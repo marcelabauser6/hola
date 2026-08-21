@@ -10,7 +10,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
 
-    private static final String PROTOCOL_VERSION = "4";
+    private static final String PROTOCOL_VERSION = "5";
 
     private static SimpleChannel channel;
 
@@ -53,6 +53,30 @@ public final class ModNetwork {
                 .encoder(C2STerminalActionPacket::encode)
                 .decoder(C2STerminalActionPacket::new)
                 .consumerMainThread(C2STerminalActionPacket::handle)
+                .add();
+
+        channel.messageBuilder(S2COpenAccountPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenAccountPacket::encode)
+                .decoder(S2COpenAccountPacket::new)
+                .consumerMainThread(S2COpenAccountPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2SRequestAccountPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SRequestAccountPacket::encode)
+                .decoder(C2SRequestAccountPacket::new)
+                .consumerMainThread(C2SRequestAccountPacket::handle)
+                .add();
+
+        channel.messageBuilder(S2COpenCentralPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenCentralPacket::encode)
+                .decoder(S2COpenCentralPacket::new)
+                .consumerMainThread(S2COpenCentralPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2SCentralActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SCentralActionPacket::encode)
+                .decoder(C2SCentralActionPacket::new)
+                .consumerMainThread(C2SCentralActionPacket::handle)
                 .add();
     }
 

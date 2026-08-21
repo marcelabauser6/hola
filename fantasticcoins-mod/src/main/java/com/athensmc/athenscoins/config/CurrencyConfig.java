@@ -86,6 +86,25 @@ public final class CurrencyConfig {
         }
     }
 
+    /**
+     * Changes an official rate at runtime and persists it.
+     *
+     * <p>Used by the central bank terminal. Every bank's own rate is clamped against these, so
+     * moving one narrows or shifts the whole market's band.</p>
+     */
+    public static void setOfficialRate(CoinType type, long cents) {
+        Settings settings = get();
+        double value = cents / 100.0D;
+        switch (type) {
+            case BRONZE -> settings.bronzeCoinValue = value;
+            case SILVER -> settings.silverCoinValue = value;
+            case GOLD -> settings.goldCoinValue = value;
+        }
+        settings.validate();
+        settings.bake();
+        save();
+    }
+
     /** Writes the currently active settings back out, e.g. to add newly introduced keys. */
     public static void save() {
         try {

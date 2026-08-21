@@ -46,7 +46,8 @@ public class C2STerminalActionPacket {
         SET_LOAN_INTEREST,
         ISSUE_ATM,
         WITHDRAW_ALL,
-        GRANT_LOAN;
+        GRANT_LOAN,
+        REPAY_LOAN;
 
         private static final Action[] VALUES = values();
 
@@ -56,7 +57,7 @@ public class C2STerminalActionPacket {
 
         boolean operatorOnly() {
             return switch (this) {
-                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN -> false;
+                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN, REPAY_LOAN -> false;
                 default -> true;
             };
         }
@@ -65,13 +66,21 @@ public class C2STerminalActionPacket {
     private final BlockPos pos;
     private final Action action;
     private final UUID target;
+    /** Account this action applies to, 0 when it does not apply to one. */
+    private final int account;
     private final long value;
     private final String text;
 
     public C2STerminalActionPacket(BlockPos pos, Action action, UUID target, long value, String text) {
+        this(pos, action, target, 0, value, text);
+    }
+
+    public C2STerminalActionPacket(BlockPos pos, Action action, UUID target, int account,
+                                   long value, String text) {
         this.pos = pos;
         this.action = action;
         this.target = target == null ? new UUID(0L, 0L) : target;
+        this.account = account;
         this.value = value;
         this.text = text == null ? "" : text;
     }
@@ -80,6 +89,7 @@ public class C2STerminalActionPacket {
         this.pos = buffer.readBlockPos();
         this.action = Action.byOrdinal(buffer.readByte());
         this.target = buffer.readUUID();
+        this.account = buffer.readVarInt();
         this.value = buffer.readVarLong();
         this.text = buffer.readUtf(32);
     }
@@ -88,6 +98,7 @@ public class C2STerminalActionPacket {
         buffer.writeBlockPos(pos);
         buffer.writeByte(action.ordinal());
         buffer.writeUUID(target);
+        buffer.writeVarInt(account);
         buffer.writeVarLong(value);
         buffer.writeUtf(text, 32);
     }
@@ -139,6 +150,7 @@ public class C2STerminalActionPacket {
             case ISSUE_ATM -> issueAtm(player, bank);
             case WITHDRAW_ALL -> withdrawAll(player, data, bank);
             case GRANT_LOAN -> grantLoan(player, data, bank);
+            case REPAY_LOAN -> repayLoan(player, data, bank);
             case SET_NAME -> {
                 bank.setName(text);
                 data.setDirty();
@@ -189,7 +201,8 @@ public class C2STerminalActionPacket {
             }
         }
 
-        // Refresh whatever the terminal is showing.
+        // Refresh the terminal list. The loan actions additionally re-push the detail screen,
+        // which arrives after this and therefore wins.
         ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, operator));
     }
 
@@ -256,15 +269,16 @@ public class C2STerminalActionPacket {
 
     /** Closes an account and puts everything it held onto a signed card. */
     private void withdrawAll(ServerPlayer player, BankData data, Bank bank) {
-        BankAccount account = data.account((int) value);
-        if (account == null || !account.bankId().equals(bank.id())) {
+        BankAccount target = data.account(this.account);
+        if (target == null || !target.bankId().equals(bank.id())) {
             player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        String holder = account.ownerName();
-        int number = account.number();
-        long payout = BankManager.closeAccount(player.server, account);
+        String holder = target.ownerName();
+        int number = target.number();
+        java.util.UUID ownerId = target.owner();
+        long payout = BankManager.closeAccount(player.server, target);
         ItemStack card = com.athensmc.athenscoins.item.BankCardItem.create(
                 player.server, payout, holder, number, bank.name());
         if (!player.getInventory().add(card)) {
@@ -273,7 +287,7 @@ public class C2STerminalActionPacket {
         player.sendSystemMessage(Component.translatable("message.athens_coins.bank_closed_account",
                         holder, Money.format(payout, CurrencyConfig.get().currencySymbol))
                 .withStyle(ChatFormatting.YELLOW));
-        ServerPlayer owner = player.server.getPlayerList().getPlayer(account.owner());
+        ServerPlayer owner = player.server.getPlayerList().getPlayer(ownerId);
         if (owner != null) {
             owner.sendSystemMessage(Component.translatable("message.athens_coins.bank_closed_yours",
                     bank.name()).withStyle(ChatFormatting.YELLOW));
@@ -282,16 +296,40 @@ public class C2STerminalActionPacket {
     }
 
     private void grantLoan(ServerPlayer player, BankData data, Bank bank) {
-        BankAccount account = data.account((int) (value / 1_000_000L));
-        long amount = value % 1_000_000L;
-        if (account == null || !account.bankId().equals(bank.id())) {
+        BankAccount target = data.account(this.account);
+        if (target == null || !target.bankId().equals(bank.id())) {
             player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        BankManager.LoanResult result = BankManager.grantLoan(player.server, account, amount);
+        BankManager.LoanResult result = BankManager.grantLoan(player.server, target, value);
         player.sendSystemMessage(Component.translatable(result.messageKey())
                 .withStyle(result.ok() ? ChatFormatting.GREEN : ChatFormatting.RED));
+        if (result.ok()) {
+            refreshAccount(player, bank, target.number());
+        }
+    }
+
+    private void repayLoan(ServerPlayer player, BankData data, Bank bank) {
+        BankAccount target = data.account(this.account);
+        if (target == null || !target.bankId().equals(bank.id())) {
+            return;
+        }
+        long paid = BankManager.repayLoan(player.server, target, value);
+        player.sendSystemMessage(Component.translatable(paid > 0L
+                        ? "message.athens_coins.bank_loan_repaid"
+                        : "message.athens_coins.bank_loan_nothing",
+                        Money.format(paid, CurrencyConfig.get().currencySymbol))
+                .withStyle(paid > 0L ? ChatFormatting.GREEN : ChatFormatting.RED));
+        refreshAccount(player, bank, target.number());
+    }
+
+    /** Re-sends the detail screen so the banker sees the result immediately. */
+    private void refreshAccount(ServerPlayer player, Bank bank, int number) {
+        BankAccount fresh = BankData.get(player.server).account(number);
+        if (fresh != null) {
+            ModNetwork.toPlayer(player, new S2COpenAccountPacket(pos, fresh, bank));
+        }
     }
 
     private void feedback(ServerPlayer player, String key) {

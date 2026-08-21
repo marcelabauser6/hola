@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-4.0.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.0.0-1.20.1.jar")
 
 problems = []
 notes = []
@@ -235,6 +235,20 @@ else:
             "com/athensmc/athenscoins/bank/BankManager.class",
             "com/athensmc/athenscoins/bank/LedgerEntry.class",
             "com/athensmc/athenscoins/bank/Loan.class",
+            "com/athensmc/athenscoins/block/CentralBankTerminalBlock.class",
+            "com/athensmc/athenscoins/block/AtmBlockEntity.class",
+            "com/athensmc/athenscoins/block/ModBlockEntities.class",
+            "com/athensmc/athenscoins/item/BankCardItem.class",
+            "com/athensmc/athenscoins/client/screen/AccountDetailScreen.class",
+            "com/athensmc/athenscoins/client/screen/CentralBankScreen.class",
+            "com/athensmc/athenscoins/network/S2COpenAccountPacket.class",
+            "com/athensmc/athenscoins/network/C2SRequestAccountPacket.class",
+            "com/athensmc/athenscoins/network/S2COpenCentralPacket.class",
+            "com/athensmc/athenscoins/network/C2SCentralActionPacket.class",
+            "assets/athens_coins/blockstates/central_bank_terminal.json",
+            "assets/athens_coins/textures/block/central_bank_front.png",
+            "assets/athens_coins/textures/item/bank_card.png",
+            "data/athens_coins/loot_tables/blocks/central_bank_terminal.json",
             "com/athensmc/athenscoins/block/BankTerminalBlock.class",
             "com/athensmc/athenscoins/block/OperatorOnlyPlacement.class",
             "com/athensmc/athenscoins/client/screen/BankTerminalScreen.class",

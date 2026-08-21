@@ -27,6 +27,8 @@ public final class PlayerShop {
     private String name;
     private final List<ShopOffer> offers = new ArrayList<ShopOffer>();
     private final long[] pendingEarnings = new long[4];
+    /** Bank account this shop settles into. 0 means the shop cannot sell. */
+    private int accountNumber;
     private boolean main;
     private ItemStack icon = ItemStack.f_41583_;
 
@@ -88,6 +90,19 @@ public final class PlayerShop {
         }
     }
 
+    public int getAccountNumber() {
+        return this.accountNumber;
+    }
+
+    public void setAccountNumber(int number) {
+        this.accountNumber = Math.max(0, number);
+    }
+
+    /** A shop with no account is frozen: it can be browsed but nothing can be bought or listed. */
+    public boolean canSell() {
+        return this.accountNumber > 0;
+    }
+
     public long getPendingEarnings(int coin) {
         return this.pendingEarnings[Math.max(0, Math.min(3, coin))];
     }
@@ -117,6 +132,7 @@ public final class PlayerShop {
         tag.m_128359_("name", this.name);
         tag.m_128388_("earnings3", new long[]{this.pendingEarnings[0], this.pendingEarnings[1], this.pendingEarnings[2]});
         tag.m_128356_("earningsCash", this.pendingEarnings[3]);
+        tag.m_128405_("account", this.accountNumber);
         tag.m_128379_("main", this.main);
         if (!this.icon.m_41619_()) {
             tag.m_128365_("icon", (Tag)this.icon.m_41739_(new CompoundTag()));
@@ -132,6 +148,7 @@ public final class PlayerShop {
     public static PlayerShop fromNbt(CompoundTag tag) {
         PlayerShop shop = new PlayerShop(tag.m_128342_("id"), tag.m_128342_("owner"), tag.m_128461_("ownerName"), tag.m_128461_("name"));
         shop.pendingEarnings[3] = tag.m_128454_("earningsCash");
+        shop.accountNumber = tag.m_128451_("account");
         long[] e = tag.m_128467_("earnings3");
         for (int i = 0; i < 3 && i < e.length; ++i) {
             shop.pendingEarnings[i] = e[i];
@@ -156,6 +173,7 @@ public final class PlayerShop {
         buf.m_130103_(this.pendingEarnings[1]);
         buf.m_130103_(this.pendingEarnings[2]);
         buf.m_130103_(this.pendingEarnings[3]);
+        buf.m_130130_(this.accountNumber);
         buf.writeBoolean(this.main);
         buf.m_130055_(this.icon);
         buf.m_130130_(this.offers.size());
@@ -170,6 +188,7 @@ public final class PlayerShop {
         shop.pendingEarnings[1] = buf.m_130258_();
         shop.pendingEarnings[2] = buf.m_130258_();
         shop.pendingEarnings[3] = buf.m_130258_();
+        shop.accountNumber = buf.m_130242_();
         shop.main = buf.readBoolean();
         shop.icon = buf.m_130267_();
         int n = buf.m_130242_();

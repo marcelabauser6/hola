@@ -22,7 +22,9 @@ public final class OperatorOnlyPlacement {
 
     @SubscribeEvent
     public static void onPlace(BlockEvent.EntityPlaceEvent event) {
-        if (!event.getPlacedBlock().is(ModBlocks.BANK_TERMINAL.get())) {
+        boolean restricted = event.getPlacedBlock().is(ModBlocks.BANK_TERMINAL.get())
+                || event.getPlacedBlock().is(ModBlocks.CENTRAL_BANK_TERMINAL.get());
+        if (!restricted) {
             return;
         }
         if (!(event.getEntity() instanceof ServerPlayer player)) {

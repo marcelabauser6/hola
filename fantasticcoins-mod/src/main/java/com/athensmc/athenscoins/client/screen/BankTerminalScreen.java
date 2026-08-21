@@ -274,7 +274,7 @@ public class BankTerminalScreen extends Screen {
     }
 
     private void renderAccounts(GuiGraphics graphics) {
-        graphics.drawString(font, Component.translatable("gui.athens_coins.accounts_hint"),
+        graphics.drawString(font, Component.translatable("gui.athens_coins.accounts_hint2"),
                 leftPos + 8, topPos + 44, 0xFFB0A090, false);
         if (accounts.isEmpty()) {
             graphics.drawString(font, Component.translatable("gui.athens_coins.no_accounts"),
@@ -356,6 +356,18 @@ public class BankTerminalScreen extends Screen {
                 y += ROW_H;
             }
         }
+        if (tab == Tab.ACCOUNTS && button == 0) {
+            int y = topPos + 58;
+            for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
+                if (mouseY >= y && mouseY < y + ROW_H
+                        && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
+                    ModNetwork.toServer(new com.athensmc.athenscoins.network
+                            .C2SRequestAccountPacket(pos, accounts.get(i).number()));
+                    return true;
+                }
+                y += ROW_H;
+            }
+        }
         if (tab == Tab.ACCOUNTS && button == 1) {
             int y = topPos + 58;
             for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
@@ -363,8 +375,9 @@ public class BankTerminalScreen extends Screen {
                         && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
                     // Right click closes the account and issues the card; deliberately not the
                     // left button, which is easy to hit by accident.
-                    send(C2STerminalActionPacket.Action.WITHDRAW_ALL,
-                            accounts.get(i).number(), "");
+                    ModNetwork.toServer(new C2STerminalActionPacket(pos,
+                            C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
+                            accounts.get(i).number(), 0L, ""));
                     return true;
                 }
                 y += ROW_H;

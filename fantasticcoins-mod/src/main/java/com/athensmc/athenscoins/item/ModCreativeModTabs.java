@@ -24,6 +24,8 @@ public class ModCreativeModTabs {
                         output.accept(ModItems.GOLD_COIN.get());
                         output.accept(ModItems.ATM_ITEM.get());
                         output.accept(ModItems.BANK_TERMINAL_ITEM.get());
+                        output.accept(ModItems.CENTRAL_BANK_TERMINAL_ITEM.get());
+                        output.accept(ModItems.BANK_CARD.get());
                     })
                     .build());
 
