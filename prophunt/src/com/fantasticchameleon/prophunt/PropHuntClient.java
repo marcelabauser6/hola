@@ -1,0 +1,306 @@
+package com.fantasticchameleon.prophunt;
+
+import com.fantasticchameleon.client.AvatarState;
+import com.fantasticchameleon.client.BlockTexturePresets;
+import com.fantasticchameleon.client.PropAvatarPreview;
+import com.fantasticchameleon.item.ChameleonArmor;
+import com.fantasticchameleon.paint.BodyCanvas;
+import com.fantasticchameleon.paint.PaintAttachments;
+import com.fantasticchameleon.platform.Services;
+import com.fantasticchameleon.pose.PropShapes;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.IronBarsBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+/**
+ * Lado cliente del modo Prop Hunt: se encarga de la <b>apariencia</b> del disfraz.
+ *
+ * <p>La forma la decide el servidor, que es autoritativo, pero las texturas solo existen en el cliente.
+ * El servidor dice de que bloque se trata en {@code PROP_SOURCE} (y para las criaturas basta el propio
+ * indice de prop, que ya viaja sincronizado), y aqui se construye la imagen.
+ *
+ * <p>Se escribe en la copia local del atributo del lienzo, que en el cliente no manda nada por red: es
+ * solo dibujar lo que ya sabemos. Vale igual para el jugador local, para los demas y para los bots, asi
+ * que todos los props salen identicos al original sin depender de que nadie suba nada.
+ */
+@Mod.EventBusSubscriber(modid = "fantastic_chameleon", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
+public final class PropHuntClient {
+   private static final Map<String, BodyCanvas> BLOCK_CACHE = new HashMap<>();
+   private static final Map<UUID, String> APPLIED = new HashMap<>();
+   private static final Map<UUID, VisualState> VISUAL_STATES = new HashMap<>();
+   private static final int REFRESH_TICKS = 5;
+   private static final int MAX_CANVAS_PER_TICK = 2;
+   private static int tickCounter;
+
+   private PropHuntClient() {
+   }
+
+   /**
+    * True si el jugador local esta jugando en modo Prop Hunt.
+    *
+    * <p>Se lee del atributo sincronizado del propio jugador, no del paquete de salas: ese paquete puede
+    * llegar tarde o estar desactualizado, y entonces se abrian los menus del modo equivocado.
+    */
+   public static boolean isPropHunt() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      return player != null && isPropHunt(player);
+   }
+
+   /** Comprueba el modo sincronizado del jugador concreto que se esta renderizando. */
+   public static boolean isPropHunt(Player player) {
+      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      return mode != null && mode == PropHunt.MODE_PROP_HUNT;
+   }
+
+   /** Gate cliente conservador para no cancelar clics normales fuera de una ronda Meccha como hider. */
+   public static boolean canUseMecchaAttach() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      if (player == null || !ChameleonArmor.fullCoverage(player)) {
+         return false;
+      }
+      Integer mode = Services.PLATFORM.getOrNull(player, PaintAttachments.GAME_MODE);
+      if (mode == null || mode != PropHunt.MODE_MECCHA) {
+         return false;
+      }
+      int phase = com.fantasticchameleon.client.RoundBar.phase();
+      if (phase != 1 && phase != 2 && phase != 4) {
+         return false;
+      }
+      for (com.fantasticchameleon.network.RoundStatePayload.Entry entry : com.fantasticchameleon.client.RoundBar.entries()) {
+         if (entry.id().equals(player.m_20148_())) {
+            return !entry.found();
+         }
+      }
+      return false;
+   }
+
+   /** Capacidad cliente conservadora; el servidor vuelve a validar cada accion. */
+   public static boolean canUseProp() {
+      LocalPlayer player = Minecraft.m_91087_().f_91074_;
+      if (player == null || !isPropHunt(player)) {
+         return false;
+      }
+
+      int phase = com.fantasticchameleon.client.RoundBar.phase();
+      if (phase != 1 && phase != 2 && phase != 4) {
+         return false;
+      }
+
+      for (com.fantasticchameleon.network.RoundStatePayload.Entry entry : com.fantasticchameleon.client.RoundBar.entries()) {
+         if (entry.id().equals(player.m_20148_())) {
+            return !entry.found();
+         }
+      }
+      return false;
+   }
+
+   @SubscribeEvent
+   public static void onClientTick(TickEvent.ClientTickEvent event) {
+      // Se atiende cada tick a quien acaba de transformarse, pero el repaso completo del entorno (los
+      // 27 vecinos por jugador, que es lo que se notaba al empezar la ronda) solo cada 5 ticks.
+      if (event.phase == TickEvent.Phase.END) {
+         tickCounter++;
+         paintProps();
+      }
+   }
+
+   /** Da a cada jugador disfrazado la textura que le corresponde. */
+   private static void paintProps() {
+      ClientLevel level = Minecraft.m_91087_().f_91073_;
+      if (level == null) {
+         return;
+      }
+
+      boolean periodic = tickCounter % REFRESH_TICKS == 0;
+      int built = 0;
+      for (Player player : level.m_6907_()) {
+         int prop = AvatarState.prop(player);
+         if (prop < 0) {
+            APPLIED.remove(player.m_20148_());
+            continue;
+         }
+
+         // Quien acaba de transformarse se atiende en el mismo tick; el repaso periódico existe solo
+         // para que las conexiones de vallas y muros sigan a los cambios del entorno.
+         if (!periodic && APPLIED.containsKey(player.m_20148_())) {
+            continue;
+         }
+
+         boolean creature = PropShapes.followsLook(prop);
+         BlockState state = creature ? null : visualStateFor(player);
+         if (!creature && state == null) {
+            continue;
+         }
+
+         // El id del estado incluye todas las propiedades visuales; evita reutilizar el atlas de otro
+         // eje, orientación o conexión del mismo bloque.
+         int variant = AvatarState.propVariant(player);
+         int stateId = state == null ? -1 : Block.m_49956_(state);
+         String key = prop + ":" + variant + ":" + stateId;
+         if (key.equals(APPLIED.get(player.m_20148_()))) {
+            continue;
+         }
+
+         // Generar la imagen de un prop cuesta lo suyo, y al empezar la ronda todos se transforman a la
+         // vez. Se limita a dos por tick: los demás entran en los ticks siguientes sin que se note, en
+         // lugar de juntar todo el coste en el primer tick de la partida.
+         if (built >= MAX_CANVAS_PER_TICK) {
+            break;
+         }
+
+         BodyCanvas canvas = creature ? PropTextures.forMob(PropShapes.of(prop).key()) : blockCanvas(state, prop, variant);
+         if (canvas != null) {
+            built++;
+            Services.PLATFORM.set(player, PaintAttachments.PROP_CANVAS, canvas);
+            APPLIED.put(player.m_20148_(), key);
+         }
+      }
+   }
+
+   /** Estado exacto sincronizado; PROP_SOURCE se conserva como fallback para mundos/paquetes antiguos. */
+   public static BlockState stateFor(Player player) {
+      if (player == Minecraft.m_91087_().f_91074_ && PropAvatarPreview.active()) {
+         return null;
+      }
+
+      Integer stateId = Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_STATE);
+      if (stateId != null && stateId >= 0) {
+         BlockState state = Block.m_49803_(stateId);
+         if (state != null) {
+            return state;
+         }
+      }
+
+      String blockId = String.valueOf(Services.PLATFORM.getOrNull(player, PaintAttachments.PROP_SOURCE));
+      if (blockId.isEmpty() || "null".equals(blockId)) {
+         return null;
+      }
+
+      try {
+         Block block = BuiltInRegistries.f_256975_.m_7745_(new ResourceLocation(blockId));
+         return block == null ? null : block.m_49966_();
+      } catch (Exception ignored) {
+         return null;
+      }
+   }
+
+   /**
+    * Estado visual derivado en la celda donde el prop esta fijado. Conserva el estado capturado como
+    * base, pero vuelve a ejecutar las reglas vanilla de vecinos para vallas, paneles, muros y
+    * escaleras. No coloca ni modifica ningun bloque real.
+    */
+   public static BlockState visualStateFor(Player player) {
+      BlockState base = stateFor(player);
+      if (base == null || !AvatarState.locked(player) || !connectsToNeighbours(base.m_60734_())) {
+         VISUAL_STATES.remove(player.m_20148_());
+         return base;
+      }
+
+      BlockPos anchor = player.m_20183_();
+      int baseId = Block.m_49956_(base);
+      int neighbours = neighbourSignature(player, anchor);
+      VisualState cached = VISUAL_STATES.get(player.m_20148_());
+      if (cached != null && cached.anchor.equals(anchor) && cached.baseId == baseId && cached.neighbours == neighbours) {
+         return cached.state;
+      }
+
+      BlockState derived = base;
+      try {
+         derived = Block.m_49931_(base, player.m_9236_(), anchor);
+      } catch (RuntimeException ignored) {
+         // Un bloque modded puede asumir que existe de verdad en anchor. En ese caso se conserva el
+         // estado capturado, nunca se arriesga el render completo por una conexion cosmetica.
+      }
+      VISUAL_STATES.put(player.m_20148_(), new VisualState(anchor.m_7949_(), baseId, neighbours, derived));
+      return derived;
+   }
+
+   private static boolean connectsToNeighbours(Block block) {
+      return block instanceof FenceBlock || block instanceof IronBarsBlock || block instanceof WallBlock || block instanceof StairBlock;
+   }
+
+   /** Escaleras consultan diagonales; una firma 3x3x3 cubrelas y sigue siendo muy barata al fijarse. */
+   private static int neighbourSignature(Player player, BlockPos anchor) {
+      int hash = 1;
+      for (int dy = -1; dy <= 1; dy++) {
+         for (int dz = -1; dz <= 1; dz++) {
+            for (int dx = -1; dx <= 1; dx++) {
+               if (dx != 0 || dy != 0 || dz != 0) {
+                  BlockState around = player.m_9236_().m_8055_(anchor.m_7918_(dx, dy, dz));
+                  hash = 31 * hash + Block.m_49956_(around);
+               }
+            }
+         }
+      }
+      return hash;
+   }
+
+   /** Lienzo del estado exacto con cache porque construirlo cuesta. */
+   private static BodyCanvas blockCanvas(BlockState state, int prop, int variant) {
+      int stateId = Block.m_49956_(state);
+      String key = stateId + "|" + prop + "|" + variant;
+      BodyCanvas cached = BLOCK_CACHE.get(key);
+      if (cached != null) {
+         return cached;
+      }
+
+      try {
+         BodyCanvas built = PropTextures.forBlock(state, prop, variant);
+         if (built == null) {
+            // Ultimo recurso: la imagen plana que ya usaba el mod, mejor eso que un prop en blanco.
+            built = BlockTexturePresets.canvas(state.m_60734_());
+         }
+
+         if (built != null) {
+            BLOCK_CACHE.put(key, built);
+         }
+
+         return built;
+      } catch (Exception ignored) {
+         return null;
+      }
+   }
+
+   /** Invalida lienzos cuando cambian resource packs o modelos. */
+   public static void clearCaches() {
+      BLOCK_CACHE.clear();
+      APPLIED.clear();
+      VISUAL_STATES.clear();
+      PropTextures.clearCache();
+      com.fantasticchameleon.client.VanillaPropModels.clearCache();
+   }
+
+   private record VisualState(BlockPos anchor, int baseId, int neighbours, BlockState state) {
+   }
+
+   /** Los listeners de recursos se registran en el bus MOD, separado del tick del bus Forge. */
+   @Mod.EventBusSubscriber(modid = "fantastic_chameleon", value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
+   public static final class Reloads {
+      private Reloads() {
+      }
+
+      @SubscribeEvent
+      public static void onRegisterReloadListeners(RegisterClientReloadListenersEvent event) {
+         event.registerReloadListener((ResourceManagerReloadListener)manager -> clearCaches());
+      }
+   }
+}

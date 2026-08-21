@@ -1,0 +1,614 @@
+# Fantastic Chameleon 1.2.23 — cuerpo visible, botones dentro de su panel y zona libre de mobs
+
+> **1.2.23 — ajustes pedidos sobre 1.2.22.**
+> - **Ahora se ve el cuerpo, no sólo la cabeza.** El hundido baja de 0,12 a **0,06**: el torso y los
+>   brazos asoman unos 0,065 y la cabeza 0,19. Con 0,12 el torso quedaba justo a ras de la superficie y
+>   sólo se distinguía la cabeza.
+> - **Los botones del pintor ya no se salen de su ventana.** El marco se dibujaba sin la escala del
+>   panel, así que cuatro botones de 11 px ocupaban 46 px fijos: en un panel reducido eran más anchos que
+>   él y aparecían flotando por fuera. Ahora su separación se adapta al ancho real y el glifo se omite si
+>   no cabe. Comprobado para todos los anchos de 8 a 260: **nunca sobresalen**.
+> - **Agacharse ya no te desacopla al bajar la cámara.** Con la cámara libre en Prop Hunt, saltar y
+>   agacharse la suben y la bajan; para soltarse se usa **la misma tecla con la que te colocaste (F)**.
+>   Sin esto, bajar la vista era imposible sin soltar el prop.
+> - **La zona de juego está vetada a los mobs siempre.** Antes la barrera y la protección sólo existían
+>   durante las fases activas de la ronda, así que al terminar la partida los mobs volvían a entrar y a
+>   atacar. Ahora, con la arena delimitada, ningún mob entra ni hace daño dentro **en ningún momento**:
+>   antes de empezar, durante y después, y también a quien no sea miembro de la sala.
+>
+# Fantastic Chameleon 1.2.22 — cámara libre con control real y patas al ritmo del jugador
+
+> **1.2.22 — ajustes pedidos sobre 1.2.21.**
+> - **La cámara de Prop Hunt se mueve y gira como la de Meccha.** Al fijarse ya no se abre ningún panel:
+>   cualquier pantalla le quita el foco al juego y, sin foco, el ratón no gira la vista, así que la cámara
+>   quedaba en un punto fijo. Las dos acciones siguen ahí por tecla —**espacio** o agacharse para soltar y
+>   **R** para revertir— y se anuncian en una tarjeta abajo a la derecha, lejos del marcador.
+> - **La cámara libre se activa siempre que estés fijado.** Antes exigía además estar adherido a la cara
+>   de un bloque o tener el pintor abierto, así que fijarse de pie, encima de un bloque o sin pared al
+>   lado te dejaba en primera persona.
+> - **Las patas van al ritmo al que te mueves.** Se quita el tope al paso natural del animal: hacía que
+>   corriendo se vieran lentas y deslizando. Vuelve la fórmula del juego sobre la distancia realmente
+>   recorrida, que es lo que hace cualquier criatura del mundo.
+> - **El muñeco se hunde menos:** 0,12 en lugar de 0,2. El torso queda casi a ras y la cabeza asoma unos
+>   0,13, así que se ve que hay algo pegado sin quedar sepultado.
+> - **Fuera los recuadros del centro de la pantalla.** Al fijarse aparecían tres etiquetas con aspecto de
+>   botón que no se podían pulsar y competían con el marcador. Las teclas que sí existen se listan en la
+>   tarjeta de la esquina inferior derecha.
+>
+# Fantastic Chameleon 1.2.21 — cámara arreglada tras hundir el cuerpo
+
+> **1.2.21 — corrige dos regresiones de 1.2.20 y blinda el reloj de la partida.**
+> - **La cámara vuelve a funcionar al adherirse, en los dos modos.** Al hundir el cuerpo 0,2 dentro del
+>   bloque, el ojo quedó **dentro de la geometría**: el rayo de la cámara chocaba en el primer centímetro
+>   y la vista se quedaba pegada al cuerpo. Ahora el centro de la órbita sale al aire por delante de la
+>   superficie (0,45), así que el rayo y el recorte por colisión miden desde fuera.
+> - **Esc ya no te deja ciego dentro del bloque.** Estando adherido, Esc apagaba la cámara libre y la
+>   vista caía a primera persona dentro del bloque. Ahora Esc abre el menú normal y la cámara se
+>   conserva; para soltarse siguen estando espacio, agacharse y el botón Desacoplar.
+> - **El reloj de la ronda ya no depende del código de disfraces.** El temporizador lo mueve otro oyente
+>   del mismo evento de tick, así que una excepción escapando del tick de disfraces abortaba el reparto y
+>   la partida se quedaba sin cambiar de fase. Ese trabajo va aislado y, si falla, lo registra una vez en
+>   el log y la ronda sigue su curso. Lo mismo para la barrera de mobs, que corre dentro del tick del
+>   mundo.
+>
+# Fantastic Chameleon 1.2.20 — cámara libre de verdad, patas al ritmo real y acople hundido
+
+> **1.2.20 — correcciones posteriores a 1.2.19.**
+> - **La cámara libre ya se mueve.** El panel de controles quitaba el foco al juego, así que Minecraft
+>   soltaba todas las teclas y `WASD` no llegaba a la cámara. Ahora se lee el teclado en crudo mientras
+>   ese panel está en foco, **arrastrar con el botón izquierdo gira** la vista y **la rueda acerca y
+>   aleja**. Los botones Desacoplar y Revertir siguen funcionando igual. Saltar y agacharse no mueven la
+>   cámara a propósito, porque ahí significan desacoplarse.
+> - **Las patas ya no van solas ni aceleradas.** Tres causas, las tres arregladas:
+>   1. Estando fijado, el servidor devuelve al jugador a su ancla en cuanto se desvía un milímetro, y ese
+>      reajuste se medía como caminar: de ahí las patas andando y los pasos sonando **estando quieto**.
+>      Un prop anclado ya no mide movimiento.
+>   2. La amplitud se calculaba con la distancia del jugador, que se mueve 3-4 veces más rápido que el
+>      animal real, así que saturaba en el máximo del juego. Ahora está acotada al **ritmo propio de la
+>      criatura** (una vaca camina como una vaca) y al andar despacio manda la distancia real.
+>   3. El renderer sólo podía fijar la velocidad actual, no la anterior, y la amplitud saltaba de 0 al
+>      máximo en cada tick: eso era el temblor. Ahora se escriben los tres valores de la animación.
+> - **Pasos con la cadencia del juego.** Vanilla acumula `distancia × 0,6` y da un paso al llegar a 1, es
+>   decir uno cada **1,67 bloques**. Se estaba usando el 0,6 como umbral en bloques, así que sonaban casi
+>   **tres veces más a menudo** de lo normal a cualquier velocidad.
+> - **El muñeco queda metido en el bloque.** Se hunde 0,2: el torso entra completo y de la cabeza asoma
+>   apenas 0,05. Para que no se viera negro, el render toma la luz de la celda de aire de la cara a la que
+>   te pegas, en lugar de la del bloque en el que está metido.
+>
+# Fantastic Chameleon 1.2.19 — freecam, pintura, mobs y GUI corregidos
+
+> **1.2.19 — correcciones posteriores a 1.2.18.**
+> - **Freecam de Prop Hunt horizontal.** El apoyo `UP` ya no manda la cámara sobre el jugador mirando
+>   hacia abajo; arranca detrás del prop y conserva la colisión exterior.
+> - **Meccha pintado y más embebido.** El origen queda 0,04×escala fuera de la superficie para tomar la
+>   luz del aire, mientras el torso sigue parcialmente dentro del bloque. Recupera el blanco y cualquier
+>   pintura sin volver a dejar un hueco visible.
+> - **Zona cerrada a mobs durante la partida.** En ambos modos se borran objetivos y se cancelan ataque,
+>   daño y proyectiles con dueño mob. Cualquier mob cuya caja entre en una arena activa es devuelto al
+>   exterior y pierde ruta, velocidad y objetivo.
+> - **GUI compacta sin solapes.** Al reducir la ventana se muestran paleta y una secundaria en regiones
+>   separadas; mapa, partes y teclas se alternan mediante pestañas. Al ampliar vuelve el comportamiento
+>   independiente. Los controles de freecam se compactan bajo el marcador.
+> - **Piernas a velocidad normal.** El tick visual del mob ya no suma una fase adicional por su posición
+>   artificial; la marcha avanza una sola vez con la misma distancia server-side que dispara los pasos.
+>
+# Fantastic Chameleon 1.2.18 — movimiento, cámara, interfaz y poses corregidos
+
+> **1.2.18 — una sola medida de movimiento, acople estable y todas las interfaces utilizables.**
+> - **Movimiento y pasos sincronizados.** El servidor mide la distancia cada tick una sola vez; esa
+>   medida controla tanto la velocidad de las patas como los pasos cada 0,6 bloques. Inicio y parada se
+>   publican inmediatamente y el movimiento sostenido a 10 Hz, sin colas de sonido ni acumuladores
+>   distintos por cliente.
+> - **Velocidad fiel al mob capturado.** Se usa el atributo `movementSpeed` de la criatura real con
+>   referencia vanilla 0,23 y un límite defensivo 0,75×–1,35×, sin tablas manuales ni la compresión de
+>   1.2.17.
+> - **Jade ya no tapa el HUD durante la ronda.** Se oculta por callback y por configuración, se conserva
+>   la preferencia previa del jugador y se restaura exactamente al terminar o desconectarse.
+> - **Acople y cámara libre corregidos.** Prop Hunt marca el ancla de forma explícita; la cámara parte de
+>   la normal exterior de la cara, admite suelo, paredes y techo, evita geometría con ocho rayos desde un
+>   origen común y permite cambiar de observado con `[`/`]`. Espacio o agacharse siempre desacoplan.
+> - **Meccha se alinea con la geometría real.** El plano central del cuerpo queda en la superficie del
+>   bloque, también en vallas y paneles, y la altura se calcula desde el `VoxelShape` real.
+> - **Pintor y editor utilizables en ventanas pequeñas.** Los paneles escalan por ancho y alto, quedan
+>   completamente dentro de pantalla y consumen sólo su interior visible. Crear, Invitar y Renombrar
+>   reaccionan al texto sin reconstruir widgets desde `render`.
+> - **30 poses humanas seleccionables.** Los IDs 0–30 se validan desde una fuente canónica, con el ID 8
+>   reservado por compatibilidad. Se añadieron las páginas Sentadas/Gestos en los ocho idiomas; una pose
+>   sólo se aplica si cabe y un rechazo conserva el estado anterior.
+>
+> **1.2.17 — ritmo jugable, patas que sí animan, vista libre al pegarse y munición activada.**
+> - **La velocidad ya no es un castigo.** Los mobs reales son entre 4 y 1,5 veces más lentos que un
+>   jugador andando (vaca 0,25x, gallina 0,70x), y jugar así es arrastrarse. Se conserva el **orden real**
+>   —la vaca sigue siendo la más lenta y la gallina la más rápida— pero comprimido al margen jugable
+>   0,80x–1,05x, así que se nota la diferencia entre disfraces sin que ninguno sea insufrible.
+> - **Patas arregladas de raíz.** Se fijaba la velocidad de la animación con `setSpeed`, que **no avanza la
+>   fase**; como el modelo no se desplaza por sí mismo (su posición la imponemos nosotros), la fase se
+>   quedaba congelada y las piernas parecían trabadas. Ahora se usa `update`, que fija velocidad y avanza
+>   fase, una sola vez por tick.
+> - **Vista libre al pegarse a un bloque,** en Meccha y en Prop Hunt: la cámara sale del cuerpo y puedes
+>   rodearte para ver cómo te ve el que busca. Sustituye a la tercera persona fija, que seguía metiéndose
+>   en el bloque.
+> - **El muñeco entra más en el bloque** (desplazamiento 0,06 en lugar de 0,125), que con vista libre ya no
+>   tiene contrapartida.
+> - **Regla de munición activada.** Ya existía en el mod pero venía en 0, es decir infinita, así que nunca
+>   se veía. Ahora los cazadores empiezan con **8 disparos**: fallar gasta uno, acertar lo devuelve, y
+>   cuando ningún cazador tiene munición **ganan los camaleones**. Se ajusta en la pestaña Reglas (`ammo`),
+>   y con 0 vuelve a ser infinita.
+> - **La ficha de Jade se apaga durante la ronda** para todo el que juegue, porque se dibuja encima del
+>   marcador y lo tapaba. Al terminar se restaura.
+>
+> **1.2.16 — ritmo medido de verdad, pasos con la cadencia del juego y nada de daño en la zona.**
+
+> **1.2.16 — ritmo medido de verdad, pasos con la cadencia del juego y nada de daño en la zona.**
+>
+> Se midió el ritmo real de varios mobs caminando por un suelo despejado durante 160 ticks, comparado con
+> un jugador andando (0,2158 bloques por tick):
+>
+> | Mob | Bloques/tick | Ritmo respecto al jugador |
+> |---|---|---|
+> | Vaca | 0,0537 | **0,25×** |
+> | Slime | 0,0557 | 0,26× |
+> | Zombi | 0,0756 | 0,35× |
+> | Enderman | 0,1255 | 0,58× |
+> | Creeper | 0,1307 | 0,61× |
+> | Araña | 0,1463 | 0,68× |
+> | Gallina | 0,1522 | 0,70× |
+>
+> - **Todos los mobs son más lentos que un jugador**, así que ir lento disfrazado es lo correcto. La
+>   calibración anterior tomaba el zombi como equivalente a un jugador, y era falso.
+> - **Como bloque vuelves a tu velocidad normal.** El modificador del mob no se retiraba al cambiar a un
+>   prop de bloque, así que arrastrabas la lentitud de la vaca para siempre. Eso era el "voy lento en
+>   ambas".
+> - **Pasos con la cadencia del juego:** se usa la misma fórmula que Minecraft (distancia × 0,6, paso al
+>   llegar a 1) en lugar de una cadencia inventada, y el resto se acumula en vez de descartarse.
+> - **Ningún mob te hace daño dentro de la zona.** Se exigía que el mob también estuviera dentro de la
+>   arena, así que un esqueleto disparando desde fuera seguía hiriéndote. Ahora basta con que el
+>   protegido esté dentro, y se cierra también la ruta del cálculo de daño, no solo la del ataque.
+> - **El acople ya no te mete en el bloque.** Se hundía el cuerpo entero hasta el plano de la superficie;
+>   ahora el desplazamiento es la profundidad real del torso (0,125), así que la espalda toca la
+>   superficie y el cuerpo queda fuera, visible en tercera persona.
+>
+> **1.2.15 — el editor deja de quedarse pegado y el acople queda a ras del bloque.**
+
+> **1.2.15 — el editor deja de quedarse pegado y el acople queda a ras del bloque.**
+> - **Botones del editor que no respondían.** Los botones calculaban si estaban habilitados **una sola
+>   vez**, al construir la pantalla. Escribir el nombre de la sala no la reconstruye, así que el botón
+>   Crear seguía deshabilitado hasta que otra acción forzara el rebuild: de ahí que hubiera que pulsar
+>   Guardar antes y que los botones parecieran pegados. Ahora el estado se reevalúa cada frame y la
+>   pantalla se reconstruye sola en cuanto llega el catálogo de salas del servidor.
+> - **Fijarse con F ahora acopla de verdad.** Solo se quedaba clavado donde estuvieras, así que si había
+>   geometría al lado la cámara acababa dentro del bloque, y como no se marcaba el acople tampoco se
+>   pasaba a tercera persona ni se eximía del guardia anti-clipping. Ahora F usa exactamente la misma
+>   colocación que el clic derecho: busca la pared contigua más cercana y pega el cuerpo a su superficie.
+> - **A ras de la superficie.** El hundimiento pasa a 0,15, la profundidad completa del torso, así que el
+>   centro del cuerpo queda justo en el plano de la superficie del bloque. Por eso la cámara pasa a
+>   tercera persona: en primera estaría literalmente dentro de la pared.
+> - La validación del acople ya no exige que la caja esté libre —el solape es deliberado— sino que haya
+>   hueco **hacia fuera**, para no acabar embutido entre dos paredes.
+>
+> **1.2.14 — ritmo del mob, acople en vallas y cristales, y sin rastros del disfraz anterior.**
+
+> **1.2.14 — ritmo del mob, acople en vallas y cristales, y sin rastros del disfraz anterior.**
+> - **Fuera la fila de teclas falsa.** Bajo el indicador de escondido había una fila con aspecto de
+>   botones que no hacía nada: eran solo etiquetas. En Prop Hunt ya no se dibuja, porque las dos acciones
+>   reales (desacoplar y revertir) están como botones de verdad en el panel lateral.
+> - **El acople funciona en vallas y paneles de cristal.** Se pegaba al borde de la celda del bloque, pero
+>   una valla ocupa de 0,375 a 0,625 y un panel es aún más fino: el jugador quedaba flotando y la
+>   comprobación de hueco no cuadraba, así que el acople no se completaba. Ahora se usa la caja real del
+>   bloque, sea la que sea.
+> - **Los pasos se oyen al instante.** El contador de distancia se reiniciaba cada vez que el jugador
+>   dejaba de tocar el suelo —lo que pasa constantemente al caminar—, así que casi nunca se completaba un
+>   paso. Ahora la distancia se acumula siempre y la cadencia bajó a 0,6 bloques.
+> - **Cada mob impone su ritmo.** Medida la velocidad base de los 76 tipos vivos vanilla: va de 0,09
+>   (camello) a 1,2 (delfín). Tomando el zombi (0,23) como referencia, porque se mueve casi como un
+>   jugador andando, el disfraz adopta la velocidad de la criatura: una vaca (0,20) va más lenta y una
+>   araña (0,30) más rápida. Se acota entre 0,6x y 1,35x porque los que saltan o nadan usan ese valor de
+>   otra forma (un slime marca 0,7 y un delfín 1,2, que darían 3x y 5x).
+> - **Se acabaron las partículas de slime pegadas.** Al cambiar de disfraz, el modelo anterior seguía
+>   ticando para siempre porque nadie lo retiraba: el slime invisible continuaba soltando partículas a
+>   tus pies. Ahora el modelo se retira en cuanto el jugador deja de llevar esa criatura.
+> - **Crear una sala ya no exige pulsar Guardar antes.** El catálogo de salas se envía junto con el
+>   editor; antes había que pedirlo a mano y hasta que llegaba el botón de crear estaba deshabilitado.
+>
+> **1.2.13 — patas que paran, cámara detrás al pegarse y ningún mob mudo.**
+
+> **1.2.13 — patas que paran, cámara detrás al pegarse y ningún mob mudo.**
+> - **Las patas ya no andan solas.** Reproducido en el servidor: dejando que el modelo calculara su propia
+>   marcha, su velocidad subía a 1.0 y **no bajaba nunca**, así que las patas seguían andando con el
+>   jugador parado. Ahora la velocidad la impone el desplazamiento real del jugador después del tick.
+>   Medido: **0,0 quieto · 0,84 andando · 0,0 en el mismo tick al parar**.
+> - **Al pegarte a un bloque la cámara pasa a tercera persona** y vuelve a lo que tuvieras al soltarte.
+>   Estar adherido implica que el cuerpo toca el bloque, así que en primera persona la cámara quedaba
+>   dentro de la pared; lo que interesa ver es tu propio cuerpo pegado, y eso se ve desde atrás.
+> - **Un poco más pegado:** el cuerpo se hunde 0,09 en el bloque en lugar de 0,05.
+> - **Ningún mob vanilla se queda sin sonido.** Auditados los **76 tipos vivos** del juego: antes 4 no
+>   tenían voz (araña de cueva, gigante, pez globo y llama mercante) porque en vanilla reutilizan los
+>   sonidos de su pariente o su id no coincide con el nombre de sus sonidos. Ahora **0 mudos**. Los pasos
+>   usan el sonido propio del tipo y, si no tiene, el del bloque pisado, igual que hace el juego.
+> - **Menos tirón al iniciar la ronda:** al empezar, todos se transforman en el mismo tick; ahora se
+>   construyen como máximo 2 texturas y 2 modelos por tick, y el resto entra en los siguientes.
+>
+> **1.2.12 — el freeze era mío, patas fluidas y pasos de mob.**
+
+> **1.2.12 — el freeze era mío, patas fluidas de verdad y pasos de mob.**
+> - **El congelamiento al pulsar F era un fallo mío de la versión anterior.** Sobrescribí
+>   `shouldCloseOnEsc` creyendo que era `isPauseScreen`, así que mi propio panel de controles **pausaba el
+>   servidor integrado**: al fijarte se detenía todo y volvía justo al desacoplarte, que es cuando se
+>   cierra el panel. Ahora el panel no pausa y Esc vuelve a cerrarlo. Comprobado en el resto de pantallas
+>   del mod: el pintor y la rueda de poses ya no pausaban.
+> - **Patas fluidas.** La marcha se imponía a mano después del tick del modelo, así que la animación se
+>   actualizaba dos veces por tick: el avance de las patas se duplicaba y la velocidad parpadeaba. Ahora
+>   se le da al modelo el mismo desplazamiento por tick que el jugador y su propio tick calcula la
+>   animación una sola vez, como cualquier mob del mundo.
+> - **Sonidos de paso.** Una araña o un zombi disfrazados andaban en silencio, porque el sonido de pasos
+>   lo emite el mob al desplazarse y el disfraz no se desplaza. Ahora los emite el servidor con la
+>   cadencia de vanilla: el sonido propio del tipo capturado (`entity.<tipo>.step`) y, si ese mob no
+>   tiene uno, el del bloque que pisa, que es exactamente lo que hace el juego.
+> - **Menos lag.** El texel exacto de la pipeta se calculaba **cada frame** con el pintor abierto,
+>   recorriendo los quads del modelo del bloque y leyendo su textura. Ahora solo se calcula al tomar el
+>   color; por frame queda una lectura de un píxel.
+>
+> **1.2.11 — el guardia anti-clipping acotado y medido.**
+
+> **1.2.11 — el guardia anti-clipping ya no puede tumbar el servidor, y la causa real del "se detiene
+> el juego" era otra.**
+>
+> Se midió el coste dentro del runtime real de Forge, con un jugador encerrado en piedra (el peor caso):
+>
+> | Operación | Coste medido | Peor caso sin tope |
+> |---|---|---|
+> | Medir oclusión (75 muestras) | **5,8 µs** | — |
+> | Buscar hueco y no encontrarlo | **398 µs** | 40 jugadores = **32 % del tick**; ~125 jugadores = **tick agotado** |
+>
+> - Ahora el guardia tiene **tope global por tick**: 8 mediciones y **1 sola búsqueda** en todo el
+>   servidor, con reparto desfasado por jugador para que no coincidan. Techo real ≈ **0,9 % de un tick**,
+>   sin importar cuánta gente esté escondida. A quien no le toca no se le descarta: se le atiende en el
+>   tick siguiente.
+> - El cupo de búsqueda se contabiliza **aparte** del de mediciones, a propósito: si compartieran saco,
+>   una constante mal puesta podía hacer que la búsqueda no cupiera nunca y el rescate quedara
+>   desactivado en silencio, dejando tapiado para siempre a quien lo necesitara.
+> - **La causa real de "al presionar F se detiene el juego y se quedan pegados todos" no era el guardia:
+>   era que las pantallas del mod pausaban el servidor integrado.** En Minecraft una pantalla pausa la
+>   partida en un mundo local salvo que se diga lo contrario, y ni el pintor ni la rueda de poses lo
+>   decían. Corregido en ambas; por eso todo volvía a moverse justo al desacoplarte, que era cuando se
+>   cerraba la pantalla.
+> - Se limpian anclas, gestos y esperas del guardia al desconectar, que antes quedaban vivas para siempre.
+>
+> **1.2.10 — servidor que no se congela, animación fluida, solo operadores.**
+> - **La partida ya no se detiene al pulsar F.** El guardia anti-clipping recalculaba hasta 5.625 muestras
+>   de volumen por jugador **y por tick** en el hilo del servidor: al fijarse pegado a una pared la
+>   búsqueda de hueco fallaba y se repetía indefinidamente, y eso congelaba a todo el mundo hasta que te
+>   desacoplabas. Ahora se comprueba como máximo cada 10 ticks y, si no hay hueco, espera antes de
+>   reintentar.
+> - **Los pies del mob vuelven a ir fluidos.** La marcha se imponía antes del tick del modelo y el propio
+>   tick la recalculaba a cero desde su movimiento (que es nulo), dejando las patas a tirones.
+> - **La gallina aletea como la de verdad.** Se copia del jugador el estado de suelo y la caída antes de
+>   ticar el modelo, que es justo lo que leen sus animaciones: alas quietas al andar, aleteo al saltar o
+>   caer.
+> - **Al acoplarse ya no te quedas mirando dentro del bloque:** la vista gira hacia fuera de la cara
+>   clicada. Y el cuerpo se hunde 0,05 más, para que no se vea junta de aire.
+> - **Botones legibles:** el ancho se calcula con el texto traducido más largo y el texto va en blanco con
+>   sombra, en vez de gris tenue que se perdía sobre la hierba.
+> - **Pipeta precisa:** si señalas un bloque se toma el **texel exacto** de su textura por cara y UV; el
+>   píxel del framebuffer queda solo como reserva para entidades o cielo, porque venía multiplicado por
+>   luz, sombreado de cara, niebla y viñeta. Además se muestrea el centro del píxel y con la escala real
+>   de la GUI, no la aproximada.
+> - **Los mobs hostiles ya te ignoran de verdad.** La protección exigía una arena configurada; si la sala
+>   no tenía arena delimitada, `containsArena` devolvía siempre falso y la protección no se aplicaba
+>   nunca. Ahora, sin arena, el perímetro es la propia ronda en curso.
+> - **Solo operadores y sin regalar objetos.** `/fschameleon` entero requiere OP; crear salas, configurarlas,
+>   marcar arenas, pedir la varita y el kit exigen OP también por red; y el pincel de bienvenida no se
+>   entrega a nadie al conectarse.
+>
+> **1.2.9 — interfaz, rendimiento, desacople y acople de verdad pegado.**
+> - Los controles al fijarse son ahora dos filas diminutas de 76×12 pegadas al borde izquierdo, con el
+>   mismo lenguaje visual que el resto del HUD. Fuera los botones vanilla enormes.
+> - **Todos los textos en español, incluido `en_us`.** El `en_us` de este mod siempre fue el fallback en
+>   español, así que traducirlo al inglés era lo que hacía salir *Detach* entre textos españoles. Además
+>   se añadieron las claves que el HUD ya usaba y que faltaban en el JAR: por eso aparecía
+>   `fantastic.prophunt.hint_clear` en crudo.
+> - El indicador de escondido y sus teclas se dibujan **debajo** de la barra de ronda: se acabó el
+>   solape con las cabezas y el reloj.
+> - Sin carteles al transformarse: el disfraz ya se ve en el propio cuerpo.
+> - **Desacoplar libera de verdad.** Compartía cupo de peticiones con fijarse, así que pulsar fijar y
+>   soltar seguido descartaba el desacople: el cliente se creía libre y el servidor te devolvía a la
+>   misma posición cada tick. Ahora tiene cupo propio, limpia ancla, inmovilización, colisión y
+>   velocidad, y reafirma la posición para que el cliente no quede desincronizado.
+> - **Lag al empezar la partida resuelto.** El guardia anti-clipping medía 75 puntos del cuerpo por
+>   jugador y por tick, y hasta 5.625 al buscar hueco. Un disfraz roza su escondite a propósito, así que
+>   ahora se mide con umbral laxo y una vez cada 10 ticks; a quien tapien de verdad se le sigue
+>   rescatando, y la salida de emergencia bajo el agua se conserva.
+> - **Los mobs capturados vuelven a sonar y a moverse.** La captura genérica deja `PROP` en -1, y los
+>   sonidos exigían `PROP >= 0`: por eso enmudecieron. Ahora la voz se deriva del `EntityType` capturado,
+>   así que suenan también los mobs de otros mods. El modelo se ticka una vez por tick desde el tick del
+>   cliente, de modo que la gallina bate las alas y el lobo mueve la cola; va mudo y con caja vacía para
+>   no delatar al jugador con voz doble ni empujones.
+> - **El acople Meccha queda literalmente pegado.** Se medía con la hitbox (0,3 de medio ancho) cuando el
+>   torso solo tiene 0,15 de fondo, así que quedaba un hueco visible; ahora se mide el cuerpo que se ve,
+>   el giro lo decide la cara clicada, encima del bloque se centra en la celda y el roce intencionado
+>   está permitido de forma explícita.
+>
+> **1.2.8 — todos los mobs, conexiones reales y acople preciso.**
+> - Prop Hunt puede capturar cualquier `LivingEntity` no jugador mediante `EntityType` + NBT visual
+>   saneado. El renderer vanilla conserva modelo, variante, armadura, objetos de mano, ballestas,
+>   espadas, arcos, monturas y capas compatibles, también para mobs añadidos por otros mods.
+> - Durante COUNTDOWN/HIDING/SEEKING, los mobs dentro de la arena delimitada ignoran a los hiders de
+>   Prop Hunt. La protección no se aplica fuera de la arena, a espectadores ni fuera de una ronda.
+> - La gallina se apoya con las patas sobre el suelo y no bate/gira las alas sin control. Vallas,
+>   muros, paneles/barrotes y escaleras derivan sus conexiones vanilla del entorno 3×3×3 sin modificar
+>   ningún bloque real del mundo.
+> - **Desacoplar** conserva exactamente el bloque o mob capturado. Un panel lateral pequeño ofrece
+>   **Desacoplar** y **Revertir transformación**; Esc solo cierra el panel y Space/agacharse libera el
+>   ancla, incluso si agacharse está remapeado a un botón del ratón.
+> - Meccha usa la pose normal de pie (pose 0) y se acopla con clic derecho únicamente a la cara exacta
+>   señalada. El servidor repite el raycast y valida alcance, cara, punto y colisión antes de anclar.
+> - La pipeta regular toma el RGBA final del framebuffer, incluida iluminación, AO, transparencias y
+>   shaders/resource packs; los modos de mapa UV y TEXCROP mantienen sus rutas especializadas.
+> - El protocolo de red ahora es estrictamente **2**: cliente y servidor deben ejecutar el mismo JAR
+>   1.2.8. Las capturas se limitan a 64 KiB y a una cada 5 ticks.
+>
+> **1.2.7 — limpieza completa, modelos vanilla y Meccha adherido.**
+> - Prop Hunt usa modelos vanilla reales para vaca, cerdo, oveja, gallina, lobo, creeper,
+>   enderman y panda; las texturas salen del resource pack activo. Panda se añadió al final del
+>   catálogo (índice 19), sin desplazar los IDs anteriores.
+> - F solo funciona para hiders durante una ronda activa. Al terminar, salir, espectar o quitar el
+>   disfraz se limpian prop, pose, ancla, freeze e inmovilización; el servidor rechaza bypasses de
+>   `PosePayload` desde clientes modificados.
+> - Los mensajes se separan por rol, los bloques fijados usan celda/culling discreto sin líneas
+>   coplanares y los bloques móviles emiten todas sus caras.
+> - Crear, entrar, salir, expulsar o borrar una sala actualiza inmediatamente el catálogo global; el
+>   botón ahora dice **Guardar** y ejecuta la acción server-side correspondiente.
+> - En Meccha, F adopta la pose plana 30, recoge brazos/piernas y se adhiere de forma segura al suelo
+>   y a la pared horizontal más cercana. La pipeta con Space lee el texel exacto señalado.
+>
+> **1.2.6 — estado exacto, render vanilla, criaturas animadas y Jade indistinguible.**
+> - El servidor sincroniza el **`BlockState` completo** (`PROP_STATE`), no solo el ID del bloque. Se
+>   conservan eje, orientación, mitad, forma, conexiones, edad, encendido y demás propiedades.
+> - Los props de bloque ya no reconstruyen un atlas aproximado: se dibujan con el mismo
+>   **`BlockRenderDispatcher`** que usa el mundo. Esto conserva quads, modelos multipart, capas,
+>   transparencia, tintes de bioma, iluminación ambiental y resource packs sin doble sombreado.
+> - Las criaturas ahora tienen animación visible: patas al caminar, cabeza siguiendo la mirada,
+>   alas de gallina, cola de lobo y gesto sincronizado con **V** (pastar, agitarse o sisear).
+> - Jade reemplaza el accessor de jugador por un **`BlockAccessor` del estado imitado**. El bloque
+>   falso muestra nombre, icono y mod como el verdadero; nunca muestra nombre ni corazones de jugador.
+> - Las rutas clásicas de Meccha y sus previews mantienen su renderer anterior y limpian cualquier
+>   estado capturado, para que los modos sigan separados y no reutilicen un disfraz obsoleto.
+>
+> **1.2.5 — fidelidad de textura y Jade ya no te delata.**
+> - **Jade ya no muestra nada** al apuntar a un prop. Antes cantaba el nombre del jugador y sus
+>   corazones, que arruinaba la partida entera. Se resuelve con un plugin propio que usa el callback de
+>   raytrace de Jade para devolver nada sobre un jugador disfrazado.
+> - **Textura cara por cara.** Antes se repetía una sola imagen en las seis caras, así que un tronco
+>   descortezado salía con la veta lateral también arriba. Ahora cada cara lleva la suya, usando
+>   `PropModels.faceRects`, que da el reparto exacto del atlas.
+> - **Tono corregido.** Minecraft dibuja los bloques con las caras de arriba más claras y las laterales
+>   más oscuras; un prop es una entidad y no recibe ese sombreado, por eso se veía más claro que el
+>   bloque de al lado. Ahora ese sombreado se hornea en la textura (1.0 arriba, 0.8 y 0.6 los lados,
+>   0.5 abajo, los mismos valores que usa el juego).
+> - **Texturas de mob correctas.** Los modelos de criatura del mod usan los mismos desplazamientos de
+>   textura que los de Minecraft, así que ahora se copia el png del mob tal cual (y la lana de la oveja
+>   en su mitad inferior) en vez de estirar un recorte, que era lo que daba esa textura rara.
+> - **Los mobs suenan solos** cada 6-18 segundos, como los de verdad, además del gesto manual con V.
+>
+> **1.2.4 — movilidad completa, botón de colocar y gestos de criatura.**
+> - **Capturar ya no te fija.** Al tocar un bloque te transformás pero conservás movilidad completa:
+>   caminar, saltar y **escalar** igual que en Meccha.
+> - **Colocarse es un acto aparte**: con **F** quedás centrado en la celda, alineado y fijado. Espacio o
+>   agacharse te suelta. Los props de bloque se colocan siempre a yaw 0, porque su orientación real ya
+>   va en el `variant` y girar el cuerpo además los dejaría torcidos.
+> - **Gestos de criatura** con **V**: la oveja pasta, la vaca muge, el creeper sisea. Cada mob tiene su
+>   sonido real y sus partículas, para poder imitar su comportamiento a voluntad sin perder el control.
+>
+> **1.2.3 — texturas reales, colocación centrada y un modo, una verdad.**
+> - Los props ahora llevan la **textura real del bloque**. El servidor guarda de qué bloque se trata
+>   (`PROP_SOURCE`) y cada cliente genera la imagen, porque los píxeles solo existen en el cliente.
+>   Adiós a las manchas de color.
+> - Los **bots** eligen un bloque real de una lista de escondites creíbles y se convierten en él, así
+>   que salen como bloques de verdad y no como vacas verdes.
+> - **Se arregló la raíz de varios síntomas a la vez:** había dos verdades sobre "estoy en Prop Hunt".
+>   La captura permitía al staff transformarse fuera de una sala, pero el centrado y el gateo de las
+>   GUIs exigían sala en modo Prop Hunt. Fuera de sala te transformabas **sin centrar y con los menús
+>   de Meccha encima**. Ahora todo se decide en un solo sitio y falla con aviso, no en silencio.
+> - Al tocar un bloque quedás **colocado**: centrado en la celda, alineado y fijado, como un bloque
+>   recién puesto.
+> - El HUD de pistas de Meccha (`Space mover / F pintar / R pose / Esc menú`) ya no aparece en Prop
+>   Hunt; ahora muestra las teclas que sí existen en este modo.
+>
+> **1.2.2 — se fueron los restos de Meccha en Prop Hunt.**
+> - La rueda de poses (**R**) ya no se abre en Prop Hunt: ahí las poses no tienen sentido, así que la
+>   tecla ahora **quita el disfraz**.
+> - El pintor (**F**) ya no aparece. Antes el gateo leía el paquete de salas, que puede llegar tarde o
+>   estar desactualizado; ahora el modo viaja **por jugador** en un atributo sincronizado
+>   (`GAME_MODE`), así que el cliente siempre sabe en qué modo está.
+> - Los **dummies** se disfrazan de prop al azar en vez de quedarse posando como muñecos.
+>
+> **1.2.1 arregló que la transformación no funcionaba.** El mod ya cancelaba el clic derecho sobre
+> bloques mientras hay una ronda en marcha (solo dejaba puertas, trampillas, portones, botones y
+> palancas), justo cuando se juega al Prop Hunt. El listener nuevo escuchaba *después* de esa
+> cancelación y se salía sin hacer nada. Ahora corre a `EventPriority.HIGHEST`, antes de ese bloqueo.
+
+Añade un segundo modo de juego al mod, separado del clásico Meccha Chameleon.
+
+- **Meccha Chameleon** (modo original): te pintas el cuerpo para camuflarte. Sin transformación en bloques.
+- **Prop Hunt** (nuevo): te convertís en el bloque o la criatura que toques con clic derecho. Sin GUI de pintura.
+
+El modo se elige por sala en la pestaña **Reglas** del editor (`/fschameleon`), y solo se puede cambiar en el lobby.
+
+## Cómo se juega el modo Prop Hunt
+
+1. El líder de la sala pone el modo en `Prop Hunt` (pestaña Reglas, primer botón).
+2. Con el set completo de armadura camaleón puesto, **clic derecho** a cualquier bloque o mob vivo
+   para convertirte en él. Los mobs conservan visualmente su equipo y variante.
+3. Te podés mover normalmente estando disfrazado.
+4. Al pulsar **F** te quedás clavado en el sitio y el prop **se centra solo** en la celda del bloque,
+   alineado con los ejes del mundo.
+5. Espacio o agacharse ejecutan **Desacoplar**: recuperás movilidad sin perder la transformación.
+6. El panel lateral tiene botones separados para **Desacoplar** y **Revertir transformación**; Esc
+   únicamente cierra ese panel. **R** también revierte por completo el disfraz.
+
+### Teclas por modo
+
+| Tecla | Meccha Chameleon | Prop Hunt |
+|---|---|---|
+| **Clic derecho** | Acoplarse a la cara exacta del bloque señalado | Convertirte en el bloque o mob vivo |
+| **F** | Fijarse de pie + abrir el pintor | **Colocarte**: centrado, alineado y fijo |
+| **Espacio / agacharse** | Soltarse | **Desacoplar** sin perder la transformación |
+| **V** | — | **Gesto de criatura** (cuando existe) |
+| **R** | Rueda de poses y formas | Revertir la transformación |
+| **Esc** | Cerrar la pantalla actual | Cerrar el panel; no desacopla ni revierte |
+
+### Gestos por criatura (tecla V)
+
+| Prop | Gesto |
+|---|---|
+| Oveja, vaca, cerdo | Pastar: sonido del animal + partículas de hierba a sus pies |
+| Gallina | Cacareo + partículas |
+| Lobo | Ladrido + partículas |
+| Creeper | Siseo (sin explotar nada) |
+| Enderman | Sonido y partículas de portal |
+
+Los props de bloque no tienen gesto a propósito: un bloque que hace ruido te delata.
+
+### Importante sobre la escalada
+
+Escalar y estar colocado son incompatibles en el mod (`Climb.heldInPlace` lo impide, y funciona igual en
+Meccha). El flujo es: te transformás → te movés y escalás con libertad → cuando encontrás el sitio,
+**F** te coloca centrado.
+
+Los bots (`dummies`) también respetan el modo: posan y se pintan en Meccha, y se disfrazan de props de
+colores al azar en Prop Hunt.
+
+Los seekers no pueden transformarse.
+
+Las transformaciones solo se habilitan dentro de una sala activa en modo Prop Hunt; así el cliente,
+el centrado y las reglas de la partida comparten una única fuente de verdad.
+
+### Si no te transformás
+
+- Te hace falta el **set completo de armadura camaleón**. Si no lo llevás, sale un aviso en rojo.
+- La sala tiene que estar en modo **Prop Hunt**. Comprobalo con `/fschameleon` (la última línea de la
+  config muestra el modo) o mirando el primer botón de la pestaña Reglas.
+- Los **seekers** no se disfrazan.
+- La **varita de arena**, la **escopeta** y el **pincel** conservan su función: si los llevás en la
+  mano, el clic derecho no transforma.
+
+## Qué se puede imitar
+
+**Bloques** (la forma y la orientación salen del blockstate real): bloque completo, losa (arriba/abajo),
+escaleras (recta/interior/exterior, normal e invertida, 4 orientaciones), valla, muro, panel/barrotes
+(post/extremo/recta/esquina/te/cruz), trampilla (suelo/techo/pared), alfombra, pastel, maceta
+(vacía/planta/cactus), farol (de pie/colgante) y yunque. Cualquier otro bloque cae a bloque completo.
+
+**Criaturas**: cualquier `LivingEntity` excepto jugadores. Se sincronizan su tipo, dimensiones y NBT
+visual saneado y se usa el renderer vanilla real, por lo que piglins, zombified piglins, esqueletos y
+mobs modded conservan armadura, objetos de mano, capas y variantes compatibles. Los datos de
+inventarios, ofertas, ownership, objetivos y capabilities se eliminan; el snapshot queda limitado a
+64 KiB. Si el cliente no dispone del tipo/renderer de un mob modded, el render falla cerrado para no
+revelar al jugador humano.
+
+La apariencia de bloque también es la real: se renderiza su `BakedModel` y `BlockState` exactos con el
+renderer vanilla y las conexiones se recalculan solo para la vista, sin mutar el mundo.
+
+## Alineación al grid
+
+Era el punto que faltaba. El modo clásico usa `placeAgainstCover`, que **pega** al jugador contra la
+pared más cercana para que su silueta pintada encaje. Para un prop eso está mal: un bloque tiene que
+quedar en el centro exacto de su celda.
+
+`PropGridSnap` centra en `floor(x)+0.5` / `floor(z)+0.5`, apoya en `floor(y)` y deja el yaw en
+múltiplos de 90°. Solo teleporta si el hueco destino está libre, así que nunca te mete dentro de un
+bloque. Además, en los props de bloque el cuerpo se deja a yaw 0 porque la orientación ya va dentro
+del `variant` (el modelo se construye rotado), y así las caras quedan paralelas al mundo.
+
+## Archivos
+
+### Nuevos — `com/fantasticchameleon/prophunt/`
+
+| Clase | Qué hace |
+|---|---|
+| `PropHunt` | Constantes de modo y consulta del modo de la sala |
+| `BlockPropMapper` | `BlockState`/`Entity` → forma + orientación de prop |
+| `PropGridSnap` | Centrado y alineación al grid |
+| `PropHuntCapture` | Captura genérica de bloques/mobs, saneado NBT, cooldown y validaciones |
+| `PropHuntEvents` | Enganche server-side al clic derecho |
+| `PropHuntClient` | Texturas/estados conectados y gates de fase cliente |
+| `ArenaMobEvents` | Impide target/ataques de mobs contra hiders dentro de la arena |
+| `EntityPropSnapshot` | Snapshot atómico de tipo, NBT visual y dimensiones del mob |
+| `GenericEntityPropRenderer` | Renderer vanilla con equipo/capas y caché LRU |
+| `MecchaClientEvents` / `MecchaAttachPayload` | Clic derecho y acople Meccha autoritativo |
+| `DetachPropPayload` / `PropHuntLockedScreen` | Desacople sin reversión y panel lateral |
+| `FramebufferColorSampler` | Pipeta del RGBA final, con buffer nativo reutilizable |
+| `PropHuntRules` | Limpieza de estado al cambiar de modo |
+
+### Modificados
+
+| Archivo | Cambio |
+|---|---|
+| `game/Room.java` | Campo `gameMode` en `Config` |
+| `game/Rooms.java` | Config `gamemode` (solo en lobby) y envío al cliente |
+| `network/RoomsPayload.java` | `CFG_LEN` 21 → 22 |
+| `network/FantasticNetwork.java` | Snap al grid al fijarse; props bloqueados en Meccha |
+| `client/FantasticEditorScreen.java` | Botón selector de modo |
+| `client/LockControls.java` | En Prop Hunt la tecla solo fija, no abre el pintor |
+| `assets/.../lang/*.json` | Controles nuevos en los 8 idiomas |
+| `META-INF/mods.toml` | Versión 1.2.8 y protocolo de red 2 en código |
+
+No se tocó ningún mixin, access transformer, refmap ni entrypoint del mod. Los listeners nuevos se
+registran con `@Mod.EventBusSubscriber`; la captura corre antes del bloqueo de interacciones existente
+y el servidor sigue siendo autoritativo para cada acción.
+
+## Verificación hecha
+
+- **24.135 blockstates** (todos los del juego) pasados por el mapeador dentro del runtime real de
+  Forge: 0 fallos, ningún prop ni variant fuera de rango, ninguna excepción.
+- Compilación SRG Java 17 limpia de todas las clases modificadas; los 8 JSON de idioma son válidos,
+  las clases insertadas coinciden con el build y el JAR no contiene entradas duplicadas ni self-test.
+- Servidor Forge 1.20.1-47.4.0 arrancado y apagado correctamente con 1.2.8 y Jade 11.13.3; Jade
+  descubrió y cargó `FantasticJadePlugin` sin errores. El self-test comprobó **24.135 blockstates** y
+  terminó con `RESULT: ALL PASSED`.
+
+Lo que **no** se pudo probar aquí: el render en pantalla y la sensación en partida (hace falta un
+cliente gráfico), y Mohist en concreto (se probó en Forge puro). El código solo usa APIs estándar de
+Forge y los mismos patrones que ya usaba el mod.
+
+## Aviso de compatibilidad
+
+El protocolo de red es estrictamente **2** y los payloads/attachments cambiaron. **Cliente y servidor
+tienen que usar exactamente Fantastic Chameleon 1.2.8**; hay que actualizar el JAR en ambos lados al
+mismo tiempo.
+
+## Cómo recompilar
+
+El repo no tiene el proyecto fuente, así que este trabajo se hizo sobre el JAR compilado. El JAR está
+reobfuscado a SRG, lo que permite un truco: si compilás contra los JAR **de producción** de Forge
+(que también son SRG), el código decompilado compila directo sin remapear nada.
+
+```bash
+# 1. Decompilar el jar
+java -jar vineflower.jar --silent "Fantastic Chameleon-1.20.1-1.2.0.jar" decomp/
+
+# 2. Instalar Forge 1.20.1 (server y client) para obtener los jars SRG de producción
+java -jar forge-1.20.1-47.4.0-installer.jar --installServer
+java -jar forge-1.20.1-47.4.0-installer.jar --installClient <dir>
+
+# 3. Generar el Minecraft de cliente en namespace de producción
+#    (clases con nombre oficial + miembros SRG) con compose_map.py + ForgeAutoRenamingTool
+
+# 4. Compilar solo los archivos tocados, con el jar del mod en el classpath
+#    para que aporte todas las clases que no se recompilan
+javac -nowarn -proc:none -cp "$CP" -d build <archivos.java>
+
+# 5. Inyectar las clases en una copia del jar
+zip jar-nuevo.jar $(find build -name '*.class')
+```
+
+`toolchain/` trae los scripts usados: `cp.sh` (classpath), `compose_map.py` (mappings del cliente),
+`srgname.py` (buscador de nombres SRG) y `add_lang.py` (claves de idioma).
+
+Ojo con `srgname.py`: compara **descriptores completos**, no solo nombres. Los métodos sobrecargados
+comparten nombre obfuscado y compararlos solo por nombre da resultados incorrectos.
+
+Hay 15 archivos del árbol decompilado que no compilan y **no hay que tocar**: los 7 mixins (castean
+`this` al target, solo válido con el AP de Mixin), `BodyPaint`/`BodyPaintLayer` (dependen del access
+transformer), las 4 recetas y `FantasticChameleonForge` (el decompilador perdió los tipos genéricos de
+unos 28 lambdas de eventos). Ninguno hace falta para esta función.

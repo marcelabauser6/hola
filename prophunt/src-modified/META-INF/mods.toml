@@ -1,0 +1,36 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/renatosa6/Hola/issues"
+
+[[mods]]
+modId = "fantastic_chameleon"
+version = "1.2.23"
+displayName = "Fantastic Chameleon"
+authors = "Amine"
+credits = "Ported to Forge 1.20.1 for the Fantastic server"
+logoFile = "logo.png"
+description = '''
+Pintate para camuflarte! Un mod de escondidas donde los camaleones se pintan el cuerpo para imitar el mundo.
+Usa /fschameleon para abrir el editor; todo lo que hace el mod esta a un clic de ahi.
+'''
+
+[[dependencies.fantastic_chameleon]]
+    modId = "forge"
+    mandatory = true
+    versionRange = "[47,)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[dependencies.fantastic_chameleon]]
+    modId = "minecraft"
+    mandatory = true
+    versionRange = "[1.20.1,1.21)"
+    ordering = "NONE"
+    side = "BOTH"
+
+[[mixins]]
+    config = "fantastic_chameleon.mixins.json"
+
+[[mixins]]
+    config = "fantastic_chameleon.forge.mixins.json"
