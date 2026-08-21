@@ -1,0 +1,37 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="All Rights Reserved"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_display_name}"
+authors="${mod_authors}"
+credits="Wallet GUI artwork by SrJulioXD (WalletGUI 1.1)"
+logoFile="fantasticcoins_logo.png"
+description='''
+Fantastic Currency turns the Fantastic Coins into a real economy.
+
+Physical coins (bronze, silver and gold) stay exactly as they were and live in your inventory.
+On top of them sits Fantastic Cash, a digital balance with two decimal places, tied to your
+player UUID and saved with the world. An ATM block exchanges coins for cash and back.
+
+  /fscurrency wallet    - open the wallet
+  /fscurrency balance   - coins and cash in chat
+  /fscurrency transfer  - send cash to another player, who accepts or rejects it
+  /fscurrency reload    - re-read config/fantasticcurrency.json (permission 2)
+'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"

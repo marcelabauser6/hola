@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "conditions": [ { "condition": "minecraft:survives_explosion" } ],
+      "entries": [ { "type": "minecraft:item", "name": "athens_coins:bank_terminal" } ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "athens_coins:blocks/bank_terminal"
+}

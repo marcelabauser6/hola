@@ -1,0 +1,27 @@
+{
+  "credit": "FantasticCoins ATM",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/atm_side",
+    "front": "athens_coins:block/atm_front",
+    "side": "athens_coins:block/atm_side",
+    "back": "athens_coins:block/atm_back",
+    "top": "athens_coins:block/atm_top",
+    "bottom": "athens_coins:block/atm_bottom"
+  },
+  "elements": [
+    {
+      "name": "cabinet",
+      "from": [1, 0, 2],
+      "to": [15, 16, 14],
+      "faces": {
+        "north": { "texture": "#front" },
+        "south": { "texture": "#back" },
+        "east": { "texture": "#side" },
+        "west": { "texture": "#side" },
+        "up": { "texture": "#top" },
+        "down": { "texture": "#bottom" }
+      }
+    }
+  ]
+}
