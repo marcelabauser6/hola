@@ -31,42 +31,48 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
             new ResourceLocation(AthensCoinsMod.MOD_ID, "textures/gui/atm.png");
 
     private static final int PANEL_W = 248;
-    private static final int PANEL_H = 166;
+    private static final int PANEL_H = 178;
 
     /** Title bar spans y 4..20 in the texture. */
     private static final int TITLE_Y = 8;
 
-    /** Mode button, left of the balance card. */
+    /** Mode button, vertically centred against the balance card. */
     private static final int MODE_X = 8;
-    private static final int MODE_Y = 26;
+    private static final int MODE_Y = 25;
     private static final int MODE_W = 118;
     private static final int MODE_H = 20;
 
-    /** Balance card spans x 132..240, y 24..48. */
+    /** Balance card spans x 132..240, y 23..47. */
     private static final int CARD_X = 132;
     private static final int CARD_RIGHT = 240;
-    private static final int CARD_LABEL_Y = 28;
-    private static final int CARD_VALUE_Y = 38;
+    private static final int CARD_LABEL_Y = 27;
+    private static final int CARD_VALUE_Y = 37;
 
-    /** Table header band spans y 55..69; rows sit at these offsets, 20px tall. */
+    /** Header band spans y 54..70; rows are 22px tall bands starting at these offsets. */
     private static final int HEADER_Y = 58;
-    private static final int[] ROW_Y = { 72, 94, 116 };
+    private static final int[] ROW_Y = { 74, 98, 122 };
+    private static final int ICON_DY = 3;
+    private static final int TEXT_DY = 7;
+    private static final int BUTTON_DY = 2;
 
     private static final int ICON_X = 10;
     private static final int NAME_X = 32;
-    private static final int HAVE_RIGHT = 112;
-    private static final int PRICE_RIGHT = 148;
+    /** Right edges of the numeric columns, spaced so the two headers do not crowd. */
+    private static final int HAVE_RIGHT = 102;
+    private static final int PRICE_RIGHT = 150;
 
-    private static final int BUTTON_W = 20;
+    private static final int BUTTON_W = 18;
     private static final int BUTTON_H = 18;
-    private static final int[] BUTTON_X = { 155, 177, 199, 221 };
+    private static final int[] BUTTON_X = { 160, 181, 202, 223 };
 
-    private static final int FOOTER_LINE_1 = 144;
-    private static final int FOOTER_LINE_2 = 152;
+    /** Footer band spans y 152..172, with room for two separated lines. */
+    private static final int FOOTER_LINE_1 = 154;
+    private static final int FOOTER_LINE_2 = 163;
 
-    private static final int COL_HEADER_COLOR = 0xD8B48C;
-    private static final int CARD_LABEL_COLOR = 0xA88A8A;
-    private static final int FOOTER_COLOR = 0xA98A8A;
+    private static final int TITLE_COLOR = 0xFFD98F;
+    private static final int COL_HEADER_COLOR = 0x9EC5D8;
+    private static final int CARD_LABEL_COLOR = 0x7FA0B4;
+    private static final int FOOTER_COLOR = 0x7A96A6;
 
     private static final String[] AMOUNT_LABELS = { "1", "10", "64", "M" };
 
@@ -91,7 +97,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
                 .build());
 
         for (CoinType type : CoinType.ORDERED) {
-            int rowY = topPos + ROW_Y[type.ordinal()] + 1;
+            int rowY = topPos + ROW_Y[type.ordinal()] + BUTTON_DY;
             for (int amountIndex = 0; amountIndex < AtmMenu.AMOUNTS.length; amountIndex++) {
                 final CoinType coin = type;
                 final int index = amountIndex;
@@ -138,7 +144,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
         DisplaySettings display = menu.display();
         String symbol = display.currencySymbol();
 
-        graphics.drawCenteredString(font, title, PANEL_W / 2, TITLE_Y, 0xFFD98F);
+        graphics.drawCenteredString(font, title, PANEL_W / 2, TITLE_Y, TITLE_COLOR);
 
         // Balance card: label on top, amount right-aligned underneath.
         String label = trimToWidth(display.currencyName(), CARD_RIGHT - CARD_X - 10);
@@ -159,7 +165,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
 
         // One row per denomination.
         for (CoinType type : CoinType.ORDERED) {
-            int y = ROW_Y[type.ordinal()] + 6;
+            int y = ROW_Y[type.ordinal()] + TEXT_DY;
             graphics.drawString(font, type.shortName(), NAME_X, y, display.colorOf(type), false);
             drawRight(graphics, Component.literal(Money.compactCount(menu.coinCount(type))),
                     HAVE_RIGHT, y, 0xFFFFFF);
@@ -194,7 +200,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
 
         for (CoinType type : CoinType.ORDERED) {
             graphics.renderItem(new ItemStack(type.item()),
-                    leftPos + ICON_X, topPos + ROW_Y[type.ordinal()] + 2);
+                    leftPos + ICON_X, topPos + ROW_Y[type.ordinal()] + ICON_DY);
         }
 
         renderTooltip(graphics, mouseX, mouseY);
@@ -207,7 +213,7 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
         String symbol = display.currencySymbol();
         for (CoinType type : CoinType.ORDERED) {
             int x = leftPos + ICON_X;
-            int y = topPos + ROW_Y[type.ordinal()] + 2;
+            int y = topPos + ROW_Y[type.ordinal()] + ICON_DY;
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 int count = menu.coinCount(type);
                 long unit = display.valueOf(type);
