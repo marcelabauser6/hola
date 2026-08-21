@@ -33,6 +33,10 @@ public class ModItems {
     public static final RegistryObject<Item> ATM_ITEM =
             ITEMS.register("atm", () -> new BlockItem(ModBlocks.ATM.get(), new Item.Properties()));
 
+    /** Block item for the bank terminal. Operator-gated in OperatorOnlyPlacement. */
+    public static final RegistryObject<Item> BANK_TERMINAL_ITEM = ITEMS.register("bank_terminal",
+            () -> new BlockItem(ModBlocks.BANK_TERMINAL.get(), new Item.Properties()));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

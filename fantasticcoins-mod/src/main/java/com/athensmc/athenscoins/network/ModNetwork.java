@@ -10,7 +10,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
 
-    private static final String PROTOCOL_VERSION = "3";
+    private static final String PROTOCOL_VERSION = "4";
 
     private static SimpleChannel channel;
 
@@ -42,6 +42,25 @@ public final class ModNetwork {
                 .decoder(S2COpenStatsPacket::new)
                 .consumerMainThread(S2COpenStatsPacket::handle)
                 .add();
+
+        channel.messageBuilder(S2COpenTerminalPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenTerminalPacket::encode)
+                .decoder(S2COpenTerminalPacket::new)
+                .consumerMainThread(S2COpenTerminalPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2STerminalActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2STerminalActionPacket::encode)
+                .decoder(C2STerminalActionPacket::new)
+                .consumerMainThread(C2STerminalActionPacket::handle)
+                .add();
+    }
+
+    /** Sends a packet from the client to the server. */
+    public static void toServer(Object message) {
+        if (channel != null) {
+            channel.sendToServer(message);
+        }
     }
 
     public static void toPlayer(ServerPlayer player, Object message) {

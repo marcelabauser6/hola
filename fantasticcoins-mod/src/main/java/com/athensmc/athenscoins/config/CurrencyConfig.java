@@ -130,6 +130,12 @@ public final class CurrencyConfig {
         public double maxTransfer = 1_000_000.0D;
         public int transferRequestTimeoutSeconds = 60;
 
+        // ---- banking
+        /** How far a bank may set its rates from the official one, in percent. */
+        public int rateMarginPercent = 15;
+        /** Most commission periods collected at once after the server was offline. */
+        public int commissionMaxCatchUp = 7;
+
         // ---- wallet GUI
         public int walletTheme = 1;
 
@@ -172,6 +178,9 @@ public final class CurrencyConfig {
             transferRequestTimeoutSeconds = clampInt(transferRequestTimeoutSeconds, 5, 3600,
                     warnings, "transferRequestTimeoutSeconds");
             walletTheme = clampInt(walletTheme, 1, 3, warnings, "walletTheme");
+            rateMarginPercent = clampInt(rateMarginPercent, 0, 100, warnings, "rateMarginPercent");
+            commissionMaxCatchUp = clampInt(commissionMaxCatchUp, 1, 60, warnings,
+                    "commissionMaxCatchUp");
 
             if (startingBalance < 0.0D) {
                 startingBalance = 0.0D;

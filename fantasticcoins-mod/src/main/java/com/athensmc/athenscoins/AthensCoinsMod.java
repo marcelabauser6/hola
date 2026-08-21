@@ -100,6 +100,23 @@ public class AthensCoinsMod {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             TransferManager.tick(server);
+            tickBanking(server);
+        }
+    }
+
+    /**
+     * Collects any commission periods that came due and applies overdue loan interest.
+     *
+     * <p>Runs once a second over the account list. Periods are counted from each account's own
+     * clock, so this stays correct whether the server has been up for a minute or was off for
+     * days.</p>
+     */
+    private void tickBanking(MinecraftServer server) {
+        long now = System.currentTimeMillis();
+        for (com.athensmc.athenscoins.bank.BankAccount account
+                : com.athensmc.athenscoins.bank.BankData.get(server).allAccounts()) {
+            com.athensmc.athenscoins.bank.BankManager.collectCommission(server, account, now);
+            com.athensmc.athenscoins.bank.BankManager.accrueInterest(server, account, now);
         }
     }
 }

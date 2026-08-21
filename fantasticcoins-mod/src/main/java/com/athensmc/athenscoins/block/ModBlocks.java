@@ -22,6 +22,15 @@ public class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .noOcclusion()));
 
+    /** Bank terminal. No recipe, creative only, and placing it requires an operator. */
+    public static final RegistryObject<Block> BANK_TERMINAL = BLOCKS.register("bank_terminal",
+            () -> new BankTerminalBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BROWN)
+                    .strength(4.0F, 8.0F)
+                    .sound(SoundType.WOOD)
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion()));
+
     public static void register(IEventBus eventBus) {
         BLOCKS.register(eventBus);
     }

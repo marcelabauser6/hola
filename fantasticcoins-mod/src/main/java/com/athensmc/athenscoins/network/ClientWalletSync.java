@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.client.screen.BankTerminalScreen;
 import com.athensmc.athenscoins.client.screen.StatsScreen;
 import com.athensmc.athenscoins.client.screen.WalletScreen;
 import com.athensmc.athenscoins.client.ClientCashCache;
@@ -35,6 +36,13 @@ final class ClientWalletSync {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {
             minecraft.setScreen(new StatsScreen(packet.snapshot()));
+        }
+    }
+
+    static void openTerminal(S2COpenTerminalPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new BankTerminalScreen(packet));
         }
     }
 

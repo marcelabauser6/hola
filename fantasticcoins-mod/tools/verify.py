@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-3.0.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-3.1.0-1.20.1.jar")
 
 problems = []
 notes = []
@@ -228,6 +228,20 @@ else:
             "com/athensmc/athenscoins/client/theme/StatsTheme.class",
             "com/athensmc/athenscoins/client/widget/ColorPicker.class",
             "com/athensmc/athenscoins/client/ClientCashCache.class",
+            "com/athensmc/athenscoins/bank/BankRules.class",
+            "com/athensmc/athenscoins/bank/Bank.class",
+            "com/athensmc/athenscoins/bank/BankAccount.class",
+            "com/athensmc/athenscoins/bank/BankData.class",
+            "com/athensmc/athenscoins/bank/BankManager.class",
+            "com/athensmc/athenscoins/bank/LedgerEntry.class",
+            "com/athensmc/athenscoins/bank/Loan.class",
+            "com/athensmc/athenscoins/block/BankTerminalBlock.class",
+            "com/athensmc/athenscoins/block/OperatorOnlyPlacement.class",
+            "com/athensmc/athenscoins/client/screen/BankTerminalScreen.class",
+            "assets/athens_coins/blockstates/bank_terminal.json",
+            "assets/athens_coins/models/block/bank_terminal.json",
+            "assets/athens_coins/textures/block/bank_terminal_front.png",
+            "data/athens_coins/loot_tables/blocks/bank_terminal.json",
             "com/athensmc/athenscoins/network/ModNetwork.class",
         ]
         for entry in required:

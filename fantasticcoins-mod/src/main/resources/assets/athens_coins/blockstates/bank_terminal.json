@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "athens_coins:block/bank_terminal" },
+    "facing=east": { "model": "athens_coins:block/bank_terminal", "y": 90 },
+    "facing=south": { "model": "athens_coins:block/bank_terminal", "y": 180 },
+    "facing=west": { "model": "athens_coins:block/bank_terminal", "y": 270 }
+  }
+}
