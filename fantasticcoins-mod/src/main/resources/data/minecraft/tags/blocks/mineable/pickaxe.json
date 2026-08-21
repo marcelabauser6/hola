@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "athens_coins:atm",
+    "athens_coins:bank_terminal",
+    "athens_coins:central_bank_terminal"
+  ]
+}
