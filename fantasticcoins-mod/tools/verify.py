@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-2.2.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-3.0.0-1.20.1.jar")
 
 problems = []
 notes = []
@@ -40,6 +40,7 @@ JAVA_STRING = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 
 LANG_PREFIXES = ("gui.athens_coins.", "tooltip.athens_coins.", "message.athens_coins.",
                  "coin.athens_coins.", "item.athens_coins.", "block.athens_coins.",
+                 "theme.athens_coins.",
                  "creative_tab.athens_coins")
 
 used = set()
@@ -219,6 +220,14 @@ else:
             "com/athensmc/athenscoins/menu/AtmMenu.class",
             "com/athensmc/athenscoins/network/S2COpenWalletPacket.class",
             "com/athensmc/athenscoins/api/FantasticCurrencyAPI.class",
+            "com/athensmc/athenscoins/stats/EconomyStats.class",
+            "com/athensmc/athenscoins/stats/EconomySnapshot.class",
+            "com/athensmc/athenscoins/network/S2COpenStatsPacket.class",
+            "com/athensmc/athenscoins/client/screen/StatsScreen.class",
+            "com/athensmc/athenscoins/client/screen/StatsThemeEditorScreen.class",
+            "com/athensmc/athenscoins/client/theme/StatsTheme.class",
+            "com/athensmc/athenscoins/client/widget/ColorPicker.class",
+            "com/athensmc/athenscoins/client/ClientCashCache.class",
             "com/athensmc/athenscoins/network/ModNetwork.class",
         ]
         for entry in required:

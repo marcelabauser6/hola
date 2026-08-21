@@ -2,7 +2,9 @@ package com.athensmc.athenscoins.command;
 
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
+import com.athensmc.athenscoins.network.S2COpenStatsPacket;
 import com.athensmc.athenscoins.network.S2COpenWalletPacket;
+import com.athensmc.athenscoins.stats.EconomyStats;
 import com.athensmc.athenscoins.transfer.PendingTransfer;
 import com.athensmc.athenscoins.transfer.TransferManager;
 import com.athensmc.athenscoins.wallet.CoinType;
@@ -75,6 +77,10 @@ public final class FsCurrencyCommand {
                         .then(Commands.argument("amount", StringArgumentType.word())
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
+
+                .then(Commands.literal("stats")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(FsCurrencyCommand::openStats))
 
                 .then(Commands.literal("reload")
                         .requires(source -> source.hasPermission(2))
@@ -286,6 +292,14 @@ public final class FsCurrencyCommand {
     private static void finish(int id, ServerPlayer responder) {
         TransferManager.remove(id);
         TransferManager.refreshCommands(responder.server, responder.getUUID());
+    }
+
+    // ------------------------------------------------------------------ stats
+
+    private static int openStats(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer admin = self(context);
+        ModNetwork.toPlayer(admin, new S2COpenStatsPacket(EconomyStats.compute(admin.server)));
+        return 1;
     }
 
     // ------------------------------------------------------------------ reload

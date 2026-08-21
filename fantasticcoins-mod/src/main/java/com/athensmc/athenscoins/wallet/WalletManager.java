@@ -2,6 +2,8 @@ package com.athensmc.athenscoins.wallet;
 
 import com.athensmc.athenscoins.block.ModBlocks;
 import com.athensmc.athenscoins.config.CurrencyConfig;
+import com.athensmc.athenscoins.network.ModNetwork;
+import com.athensmc.athenscoins.network.S2CWalletSyncPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -149,6 +151,7 @@ public final class WalletManager {
         accountOf(player).add(credited);
         markDirty(player);
         syncInventory(player);
+        pushBalance(player);
         return new Exchange(taken, credited);
     }
 
@@ -180,6 +183,7 @@ public final class WalletManager {
         markDirty(player);
         giveCoins(player, type, amount);
         syncInventory(player);
+        pushBalance(player);
         return new Exchange(amount, cost);
     }
 
@@ -196,7 +200,22 @@ public final class WalletManager {
         }
         accountOf(to).add(cents);
         markDirty(from);
+        pushBalance(from);
+        pushBalance(to);
         return true;
+    }
+
+    /**
+     * Sends the player's balance to their client.
+     *
+     * <p>Called after every change so client-side GUIs - including other mods' - can show an
+     * up-to-date figure without asking the server.</p>
+     */
+    public static void pushBalance(ServerPlayer player) {
+        ModNetwork.toPlayer(player, new S2CWalletSyncPacket(
+                accountOf(player).balance(),
+                countAllCoins(player),
+                true));
     }
 
     // ------------------------------------------------------------------ ATM proximity

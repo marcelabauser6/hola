@@ -1,6 +1,8 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.client.screen.StatsScreen;
 import com.athensmc.athenscoins.client.screen.WalletScreen;
+import com.athensmc.athenscoins.client.ClientCashCache;
 import com.athensmc.athenscoins.menu.WalletStateHolder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -20,9 +22,19 @@ final class ClientWalletSync {
         if (minecraft.player == null) {
             return;
         }
+        // Keep the shared cache current so other mods' GUIs can read the balance client-side.
+        ClientCashCache.set(packet.cashCents());
+
         AbstractContainerMenu menu = minecraft.player.containerMenu;
         if (menu instanceof WalletStateHolder holder) {
             holder.applyState(packet.cashCents(), packet.coinCounts(), packet.atmNearby());
+        }
+    }
+
+    static void openStats(S2COpenStatsPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player != null) {
+            minecraft.setScreen(new StatsScreen(packet.snapshot()));
         }
     }
 

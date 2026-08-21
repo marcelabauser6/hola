@@ -12,6 +12,7 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
@@ -64,6 +65,14 @@ public class AthensCoinsMod {
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         FsCurrencyCommand.register(event.getDispatcher());
+    }
+
+    @SubscribeEvent
+    public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        // Seed the client's balance cache so other mods' GUIs have a figure from the first frame.
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            com.athensmc.athenscoins.wallet.WalletManager.pushBalance(player);
+        }
     }
 
     @SubscribeEvent
