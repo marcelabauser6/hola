@@ -3,7 +3,7 @@ import io, sys
 path = sys.argv[1]
 src = io.open(path, encoding="utf-8").read()
 
-src = src.replace('version="7.7.0"', 'version="7.7.1"')
+src = src.replace('version="7.7.0"', 'version="7.7.2"')
 
 old_desc_start = src.index("description='''")
 old_desc_end = src.index("'''", old_desc_start + len("description='''")) + 3
@@ -18,4 +18,4 @@ Nota: el mod registra items propios, por lo que el cliente necesita tener el mod
 src = src[:old_desc_start] + new_desc + src[old_desc_end:]
 
 io.open(path, "w", encoding="utf-8").write(src)
-print("mods.toml -> 7.7.1")
+print("mods.toml -> 7.7.2")

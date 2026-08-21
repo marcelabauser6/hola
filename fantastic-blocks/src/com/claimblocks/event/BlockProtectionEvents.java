@@ -53,6 +53,7 @@ import com.claimblocks.data.ClaimGroup;
 import com.claimblocks.data.ClaimManager;
 import com.claimblocks.data.ClaimTier;
 import com.claimblocks.gui.ClaimMenuHandler;
+import com.claimblocks.util.DecorationProtection;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.ChatFormatting;
@@ -394,6 +395,16 @@ public final class BlockProtectionEvents {
             var1.getAffectedBlocks().removeIf(var1x -> {
                 Claim var2x = ClaimManager.getInstance().getClaimAt(var2, (BlockPos)var1x);
                 return var2x != null && (var2x.getFlags().blockExplosions || var2x.getFlags().publicMode);
+            });
+            // Antes solo se filtraban los BLOQUES afectados: una TNT o un creeper seguia
+            // destruyendo cuadros, marcos y soportes de armadura dentro de la zona, y el item
+            // caia al suelo. Ahora la decoracion tambien queda fuera de la explosion.
+            var1.getAffectedEntities().removeIf(entity -> {
+                if (!DecorationProtection.isDecoration((Entity)entity)) {
+                    return false;
+                }
+                Claim claim = DecorationProtection.claimFor(var2, (Entity)entity);
+                return claim != null && (claim.getFlags().blockExplosions || claim.getFlags().publicMode);
             });
         }
     }

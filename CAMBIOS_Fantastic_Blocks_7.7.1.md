@@ -1,6 +1,6 @@
 # Fantastic Blocks 7.7.1 — arreglos para servidores Mohist
 
-Jar: **`Fantastic Blocks-7.7.1.jar`** (raíz del repo). Código fuente en `fantastic-blocks/`.
+Jar: **`Fantastic Blocks-7.7.2.jar` (el 7.7.1 fue reemplazado por el 7.7.2)** (raíz del repo). Código fuente en `fantastic-blocks/`.
 Sustituye directamente al 7.7.0 en `mods/`: mismo `modId`, y el `claimblocks_data.json` que ya
 tengas se carga sin migración ni pérdida.
 

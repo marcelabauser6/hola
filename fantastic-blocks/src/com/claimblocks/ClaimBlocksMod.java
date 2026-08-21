@@ -99,7 +99,7 @@ public class ClaimBlocksMod {
     }
 
     public ClaimBlocksMod() {
-        LOGGER.info("[ClaimBlocks] Inicializando v7.7.1 (Forge 1.20.1)...");
+        LOGGER.info("[ClaimBlocks] Inicializando v7.7.2 (Forge 1.20.1)...");
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ClaimItems.register(modBus);
         ClaimNetwork.init();

@@ -42,6 +42,10 @@ import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimFlags;
 import com.claimblocks.data.ClaimManager;
 import com.claimblocks.data.GlobalFlags;
+import com.claimblocks.util.DecorationProtection;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -314,6 +318,15 @@ public final class EntityProtectionEvents {
             // jugadores: lo gestiona el control de PVP en onLivingHurt.
             return;
         }
+        // cuadros, marcos y soportes: se comprueba tambien la pared donde cuelgan, porque un
+        // cuadro en el borde de la zona tiene su posicion medio bloque por fuera
+        if (DecorationProtection.isDecoration(target)) {
+            if (DecorationProtection.blocksPlayer(DecorationProtection.claimFor(level, target), player)) {
+                EntityProtectionEvents.deny(player, "[!] No puedes romper la decoraci\u00f3n de esta zona.");
+                event.setCanceled(true);
+            }
+            return;
+        }
         Claim claim = ClaimManager.getInstance().getClaimAt(level, target.m_20183_());
         if (claim == null || claim.canModify(player)) {
             return;
@@ -337,31 +350,101 @@ public final class EntityProtectionEvents {
         }
     }
 
+    /**
+     * Clic derecho sobre una entidad.
+     *
+     * Forge dispara DOS eventos: EntityInteractSpecific (clic en un punto concreto de la entidad)
+     * y despues EntityInteract. El mod solo escuchaba el segundo, asi que cualquier mod que
+     * resuelva la interaccion en interactAt se saltaba la proteccion por completo.
+     */
+    @SubscribeEvent
+    public void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (EntityProtectionEvents.blockInteraction(event.getLevel(), event.getEntity(), event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        Level level = event.getLevel();
-        Player player = event.getEntity();
-        if (!level.m_5776_() && !EntityProtectionEvents.isBypassing(player)) {
-            Entity target = event.getTarget();
-            Claim claim = ClaimManager.getInstance().getClaimAt(level, target.m_20183_());
-            if (claim != null && !claim.canModify(player)) {
-                ClaimFlags flags = claim.getFlags();
-                // La cadena anterior estaba mal encadenada y terminaba negando siempre cualquier
-                // interaccion con entidades, sin mirar los flags.
-                if (flags.blockAllInteractions) {
-                    EntityProtectionEvents.deny(player, "[!] No tienes ning\u00fan permiso de interacci\u00f3n en esta zona.");
-                    event.setCanceled(true);
-                } else if (target instanceof Container) {
-                    if (flags.blockChestAccess) {
-                        EntityProtectionEvents.deny(player, "[!] No puedes abrir este contenedor aqu\u00ed.");
-                        event.setCanceled(true);
-                    }
-                } else if (flags.blockEntityInteract) {
-                    EntityProtectionEvents.deny(player, "[!] No puedes interactuar con entidades aqu\u00ed.");
-                    event.setCanceled(true);
-                }
+        if (EntityProtectionEvents.blockInteraction(event.getLevel(), event.getEntity(), event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Proyectiles: una flecha, bola de nieve, huevo o tridente rompia cuadros y marcos sin pasar
+     * por ningun evento de jugador. Se podia robar un cuadro a distancia desde fuera de la zona.
+     */
+    @SubscribeEvent
+    public void onProjectileImpact(ProjectileImpactEvent event) {
+        HitResult hit = event.getRayTraceResult();
+        if (!(hit instanceof EntityHitResult)) {
+            return;
+        }
+        Entity target = ((EntityHitResult)hit).m_82443_();
+        if (!DecorationProtection.isDecoration(target)) {
+            return;
+        }
+        Level level = target.m_9236_();
+        if (level == null || level.m_5776_()) {
+            return;
+        }
+        Claim claim = DecorationProtection.claimFor(level, target);
+        if (claim == null) {
+            return;
+        }
+        Player shooter = DecorationProtection.ownerOf(event.getProjectile());
+        boolean blocked = shooter != null
+                ? DecorationProtection.blocksPlayer(claim, shooter)
+                : claim.getFlags().blockBuilding || claim.getFlags().publicMode;
+        if (blocked) {
+            event.setCanceled(true);
+            if (shooter != null) {
+                EntityProtectionEvents.deny(shooter, "[!] No puedes romper la decoraci\u00f3n de esta zona.");
             }
         }
+    }
+
+    private static boolean blockInteraction(Level level, Player player, Entity target) {
+        if (level == null || level.m_5776_() || player == null || target == null) {
+            return false;
+        }
+        if (EntityProtectionEvents.isBypassing(player)) {
+            return false;
+        }
+        // los cuadros y marcos se comprueban aparte: hay que mirar tambien la pared donde cuelgan,
+        // y algunos mods los "recogen" con el clic derecho
+        if (DecorationProtection.isDecoration(target)) {
+            Claim decoClaim = DecorationProtection.claimFor(level, target);
+            if (DecorationProtection.blocksPlayer(decoClaim, player)) {
+                EntityProtectionEvents.deny(player, "[!] No puedes tocar la decoraci\u00f3n de esta zona.");
+                return true;
+            }
+            return false;
+        }
+        Claim claim = ClaimManager.getInstance().getClaimAt(level, target.m_20183_());
+        if (claim == null || claim.canModify(player)) {
+            return false;
+        }
+        ClaimFlags flags = claim.getFlags();
+        // La cadena anterior estaba mal encadenada y terminaba negando siempre cualquier
+        // interaccion con entidades, sin mirar los flags.
+        if (flags.blockAllInteractions) {
+            EntityProtectionEvents.deny(player, "[!] No tienes ning\u00fan permiso de interacci\u00f3n en esta zona.");
+            return true;
+        }
+        if (target instanceof Container) {
+            if (flags.blockChestAccess) {
+                EntityProtectionEvents.deny(player, "[!] No puedes abrir este contenedor aqu\u00ed.");
+                return true;
+            }
+            return false;
+        }
+        if (flags.blockEntityInteract) {
+            EntityProtectionEvents.deny(player, "[!] No puedes interactuar con entidades aqu\u00ed.");
+            return true;
+        }
+        return false;
     }
 }
 

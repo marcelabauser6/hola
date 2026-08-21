@@ -6,13 +6,13 @@ set -e
 export JAVA_HOME=/root/.local/share/mise/installs/java/17
 BUILD=/projects/sandbox/build
 ORIG="/projects/sandbox/hola/Fantastic Blocks-7.7.0.jar"
-OUT="$BUILD/dist/Fantastic Blocks-7.7.1.jar"
+OUT="$BUILD/dist/Fantastic Blocks-7.7.2.jar"
 
 rm -rf "$BUILD/out" "$BUILD/dist" "$BUILD/stage"
 mkdir -p "$BUILD/out" "$BUILD/dist" "$BUILD/stage"
 
 echo ">> compilando (Java 17, nombres SRG)"
-"$JAVA_HOME/bin/javac" -nowarn -cp "$(bash $BUILD/cp.sh)" -d "$BUILD/out" $(find "$BUILD/src" -name "*.java")
+"$JAVA_HOME/bin/javac" -nowarn -proc:none -cp "$(bash $BUILD/cp.sh)" -d "$BUILD/out" $(find "$BUILD/src" -name "*.java")
 
 echo ">> desempaquetando jar original"
 cd "$BUILD/stage"
@@ -25,6 +25,9 @@ cp -r "$BUILD/out/com" .
 
 echo ">> actualizando mods.toml"
 python3 "$BUILD/patch_toml.py" "$BUILD/stage/META-INF/mods.toml"
+
+echo ">> registrando mixins nuevos"
+python3 "$BUILD/patch_mixins.py" "$BUILD/stage/claimblocks.mixins.json"
 
 echo ">> generando jar"
 "$JAVA_HOME/bin/jar" --create --file "$OUT" --manifest META-INF/MANIFEST.MF \
