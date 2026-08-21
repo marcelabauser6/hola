@@ -134,7 +134,7 @@ extends ChestMenu {
                 this.viewer.m_6915_();
             } else if (slot == 46) {
                 this.viewer.m_6915_();
-                this.viewer.f_8924_.m_129892_().m_230957_(this.viewer.m_20203_(), "claimadmin stats");
+                this.viewer.f_8924_.m_129892_().m_230957_(this.viewer.m_20203_(), "fsclaimadmin stats");
             } else if (slot == 47) {
                 AdminGlobalFlagsHandler.open(this.viewer);
             } else if (slot == 48) {

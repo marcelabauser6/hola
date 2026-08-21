@@ -1,7 +1,7 @@
-# Fantastic Blocks (`claimblocks`) — código fuente reconstruido
+# Fantastic Claims (`claimblocks`) — código fuente
 
 Este directorio contiene el código fuente del mod, reconstruido a partir de
-`Fantastic Blocks-7.7.0.jar` y con los arreglos de la versión **7.7.1** aplicados.
+`Fantastic Blocks-7.7.0.jar (el jar original)` y con los arreglos de la versión **7.7.1** aplicados.
 Los cambios están comentados en el propio código.
 
 ## Cómo está montado
@@ -68,7 +68,7 @@ java -cp "$CP:/tmp/t" ClaimLogicCheck    # miembros, baneos y persistencia JSON
 Prueba de carga en un servidor real:
 
 ```bash
-cp dist/Fantastic\ Blocks-7.7.1.jar forge/mods/
+cp dist/Fantastic\ Claims-7.8.0.jar forge/mods/
 cd forge && echo "eula=true" > eula.txt
 java -Xmx2G -Dmixin.debug.verbose=true @libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt nogui
 ```

@@ -90,7 +90,7 @@ public final class ChatPromptRouter {
     public static void markPacketCaptureActive() {
         if (!packetCaptureActive) {
             packetCaptureActive = true;
-            ClaimBlocksMod.LOGGER.info("[ClaimBlocks] Captura de respuestas a nivel de paquete ACTIVA (compatible con Mohist y plugins de chat).");
+            ClaimBlocksMod.LOGGER.info("[FantasticClaims] Captura de respuestas a nivel de paquete ACTIVA (compatible con Mohist y plugins de chat).");
         }
     }
 

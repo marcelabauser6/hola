@@ -88,7 +88,7 @@ public final class PlayerLookup {
                 }
             }
             catch (Throwable t) {
-                ClaimBlocksMod.LOGGER.warn("[ClaimBlocks] No se pudo resolver el perfil de '" + query + "'", t);
+                ClaimBlocksMod.LOGGER.warn("[FantasticClaims] No se pudo resolver el perfil de '" + query + "'", t);
             }
             Resolved result = out;
             server.execute(() -> {

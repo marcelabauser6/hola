@@ -41,7 +41,7 @@ public abstract class HangingEntityMixin {
             }
         }
         catch (Throwable t) {
-            ClaimBlocksMod.LOGGER.error("[ClaimBlocks] Fallo protegiendo una decoracion", t);
+            ClaimBlocksMod.LOGGER.error("[FantasticClaims] Fallo protegiendo una decoracion", t);
         }
     }
 }

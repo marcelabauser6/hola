@@ -150,7 +150,7 @@ extends ChestMenu {
         }
         this.chest.m_6836_(38, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42614_), (Component)Component.m_237113_((String)("Miembros (" + this.claim.getMembers().size() + ")")).m_130940_(ChatFormatting.YELLOW)), this.buildMemberLore()));
         this.chest.m_6836_(40, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42656_), (Component)Component.m_237113_((String)"Quitar miembro").m_130940_(ChatFormatting.RED)), List.of(Component.m_237113_((String)"Pide nombre por chat").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Clic para eliminar a un invitado").m_130940_(ChatFormatting.GRAY))));
-        this.chest.m_6836_(42, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42680_), (Component)Component.m_237113_((String)"A\u00f1adir miembro").m_130944_(new ChatFormatting[]{ChatFormatting.GREEN, ChatFormatting.BOLD})), List.of(Component.m_237113_((String)"Clic izq: elegir de una lista").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Clic der: escribir el nombre por chat").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Tambi\u00e9n sirve /claim addmember <jugador>").m_130940_(ChatFormatting.DARK_GRAY))));
+        this.chest.m_6836_(42, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42680_), (Component)Component.m_237113_((String)"A\u00f1adir miembro").m_130944_(new ChatFormatting[]{ChatFormatting.GREEN, ChatFormatting.BOLD})), List.of(Component.m_237113_((String)"Clic izq: elegir de una lista").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Clic der: escribir el nombre por chat").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Tambi\u00e9n sirve /fsclaim addmember <jugador>").m_130940_(ChatFormatting.DARK_GRAY))));
         this.chest.m_6836_(39, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42025_), (Component)Component.m_237113_((String)"Banear jugador").m_130944_(new ChatFormatting[]{ChatFormatting.RED, ChatFormatting.BOLD})), this.buildBanLore()));
         this.chest.m_6836_(41, ClaimMenuHandler.withLore(ClaimMenuHandler.withName(new ItemStack((ItemLike)Items.f_42109_), (Component)Component.m_237113_((String)"Desbanear jugador").m_130940_(ChatFormatting.GREEN)), List.of(Component.m_237113_((String)"Pide nombre por chat").m_130940_(ChatFormatting.GRAY), Component.m_237113_((String)"Clic para quitar del baneo").m_130940_(ChatFormatting.GRAY))));
         if (this.page > 0) {
@@ -727,7 +727,7 @@ extends ChestMenu {
                     this.viewer.m_6915_();
                 } else if (slotId == 52) {
                     this.viewer.m_6915_();
-                    this.viewer.f_8924_.m_129892_().m_230957_(this.viewer.m_20203_(), "claim list");
+                    this.viewer.f_8924_.m_129892_().m_230957_(this.viewer.m_20203_(), "fsclaim list");
                 }
             }
         }
@@ -795,7 +795,7 @@ extends ChestMenu {
     public static void requestAddMember(ServerPlayer player, Claim claim, int returnPage) {
         pending.put(player.m_20148_(), new PendingChat(PendingType.ADD_MEMBER, claim.getClaimId(), returnPage));
         player.m_5661_((Component)Component.m_237113_((String)"[Protecci\u00f3n] Escribe el nombre del jugador a a\u00f1adir (o 'cancelar'):").m_130940_(ChatFormatting.YELLOW), false);
-        player.m_5661_((Component)Component.m_237113_((String)"    No hace falta que est\u00e9 conectado. Alternativa: /claim addmember <jugador>").m_130940_(ChatFormatting.DARK_GRAY), false);
+        player.m_5661_((Component)Component.m_237113_((String)"    No hace falta que est\u00e9 conectado. Alternativa: /fsclaim addmember <jugador>").m_130940_(ChatFormatting.DARK_GRAY), false);
     }
 
     public static void requestRemoveMember(ServerPlayer player, Claim claim, int returnPage) {
@@ -1128,8 +1128,8 @@ extends ChestMenu {
 
     private static void sendInvite(ServerPlayer target, String inviterName, String groupName, String code) {
         target.m_5661_((Component)Component.m_237113_((String)("[Grupo] " + inviterName + " te invita a unir tu proteccion al grupo \"" + groupName + "\".")).m_130940_(ChatFormatting.AQUA), false);
-        MutableComponent accept = Component.m_237113_((String)" [\u2714 ACEPTAR] ").m_130948_(Style.f_131099_.m_131140_(ChatFormatting.GREEN).m_131136_(Boolean.valueOf(true)).m_131142_(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/claimmerge accept " + code)));
-        MutableComponent reject = Component.m_237113_((String)"[\u2718 RECHAZAR]").m_130948_(Style.f_131099_.m_131140_(ChatFormatting.RED).m_131136_(Boolean.valueOf(true)).m_131142_(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/claimmerge reject " + code)));
+        MutableComponent accept = Component.m_237113_((String)" [\u2714 ACEPTAR] ").m_130948_(Style.f_131099_.m_131140_(ChatFormatting.GREEN).m_131136_(Boolean.valueOf(true)).m_131142_(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/fsclaimmerge accept " + code)));
+        MutableComponent reject = Component.m_237113_((String)"[\u2718 RECHAZAR]").m_130948_(Style.f_131099_.m_131140_(ChatFormatting.RED).m_131136_(Boolean.valueOf(true)).m_131142_(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/fsclaimmerge reject " + code)));
         target.m_5661_((Component)Component.m_237113_((String)"").m_7220_((Component)accept).m_7220_((Component)reject), false);
     }
 

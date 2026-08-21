@@ -610,7 +610,7 @@ public class ClaimManager {
         if (!ClaimManager.looksValid(file)) {
             Path bak = file.resolveSibling(file.getFileName().toString() + ".bak");
             if (ClaimManager.looksValid(bak)) {
-                ClaimBlocksMod.LOGGER.warn("[ClaimBlocks] {} no se puede leer; restaurando desde {}", file, bak);
+                ClaimBlocksMod.LOGGER.warn("[FantasticClaims] {} no se puede leer; restaurando desde {}", file, bak);
                 file = bak;
             }
         }

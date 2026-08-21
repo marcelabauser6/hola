@@ -38,7 +38,7 @@ public abstract class ServerChatPromptMixin {
             ChatPromptRouter.consume(sender, packet.f_133827_());
         }
         catch (Throwable t) {
-            ClaimBlocksMod.LOGGER.error("[ClaimBlocks] Fallo capturando la respuesta del menu", t);
+            ClaimBlocksMod.LOGGER.error("[FantasticClaims] Fallo capturando la respuesta del menu", t);
         }
     }
 
@@ -55,7 +55,7 @@ public abstract class ServerChatPromptMixin {
             }
         }
         catch (Throwable t) {
-            ClaimBlocksMod.LOGGER.error("[ClaimBlocks] Fallo ocultando la respuesta del menu", t);
+            ClaimBlocksMod.LOGGER.error("[FantasticClaims] Fallo ocultando la respuesta del menu", t);
         }
     }
 }

@@ -99,7 +99,7 @@ public class ClaimBlocksMod {
     }
 
     public ClaimBlocksMod() {
-        LOGGER.info("[ClaimBlocks] Inicializando v7.7.2 (Forge 1.20.1)...");
+        LOGGER.info("[FantasticClaims] Fantastic Claims v7.8.0 (Forge 1.20.1)...");
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ClaimItems.register(modBus);
         ClaimNetwork.init();
@@ -107,7 +107,7 @@ public class ClaimBlocksMod {
         MinecraftForge.EVENT_BUS.register((Object)new BlockProtectionEvents());
         MinecraftForge.EVENT_BUS.register((Object)new EntityProtectionEvents());
         MinecraftForge.EVENT_BUS.register((Object)new PlayerTracker());
-        LOGGER.info("[ClaimBlocks] Eventos, items y red registrados.");
+        LOGGER.info("[FantasticClaims] Eventos, items y red registrados.");
     }
 
     @SubscribeEvent
@@ -118,7 +118,7 @@ public class ClaimBlocksMod {
     }
 
     private static void registerMergeCommand(CommandDispatcher<CommandSourceStack> d) {
-        d.register((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)Commands.m_82127_((String)"claimmerge").then(Commands.m_82127_((String)"accept").then(Commands.m_82129_((String)"code", (ArgumentType)StringArgumentType.word()).executes(ctx -> {
+        d.register((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)Commands.m_82127_((String)"fsclaimmerge").then(Commands.m_82127_((String)"accept").then(Commands.m_82129_((String)"code", (ArgumentType)StringArgumentType.word()).executes(ctx -> {
             ServerPlayer p = ((CommandSourceStack)ctx.getSource()).m_81375_();
             ClaimMenuHandler.acceptMerge(p, StringArgumentType.getString((CommandContext)ctx, (String)"code"));
             return 1;
@@ -137,7 +137,7 @@ public class ClaimBlocksMod {
     public void onServerStarted(ServerStartedEvent event) {
         ClaimManager.getInstance().load(event.getServer());
         GlobalFlags.getInstance().load(event.getServer());
-        LOGGER.info("[ClaimBlocks] Datos cargados.");
+        LOGGER.info("[FantasticClaims] Datos cargados.");
     }
 
     @SubscribeEvent
@@ -145,7 +145,7 @@ public class ClaimBlocksMod {
         // saveNow: escritura sincrona, para que el apagado no deje datos en el hilo de disco
         ClaimManager.getInstance().saveNow();
         GlobalFlags.getInstance().save(event.getServer());
-        LOGGER.info("[ClaimBlocks] Datos guardados al apagar.");
+        LOGGER.info("[FantasticClaims] Datos guardados al apagar.");
     }
 
     @SubscribeEvent
