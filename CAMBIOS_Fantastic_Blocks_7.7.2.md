@@ -108,3 +108,78 @@ El procesador de anotaciones de Mixin rechaza nombres SRG en `@Inject`, así que
 su nombre SRG con descriptor completo (`m_6469_(Lnet/minecraft/world/damagesource/DamageSource;F)Z`),
 que es exactamente como se llama en producción. Verificado en el arranque real: se aplica.
 Si algún día compilas en un entorno deobfuscado, ese mixin habría que pasarlo a nombres de origen.
+
+
+---
+
+# Comprobación: ¿sirve en Mohist?
+
+Sin arrancar un Mohist (su API de descargas no responde desde mi entorno), pero de una forma más
+sólida que una prueba de arranque: **contra el código fuente de Mohist**. Mohist mantiene sus
+parches de CraftBukkit sobre las fuentes de Forge con nombres SRG, en la rama `1.20.1` de
+`MohistMC/Mohist`, así que se puede comprobar exactamente si tocan los métodos que intercepto.
+
+Mohist parchea las cuatro clases, pero lo único que importa es si cambian las **firmas**:
+
+| Mixin | Método interceptado | Qué hace Mohist | ¿Sigue aplicando? |
+|---|---|---|---|
+| `ServerChatPromptMixin` | `m_7388_` (`handleChat`) | inserta código en el cuerpo; firma **intacta** | Sí |
+| `ServerChatPromptMixin` | `m_243086_` (`broadcastChatMessage`) | existe, firma intacta | Sí |
+| `HangingEntityMixin` | `m_6469_` (`hurt`) | **no lo toca** | Sí |
+| `PressurePlateMixin` | `m_152143_` (`checkPressed`) | inserta `BlockRedstoneEvent`; firma **intacta** | Sí |
+| `DispenserBlockMixin` | `m_5824_` (`dispenseFrom`) | solo `protected` → `public` | Sí (el mixin busca por nombre y descriptor) |
+
+Dos cosas que confirma el propio parche de Mohist:
+
+1. En `handleChat` insertan un bloque comentado como **"CraftBukkit start - async chat"**. Es la
+   confirmación de que el chat en Mohist se procesa fuera del hilo principal, y por tanto de que
+   el salto de hilo con `server.execute(...)` que hace `ChatPromptRouter` es necesario y correcto.
+2. En ese mismo método aparece `ForgeHooks.getServerChatSubmittedDecorator()` y el comentario
+   *"ServerChatEvent was canceled if this is null"*: Mohist mantiene el `ServerChatEvent` de Forge,
+   así que el camino de reserva del mod también funciona.
+
+## Hueco encontrado y cerrado en esta comprobación
+
+Al revisar esto vi que `ItemFrame` y `ArmorStand` **sobreescriben `hurt` y no llaman a `super`** en
+el caso que importa: un marco con un item dentro suelta el item y devuelve `true` sin pasar por
+`HangingEntity.hurt`. Es decir, mi mixin no los cubría. Los cuadros sí (ni `Painting` ni el
+`EntityCanvas` de Joy of Painting sobreescriben `hurt`), pero los marcos con contenido quedaban
+expuestos a explosiones y a mobs.
+
+El mixin ahora apunta a las tres clases. Verificado en el bytecode transformado:
+
+```
+HangingEntity    inyeccion dentro de m_6469_ (hurt): 1 llamada
+ItemFrame        inyeccion dentro de m_6469_ (hurt): 1 llamada
+ArmorStand       inyeccion dentro de m_6469_ (hurt): 1 llamada
+```
+
+`Painting` y `EntityCanvas` no sobreescriben `hurt`, así que quedan cubiertos por herencia.
+
+## Auditoría de los flags
+
+Script `tools/audit_flags.py`: descompila el jar publicado y comprueba, para cada uno de los 38
+campos del menú, que se lee en el código que **aplica** las protecciones (`event/`, `mixin/`,
+`util/`, `Claim`, `render/`, `ClaimBlocksMod`) y no solo en el GUI que dibuja el botón.
+
+```
+Los 38 flags se consultan en el codigo de proteccion.
+```
+
+Antes de los arreglos, doce de ellos solo aparecían en el GUI. Ojo con el alcance de esta
+comprobación: demuestra que **ningún flag es decorativo**, no que la semántica de cada uno sea la
+que tú esperas. Eso último sigue necesitando una prueba en el juego.
+
+## Vías de destrucción de un cuadro y cobertura
+
+Del propio parche de Mohist se ven las tres vías por las que desaparece un cuadro:
+
+| Vía | Cubierto por |
+|---|---|
+| `hurt` (golpe, flecha, explosión, mob) | mixin `HangingEntityMixin` |
+| Clic derecho | `EntityInteract` + `EntityInteractSpecific` |
+| El bloque que lo sostiene desaparece (`tick`, causa `PHYSICS`/`OBSTRUCTION`) | las protecciones de bloques: un visitante no puede romper la pared |
+
+La tercera es indirecta y honesta de mencionar: si la pared cae por algo que tú permites (por
+ejemplo una explosión con `blockExplosions` apagado), el cuadro se descuelga y cae. Es coherente
+con lo que has configurado, no un agujero.
