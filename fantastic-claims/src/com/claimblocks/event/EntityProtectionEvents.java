@@ -38,6 +38,7 @@
  */
 package com.claimblocks.event;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimFlags;
 import com.claimblocks.data.ClaimManager;
@@ -129,9 +130,14 @@ public final class EntityProtectionEvents {
         mob.m_20334_(dirX * 1.1, 0.42, dirZ * 1.1);
         mob.f_19812_ = true;
         mob.f_19864_ = true;
-        mob.m_20254_(3);
-        mob.f_19802_ = 0;
-        mob.m_6469_(mob.m_269291_().m_269264_(), 3.0f);
+        ClaimConfig cfg = ClaimConfig.get();
+        if (cfg.hostileBurnSeconds > 0) {
+            mob.m_20254_(cfg.hostileBurnSeconds);
+        }
+        if (cfg.hostileDamage > 0.0f) {
+            mob.f_19802_ = 0;
+            mob.m_6469_(mob.m_269291_().m_269264_(), cfg.hostileDamage);
+        }
         mob.getPersistentData().m_128356_(BARRIER_TAG, mob.m_9236_().m_46467_());
     }
 

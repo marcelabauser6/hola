@@ -15,6 +15,7 @@
  */
 package com.claimblocks.event;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimManager;
 import com.claimblocks.data.ClaimTier;
@@ -41,7 +42,7 @@ public final class PassiveEffectsManager {
 
     public static void tick(MinecraftServer server) {
         if (++counter % 20 == 0) {
-            boolean runEffects = counter % 40 == 0;
+            boolean runEffects = counter % Math.max(20, ClaimConfig.get().passiveEffectIntervalTicks) < 20;
             for (ServerLevel world : server.m_129785_()) {
                 for (ServerPlayer player : world.m_6907_()) {
                     Claim claim = ClaimManager.getInstance().getClaimAt((Level)world, player.m_20183_());
@@ -126,13 +127,13 @@ public final class PassiveEffectsManager {
         int level;
         if (claim != null && (level = PassiveEffectsManager.paidLevel(claim.getTier())) != 0 && claim.canModify((Player)player)) {
             if (level >= 1 && claim.getFlags().effectRegeneration) {
-                player.m_7292_(new MobEffectInstance(MobEffects.f_19605_, 60, 0, true, false, true));
+                player.m_7292_(new MobEffectInstance(MobEffects.f_19605_, ClaimConfig.get().effectDurationTicks, 0, true, false, true));
             }
             if (level >= 2 && claim.getFlags().effectResistance) {
-                player.m_7292_(new MobEffectInstance(MobEffects.f_19606_, 60, 0, true, false, true));
+                player.m_7292_(new MobEffectInstance(MobEffects.f_19606_, ClaimConfig.get().effectDurationTicks, 0, true, false, true));
             }
             if (level >= 2 && claim.getFlags().effectSpeed) {
-                player.m_7292_(new MobEffectInstance(MobEffects.f_19596_, 60, 0, true, false, true));
+                player.m_7292_(new MobEffectInstance(MobEffects.f_19596_, ClaimConfig.get().effectDurationTicks, 0, true, false, true));
             }
         }
     }

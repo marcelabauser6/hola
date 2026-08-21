@@ -34,6 +34,7 @@
  */
 package com.claimblocks;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.chat.ChatPromptRouter;
 import com.claimblocks.command.ClaimAdminCommands;
 import com.claimblocks.command.ClaimCommands;
@@ -99,7 +100,7 @@ public class ClaimBlocksMod {
     }
 
     public ClaimBlocksMod() {
-        LOGGER.info("[FantasticClaims] Fantastic Claims v7.8.0 (Forge 1.20.1)...");
+        LOGGER.info("[FantasticClaims] Fantastic Claims v7.9.0 (Forge 1.20.1)...");
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         ClaimItems.register(modBus);
         ClaimNetwork.init();
@@ -173,10 +174,10 @@ public class ClaimBlocksMod {
             PlayerTracker.tick(server);
             BlockProtectionEvents.tickFireSweep(server);
             PassiveEffectsManager.tick(server);
-            if (++particleCounter % 4 == 0) {
+            if (++particleCounter % ClaimConfig.get().particleIntervalTicks == 0) {
                 ClaimBlocksMod.renderClaimParticles(server);
             }
-            if (particleCounter % 20 == 0) {
+            if (particleCounter % ClaimConfig.get().borderIntervalTicks == 0) {
                 ClaimBlocksMod.sendBorderPackets(server);
             }
         }

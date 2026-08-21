@@ -220,7 +220,8 @@ public final class ParticleBorder {
     public static boolean withinRenderRange(ServerPlayer player, Claim claim) {
         double dx = Math.max(0.0, Math.abs(player.m_20185_() - ((double)claim.getX() + 0.5)) - (double)claim.getRadius());
         double dz = Math.max(0.0, Math.abs(player.m_20189_() - ((double)claim.getZ() + 0.5)) - (double)claim.getRadius());
-        return dx <= 24.0 && dz <= 24.0;
+        double max = com.claimblocks.data.ClaimConfig.get().particleRenderDistance;
+        return dx <= max && dz <= max;
     }
 }
 

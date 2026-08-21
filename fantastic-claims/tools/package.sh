@@ -6,7 +6,7 @@ set -e
 export JAVA_HOME=/root/.local/share/mise/installs/java/17
 BUILD=/projects/sandbox/build
 ORIG="/projects/sandbox/hola/Fantastic Blocks-7.7.0.jar"
-OUT="$BUILD/dist/Fantastic Claims-7.8.0.jar"
+OUT="$BUILD/dist/Fantastic Claims-7.9.0.jar"
 
 rm -rf "$BUILD/out" "$BUILD/dist" "$BUILD/stage"
 mkdir -p "$BUILD/out" "$BUILD/dist" "$BUILD/stage"

@@ -30,6 +30,7 @@
  */
 package com.claimblocks.gui;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.ClaimBlocks;
 import com.claimblocks.chat.ChatPromptRouter;
 import com.claimblocks.data.Claim;
@@ -994,6 +995,11 @@ extends ChestMenu {
             sender.m_5661_((Component)Component.m_237113_((String)("[i] " + target.name() + " ya es miembro de esta zona.")).m_130940_(ChatFormatting.YELLOW), false);
             return false;
         }
+        int maxMembers = ClaimConfig.get().maxMembersPerClaim;
+        if (maxMembers > 0 && claim.getMembers().size() >= maxMembers) {
+            sender.m_5661_((Component)Component.m_237113_((String)("[x] Esta zona ya tiene el maximo de miembros (" + maxMembers + ").")).m_130940_(ChatFormatting.RED), false);
+            return false;
+        }
         if (claim.isBanned(target.id())) {
             claim.unbanPlayer(target.id());
             sender.m_5661_((Component)Component.m_237113_((String)("[i] " + target.name() + " estaba baneado de la zona; se le quit\u00f3 el baneo.")).m_130940_(ChatFormatting.YELLOW), false);
@@ -1054,8 +1060,9 @@ extends ChestMenu {
     }
 
     private static void handleEditWelcome(ServerPlayer sender, Claim claim, String text, int page) {
-        if (text.length() > 60) {
-            text = text.substring(0, 60);
+        int maxLen = ClaimConfig.get().maxWelcomeLength;
+        if (text.length() > maxLen) {
+            text = text.substring(0, maxLen);
         }
         claim.getFlags().welcomeMessage = text;
         claim.getFlags().showWelcome = !text.isBlank();
@@ -1065,8 +1072,9 @@ extends ChestMenu {
     }
 
     private static void handleEditLeave(ServerPlayer sender, Claim claim, String text, int page) {
-        if (text.length() > 60) {
-            text = text.substring(0, 60);
+        int maxLen = ClaimConfig.get().maxWelcomeLength;
+        if (text.length() > maxLen) {
+            text = text.substring(0, maxLen);
         }
         claim.getFlags().leaveMessage = text;
         claim.getFlags().showLeave = !text.isBlank();
@@ -1207,7 +1215,7 @@ extends ChestMenu {
         }
 
         public boolean isExpired() {
-            return System.currentTimeMillis() - this.createdAtMillis > 90000L;
+            return System.currentTimeMillis() - this.createdAtMillis > ClaimConfig.get().chatPromptMillis();
         }
     }
 

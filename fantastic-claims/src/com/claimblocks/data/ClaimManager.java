@@ -99,11 +99,11 @@ public class ClaimManager {
     }
 
     public static int getMaxClaimsPerPlayer() {
-        return MAX_CLAIMS_PER_PLAYER;
+        return ClaimConfig.get().maxClaimsPerPlayer;
     }
 
     public static void setMaxClaimsPerPlayer(int n) {
-        MAX_CLAIMS_PER_PLAYER = Math.max(0, n);
+        ClaimConfig.get().maxClaimsPerPlayer = Math.max(0, n);
     }
 
     public MinecraftServer getServer() {
@@ -113,6 +113,9 @@ public class ClaimManager {
     public Claim createClaim(Level world, BlockPos pos, Player owner, ClaimTier tier) {
         String dim = world.m_46472_().m_135782_().toString();
         Claim c = Claim.create(owner.m_20148_(), owner.m_7755_().getString(), tier, dim, pos);
+        // los valores de "zonasNuevas" de la config se aplican antes de los extras por tier,
+        // para que los efectos de las zonas grandes sigan activandose solos
+        ClaimConfig.get().applyDefaultsTo(c);
         if (tier != null) {
             String var8;
             String var7 = tier.id;
@@ -672,26 +675,12 @@ public class ClaimManager {
         }
     }
 
+    /**
+     * La configuracion vive en ClaimConfig. Antes esto solo leia maxClaimsPerPlayer; ahora carga
+     * el fichero completo y lo reescribe con las claves que falten.
+     */
     private void loadConfig(MinecraftServer s) {
-        Path cfg = s.m_129843_(LevelResource.f_78182_).resolve(CONFIG_FILE);
-        try {
-            JsonObject o;
-            if (!Files.exists(cfg, new LinkOption[0])) {
-                JsonObject obj = new JsonObject();
-                obj.addProperty("maxClaimsPerPlayer", (Number)0);
-                obj.addProperty("_doc_maxClaimsPerPlayer", "0 = unlimited; max claims a non-OP player can own");
-                Files.createDirectories(cfg.getParent(), new FileAttribute[0]);
-                Files.writeString(cfg, (CharSequence)GSON.toJson((JsonElement)obj), StandardCharsets.UTF_8, new OpenOption[0]);
-                return;
-            }
-            JsonElement el = JsonParser.parseString((String)Files.readString(cfg, StandardCharsets.UTF_8));
-            if (el != null && el.isJsonObject() && (o = el.getAsJsonObject()).has("maxClaimsPerPlayer")) {
-                ClaimManager.setMaxClaimsPerPlayer(o.get("maxClaimsPerPlayer").getAsInt());
-            }
-        }
-        catch (Exception var51) {
-            ClaimBlocksMod.LOGGER.error("Could not load config " + cfg, (Throwable)var51);
-        }
+        ClaimConfig.get().load(s);
     }
 
     /** true si el fichero existe y contiene un JSON con la lista de zonas. */

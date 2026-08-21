@@ -20,6 +20,7 @@
  */
 package com.claimblocks.command;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.chat.ChatPromptRouter;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimManager;
@@ -47,7 +48,15 @@ public final class ClaimAdminCommands {
     private static final SuggestionProvider<CommandSourceStack> ON_OFF = (ctx, builder) -> SharedSuggestionProvider.m_82967_((String[])new String[]{"on", "off"}, (SuggestionsBuilder)builder);
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)((LiteralArgumentBuilder)Commands.m_82127_((String)"fsclaimadmin").requires(s -> s.m_6761_(2))).executes(ClaimAdminCommands::openPanel)).then(Commands.m_82127_((String)"bypass").executes(ClaimAdminCommands::toggleBypass))).then(Commands.m_82127_((String)"list").executes(ClaimAdminCommands::list))).then(Commands.m_82127_((String)"stats").executes(ClaimAdminCommands::stats))).then(Commands.m_82127_((String)"globalflag").then(Commands.m_82129_((String)"flag", (ArgumentType)StringArgumentType.word()).suggests(GLOBAL_FLAGS).then(Commands.m_82129_((String)"value", (ArgumentType)StringArgumentType.word()).suggests(ON_OFF).executes(ClaimAdminCommands::globalFlag)))));
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.m_82127_((String)"fsclaimadmin");
+        root.requires(s -> s.m_6761_(2));
+        root.executes(ClaimAdminCommands::openPanel);
+        root.then(Commands.m_82127_((String)"bypass").executes(ClaimAdminCommands::toggleBypass));
+        root.then(Commands.m_82127_((String)"list").executes(ClaimAdminCommands::list));
+        root.then(Commands.m_82127_((String)"stats").executes(ClaimAdminCommands::stats));
+        root.then(Commands.m_82127_((String)"reload").executes(ClaimAdminCommands::reload));
+        root.then(Commands.m_82127_((String)"globalflag").then(Commands.m_82129_((String)"flag", (ArgumentType)StringArgumentType.word()).suggests(GLOBAL_FLAGS).then(Commands.m_82129_((String)"value", (ArgumentType)StringArgumentType.word()).suggests(ON_OFF).executes(ClaimAdminCommands::globalFlag))));
+        dispatcher.register(root);
     }
 
     private static int openPanel(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -103,5 +112,20 @@ public final class ClaimAdminCommands {
         ((CommandSourceStack)ctx.getSource()).m_288197_(() -> Component.m_237113_((String)("\u2714 " + flag + " = " + (on ? "ON" : "OFF"))).m_130940_(ChatFormatting.GREEN), true);
         return 1;
     }
+    /** Recarga claimblocks_config.json sin reiniciar el servidor. */
+    static int reload(CommandContext<CommandSourceStack> ctx) {
+        boolean ok = ClaimConfig.get().reload();
+        ClaimConfig cfg = ClaimConfig.get();
+        if (!ok) {
+            ((CommandSourceStack)ctx.getSource()).m_81352_((Component)Component.m_237113_((String)"[x] No se pudo recargar la configuracion (revisa la consola).").m_130940_(ChatFormatting.RED));
+            return 0;
+        }
+        ((CommandSourceStack)ctx.getSource()).m_288197_(() -> Component.m_237113_((String)"\u2714 Configuracion de Fantastic Claims recargada.").m_130940_(ChatFormatting.GREEN)
+                .m_7220_((Component)Component.m_237113_((String)("\n  Zonas por jugador: " + (cfg.maxClaimsPerPlayer == 0 ? "sin limite" : String.valueOf(cfg.maxClaimsPerPlayer)))).m_130940_(ChatFormatting.GRAY))
+                .m_7220_((Component)Component.m_237113_((String)("\n  Miembros por zona: " + (cfg.maxMembersPerClaim == 0 ? "sin limite" : String.valueOf(cfg.maxMembersPerClaim)))).m_130940_(ChatFormatting.GRAY))
+                .m_7220_((Component)Component.m_237113_((String)("\n  Tolvas: " + (cfg.protectHoppers ? "protegido" : "OFF") + " | Fluidos: " + (cfg.protectFluids ? "protegido" : "OFF") + " | Decoracion: " + (cfg.protectDecoration ? "protegido" : "OFF"))).m_130940_(ChatFormatting.GRAY)), true);
+        return 1;
+    }
+
 }
 

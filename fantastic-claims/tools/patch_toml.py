@@ -6,7 +6,7 @@ src = io.open(path, encoding="utf-8").read()
 # OJO: el modId sigue siendo "claimblocks" a proposito. Cambiarlo renombraria los items
 # (claimblocks:proteccion_*), con lo que las piedras que los jugadores ya tienen en el inventario
 # desaparecerian, y ademas dejaria huerfano el claimblocks_data.json del mundo.
-src = src.replace('version="7.7.0"', 'version="7.8.0"')
+src = src.replace('version="7.7.0"', 'version="7.9.0"')
 src = src.replace('displayName="Protecciones de Zonas"', 'displayName="Fantastic Claims"')
 
 old_desc_start = src.index("description='''")

@@ -1,5 +1,6 @@
 package com.claimblocks.util;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimFlags;
 import com.claimblocks.data.ClaimManager;
@@ -43,6 +44,9 @@ public final class BorderGuard {
         if (level == null || level.m_5776_() || fromPos == null || toPos == null) {
             return false;
         }
+        if (!ClaimConfig.get().protectHoppers) {
+            return false;
+        }
         ClaimManager mgr = ClaimManager.getInstance();
         Claim from = mgr.getClaimAt(level, fromPos);
         if (from == null) {
@@ -62,6 +66,9 @@ public final class BorderGuard {
      */
     public static boolean blocksFluidEntry(Level level, BlockPos fromPos, BlockPos toPos) {
         if (level == null || level.m_5776_() || fromPos == null || toPos == null) {
+            return false;
+        }
+        if (!ClaimConfig.get().protectFluids) {
             return false;
         }
         ClaimManager mgr = ClaimManager.getInstance();

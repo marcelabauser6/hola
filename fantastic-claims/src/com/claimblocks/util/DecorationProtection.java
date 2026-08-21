@@ -1,5 +1,6 @@
 package com.claimblocks.util;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimFlags;
 import com.claimblocks.data.ClaimManager;
@@ -32,6 +33,9 @@ public final class DecorationProtection {
 
     /** Cuadros, marcos (y los cuadros de mods que heredan de HangingEntity) y soportes de armadura. */
     public static boolean isDecoration(Entity entity) {
+        if (!ClaimConfig.get().protectDecoration) {
+            return false;
+        }
         return entity instanceof HangingEntity || entity instanceof ArmorStand;
     }
 
@@ -100,7 +104,7 @@ public final class DecorationProtection {
         ClaimFlags flags = claim.getFlags();
         if (source != null && source.m_269533_(DamageTypeTags.f_268415_)) {
             // TNT, creepers, cristales del end...
-            return flags.blockExplosions || flags.publicMode;
+            return ClaimConfig.get().protectDecorationFromExplosions && (flags.blockExplosions || flags.publicMode);
         }
         // mobs, fuego, cactus, o cualquier otra cosa sin jugador detras
         return flags.blockBuilding || flags.publicMode;

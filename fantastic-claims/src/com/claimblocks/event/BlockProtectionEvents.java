@@ -46,6 +46,7 @@
  */
 package com.claimblocks.event;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.ClaimBlocks;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimFlags;
@@ -400,6 +401,9 @@ public final class BlockProtectionEvents {
             // destruyendo cuadros, marcos y soportes de armadura dentro de la zona, y el item
             // caia al suelo. Ahora la decoracion tambien queda fuera de la explosion.
             var1.getAffectedEntities().removeIf(entity -> {
+                if (!ClaimConfig.get().protectDecorationFromExplosions) {
+                    return false;
+                }
                 if (!DecorationProtection.isDecoration((Entity)entity)) {
                     return false;
                 }
@@ -513,7 +517,7 @@ public final class BlockProtectionEvents {
     }
 
     public static void tickFireSweep(MinecraftServer var0) {
-        if (++fireSweepCounter % 40 == 0) {
+        if (++fireSweepCounter % ClaimConfig.get().fireSweepIntervalTicks == 0) {
             for (ServerLevel var1 : var0.m_129785_()) {
                 for (Claim var3 : ClaimManager.getInstance().getClaimsInWorld(var1.m_46472_().m_135782_().toString())) {
                     if (!var3.getFlags().blockFire && !var3.getFlags().publicMode) continue;
@@ -527,7 +531,7 @@ public final class BlockProtectionEvents {
     }
 
     private static void extinguishAround(ServerLevel var0, BlockPos var1, Claim var2) {
-        int var3 = 6;
+        int var3 = ClaimConfig.get().fireSweepRadius;
         BlockPos.MutableBlockPos var4 = new BlockPos.MutableBlockPos();
         for (int var5 = -var3; var5 <= var3; ++var5) {
             for (int var6 = -var3; var6 <= var3; ++var6) {

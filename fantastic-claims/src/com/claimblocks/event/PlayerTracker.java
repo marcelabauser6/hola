@@ -15,6 +15,7 @@
  */
 package com.claimblocks.event;
 
+import com.claimblocks.data.ClaimConfig;
 import com.claimblocks.data.Claim;
 import com.claimblocks.data.ClaimGroup;
 import com.claimblocks.data.ClaimManager;
@@ -88,7 +89,7 @@ public final class PlayerTracker {
                 if (now.getFlags().trespasserAlerts && !now.canModify((Player)player)) {
                     long t = world.m_46467_();
                     Long last = lastAlert.get(player.m_20148_());
-                    if (last == null || t - last > 600L) {
+                    if (last == null || t - last > (long)ClaimConfig.get().trespasserAlertTicks()) {
                         ServerPlayer owner;
                         lastAlert.put(player.m_20148_(), t);
                         UUID ownerId = PlayerTracker.zoneOwner(now);
@@ -177,14 +178,26 @@ public final class PlayerTracker {
         } else {
             tz = cz + r;
         }
-        double ty = PlayerTracker.safeY(world, tx, player.m_20186_(), tz);
-        player.m_8999_(world, tx, ty, tz, player.m_146908_(), player.m_146909_());
-        player.m_20334_(0.0, 0.0, 0.0);
+        ClaimConfig cfg = ClaimConfig.get();
+        if (cfg.banTeleportOut) {
+            double ty = PlayerTracker.safeY(world, tx, player.m_20186_(), tz);
+            player.m_8999_(world, tx, ty, tz, player.m_146908_(), player.m_146909_());
+            player.m_20334_(0.0, 0.0, 0.0);
+        } else {
+            double px2 = player.m_20185_() - cx;
+            double pz2 = player.m_20189_() - cz;
+            double mag = Math.max(1.0E-4, Math.sqrt(px2 * px2 + pz2 * pz2));
+            player.m_20334_(px2 / mag * 1.2, 0.42, pz2 / mag * 1.2);
+        }
         player.f_19864_ = true;
         long now = world.m_46467_();
         Long last = lastBanHit.get(player.m_20148_());
-        if (last == null || now - last >= 40L) {
+        if (last == null || now - last >= ClaimConfig.get().banNoticeTicks()) {
             lastBanHit.put(player.m_20148_(), now);
+            if (cfg.banDamage > 0.0f) {
+                player.f_19802_ = 0;
+                player.m_6469_(player.m_269291_().m_269425_(), cfg.banDamage);
+            }
             player.m_5661_((Component)Component.m_237113_((String)"[!] Est\u00e1s baneado de esta zona.").m_130944_(new ChatFormatting[]{ChatFormatting.RED, ChatFormatting.BOLD}), false);
             player.m_6330_(SoundEvents.f_144243_, SoundSource.PLAYERS, 1.0f, 0.6f);
         }
