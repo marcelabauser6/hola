@@ -33,6 +33,7 @@ public class BankTerminalScreen extends Screen {
         USERS("gui.athens_coins.tab_users", true),
         OPEN("gui.athens_coins.tab_open", false),
         ACCOUNTS("gui.athens_coins.tab_accounts", false),
+        ATMS("gui.athens_coins.tab_atms", false),
         SETTINGS("gui.athens_coins.tab_settings", true);
 
         final String key;
@@ -108,6 +109,9 @@ public class BankTerminalScreen extends Screen {
         if (tab == Tab.SETTINGS) {
             buildSettings();
         }
+        if (tab == Tab.ATMS) {
+            buildAtms();
+        }
 
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.close"),
                         b -> onClose())
@@ -157,6 +161,18 @@ public class BankTerminalScreen extends Screen {
                         b -> send(C2STerminalActionPacket.Action.SET_LOANS_ENABLED,
                                 bank.loansEnabled() ? 0L : 1L, ""))
                 .bounds(leftPos + 90, y + 20, 150, 16).build());
+    }
+
+    private void buildAtms() {
+        int y = topPos + 60;
+        for (int count : new int[] { 1, 4, 8 }) {
+            final int amount = count;
+            addRenderableWidget(Button.builder(
+                            Component.translatable("gui.athens_coins.issue_atm", amount),
+                            b -> send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, ""))
+                    .bounds(leftPos + 8, y, 150, 18).build());
+            y += 22;
+        }
     }
 
     private void addSetting(int y, String labelKey, C2STerminalActionPacket.Action action, String hintKey) {
@@ -212,6 +228,7 @@ public class BankTerminalScreen extends Screen {
             case USERS -> renderPlayers(graphics, mouseX, mouseY, true);
             case OPEN -> renderPlayers(graphics, mouseX, mouseY, false);
             case ACCOUNTS -> renderAccounts(graphics);
+            case ATMS -> renderAtms(graphics);
             case SETTINGS -> renderSettings(graphics);
         }
 
@@ -280,6 +297,19 @@ public class BankTerminalScreen extends Screen {
         }
     }
 
+    private void renderAtms(GuiGraphics graphics) {
+        graphics.drawString(font, Component.translatable("gui.athens_coins.atms_hint"),
+                leftPos + 8, topPos + 44, 0xFFB0A090, false);
+        int y = topPos + 60;
+        for (CoinType type : CoinType.ORDERED) {
+            String line = type.shortName().getString() + ": " + Money.format(bank.syncedRate(type), "$");
+            graphics.drawString(font, line, leftPos + 176, y, 0xFF9EC5D8, false);
+            y += 12;
+        }
+        graphics.drawString(font, Component.translatable("gui.athens_coins.atms_note"),
+                leftPos + 8, topPos + PANEL_H - 44, 0xFF8A7A6A, false);
+    }
+
     private void renderSettings(GuiGraphics graphics) {
         graphics.drawString(font, Component.translatable("gui.athens_coins.bank_name"),
                 leftPos + 8, topPos + 52, 0xFFB0A090, false);
@@ -321,6 +351,20 @@ public class BankTerminalScreen extends Screen {
                     } else if (!row.hasAccount()) {
                         sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
                     }
+                    return true;
+                }
+                y += ROW_H;
+            }
+        }
+        if (tab == Tab.ACCOUNTS && button == 1) {
+            int y = topPos + 58;
+            for (int i = scroll; i < Math.min(accounts.size(), scroll + LIST_ROWS); i++) {
+                if (mouseY >= y && mouseY < y + ROW_H
+                        && mouseX >= leftPos + 8 && mouseX < leftPos + PANEL_W - 8) {
+                    // Right click closes the account and issues the card; deliberately not the
+                    // left button, which is easy to hit by accident.
+                    send(C2STerminalActionPacket.Action.WITHDRAW_ALL,
+                            accounts.get(i).number(), "");
                     return true;
                 }
                 y += ROW_H;

@@ -101,6 +101,13 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
             bank = BankManager.seatTerminal(serverPlayer.server, pos, "Banco");
         }
 
+        // A card in hand opens an account here and pours the money straight in.
+        ItemStack held = serverPlayer.getItemInHand(hand);
+        if (held.is(com.athensmc.athenscoins.item.ModItems.BANK_CARD.get())) {
+            redeemCard(serverPlayer, bank, held);
+            return InteractionResult.CONSUME;
+        }
+
         boolean operator = serverPlayer.hasPermissions(2);
         if (!operator && !bank.isBanker(serverPlayer.getUUID())) {
             serverPlayer.sendSystemMessage(Component
@@ -112,6 +119,40 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
         ModNetwork.toPlayer(serverPlayer,
                 S2COpenTerminalPacket.of(serverPlayer, bank, pos, operator));
         return InteractionResult.CONSUME;
+    }
+
+    /**
+     * Turns a card into a fresh account at this bank.
+     *
+     * <p>The signature is checked first: a forged or hand-edited card is refused rather than
+     * minting the money it claims.</p>
+     */
+    private static void redeemCard(ServerPlayer player, Bank bank, ItemStack card) {
+        long amount = com.athensmc.athenscoins.item.BankCardItem.amountOf(player.server, card);
+        if (amount < 0L) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.card_invalid")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        BankManager.OpenResult result = BankManager.openAccount(player.server, bank,
+                player.getUUID(), player.getGameProfile().getName(), amount);
+        if (!result.ok()) {
+            player.sendSystemMessage(Component.translatable(result.messageKey())
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        card.shrink(1);
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankData.get(player.server).account(result.number());
+        // The banker still gets the paperwork for the new number.
+        ItemStack tag = BankManager.accountTag(account, bank);
+        if (!player.getInventory().add(tag)) {
+            player.drop(tag, false);
+        }
+        player.sendSystemMessage(Component.translatable("message.athens_coins.card_redeemed",
+                        bank.name(), result.number())
+                .withStyle(ChatFormatting.GREEN));
+        com.athensmc.athenscoins.wallet.WalletManager.pushBalance(player);
     }
 
     @Override

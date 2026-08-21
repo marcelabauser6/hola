@@ -17,7 +17,37 @@ public record WalletSnapshot(long cashCents,
                              UUID ownerId,
                              String ownerName,
                              boolean atmNearby,
-                             DisplaySettings display) {
+                             DisplaySettings display,
+                             BankInfo bank) {
+
+    /** The holder's bank, or {@link BankInfo#NONE} when they have no account. */
+    public record BankInfo(boolean hasAccount, String name, int accountNumber, long accountCents,
+                           long walletLimit, long commissionFee, int commissionDays,
+                           long loanOwed, long loanDueAt, int themeColor) {
+
+        public static final BankInfo NONE =
+                new BankInfo(false, "", 0, 0L, 0L, 0L, 0, 0L, 0L, 0x2E4756);
+
+        void write(net.minecraft.network.FriendlyByteBuf buffer) {
+            buffer.writeBoolean(hasAccount);
+            buffer.writeUtf(name, 32);
+            buffer.writeVarInt(accountNumber);
+            buffer.writeVarLong(accountCents);
+            buffer.writeVarLong(walletLimit);
+            buffer.writeVarLong(commissionFee);
+            buffer.writeVarInt(commissionDays);
+            buffer.writeVarLong(loanOwed);
+            buffer.writeLong(loanDueAt);
+            buffer.writeInt(themeColor);
+        }
+
+        static BankInfo read(net.minecraft.network.FriendlyByteBuf buffer) {
+            return new BankInfo(buffer.readBoolean(), buffer.readUtf(32), buffer.readVarInt(),
+                    buffer.readVarLong(), buffer.readVarLong(), buffer.readVarLong(),
+                    buffer.readVarInt(), buffer.readVarLong(), buffer.readLong(),
+                    buffer.readInt());
+        }
+    }
 
     public static WalletSnapshot of(ServerPlayer target) {
         return new WalletSnapshot(
@@ -26,7 +56,23 @@ public record WalletSnapshot(long cashCents,
                 target.getUUID(),
                 target.getGameProfile().getName(),
                 WalletManager.findNearbyAtm(target) != null,
-                DisplaySettings.fromConfig());
+                DisplaySettings.fromConfig(),
+                bankInfoOf(target));
+    }
+
+    private static BankInfo bankInfoOf(ServerPlayer target) {
+        com.athensmc.athenscoins.bank.BankAccount account =
+                com.athensmc.athenscoins.bank.BankManager.accountOf(target);
+        com.athensmc.athenscoins.bank.Bank bank =
+                com.athensmc.athenscoins.bank.BankManager.bankOf(target);
+        if (account == null || bank == null) {
+            return BankInfo.NONE;
+        }
+        com.athensmc.athenscoins.bank.Loan loan = account.loan();
+        return new BankInfo(true, bank.name(), account.number(), account.balance(),
+                bank.walletLimit(), bank.commissionFee(), bank.commissionPeriodDays(),
+                loan == null ? 0L : loan.owed(), loan == null ? 0L : loan.dueAt(),
+                bank.themeColor());
     }
 
     public void write(FriendlyByteBuf buffer) {
@@ -38,6 +84,7 @@ public record WalletSnapshot(long cashCents,
         buffer.writeUtf(ownerName, 32);
         buffer.writeBoolean(atmNearby);
         display.write(buffer);
+        bank.write(buffer);
     }
 
     public static WalletSnapshot read(FriendlyByteBuf buffer) {
@@ -49,7 +96,8 @@ public record WalletSnapshot(long cashCents,
         UUID owner = buffer.readUUID();
         String name = buffer.readUtf(32);
         boolean atm = buffer.readBoolean();
-        return new WalletSnapshot(cash, counts, owner, name, atm, DisplaySettings.read(buffer));
+        DisplaySettings settings = DisplaySettings.read(buffer);
+        return new WalletSnapshot(cash, counts, owner, name, atm, settings, BankInfo.read(buffer));
     }
 
     public int coinCount(CoinType type) {

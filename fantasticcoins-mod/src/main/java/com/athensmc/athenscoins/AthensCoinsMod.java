@@ -47,6 +47,7 @@ public class AthensCoinsMod {
         ModCreativeModTabs.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
+        com.athensmc.athenscoins.block.ModBlockEntities.register(modEventBus);
         ModMenus.register(modEventBus);
 
         modEventBus.addListener(this::commonSetup);

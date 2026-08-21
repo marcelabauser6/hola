@@ -1,7 +1,6 @@
 package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
-import com.athensmc.athenscoins.config.DisplaySettings;
 import com.athensmc.athenscoins.menu.AtmMenu;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
@@ -70,6 +69,8 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
     private static final int FOOTER_LINE_2 = 163;
 
     private static final int TITLE_COLOR = 0xFFD98F;
+    /** Rows for moving cash between the wallet card and the account behind it. */
+    private static final int CARD_ROW_Y = 152;
     private static final int COL_HEADER_COLOR = 0x9EC5D8;
     private static final int CARD_LABEL_COLOR = 0x7FA0B4;
     private static final int FOOTER_COLOR = 0x7A96A6;
@@ -109,6 +110,26 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
                         .build());
             }
         }
+        buildTransferButtons();
+    }
+
+    private void buildTransferButtons() {
+        addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.atm_to_wallet"),
+                        b -> click(AtmMenu.BUTTON_TO_WALLET))
+                .bounds(leftPos + 8, topPos + CARD_ROW_Y, 112, 16)
+                .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.atm_to_wallet_tip")))
+                .build());
+        addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.atm_to_account"),
+                        b -> click(AtmMenu.BUTTON_TO_ACCOUNT))
+                .bounds(leftPos + 124, topPos + CARD_ROW_Y, 112, 16)
+                .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.atm_to_account_tip")))
+                .build());
+    }
+
+    private void click(int buttonId) {
+        if (minecraft != null && minecraft.gameMode != null) {
+            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, buttonId);
+        }
     }
 
     private Component modeLabel() {
@@ -141,17 +162,19 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        DisplaySettings display = menu.display();
-        String symbol = display.currencySymbol();
+        String symbol = "$";
+        int accent = 0xFF000000 | menu.themeColor();
 
         graphics.drawCenteredString(font, title, PANEL_W / 2, TITLE_Y, TITLE_COLOR);
 
-        // Balance card: label on top, amount right-aligned underneath.
-        String label = trimToWidth(display.currencyName(), CARD_RIGHT - CARD_X - 10);
+        // Balance card: what is on the card now, and what the ceiling is.
+        String label = trimToWidth(Component.translatable("gui.athens_coins.atm_card").getString(),
+                CARD_RIGHT - CARD_X - 10);
         graphics.drawString(font, label, CARD_X + 5, CARD_LABEL_Y, CARD_LABEL_COLOR, false);
-        String balance = Money.format(menu.cashCents(), symbol);
+        String balance = Money.format(menu.cashCents(), symbol)
+                + (menu.walletLimit() > 0L ? " / " + Money.format(menu.walletLimit(), symbol) : "");
         graphics.drawString(font, balance, CARD_RIGHT - 5 - font.width(balance),
-                CARD_VALUE_Y, display.cashColor(), true);
+                CARD_VALUE_Y, 0xFF4CD964, true);
 
         // Column headers, inside the header band.
         graphics.drawString(font, Component.translatable("gui.athens_coins.column_coin"),
@@ -166,11 +189,11 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
         // One row per denomination.
         for (CoinType type : CoinType.ORDERED) {
             int y = ROW_Y[type.ordinal()] + TEXT_DY;
-            graphics.drawString(font, type.shortName(), NAME_X, y, display.colorOf(type), false);
+            graphics.drawString(font, type.shortName(), NAME_X, y, 0xFFD8C0A0, false);
             drawRight(graphics, Component.literal(Money.compactCount(menu.coinCount(type))),
                     HAVE_RIGHT, y, 0xFFFFFF);
-            drawRight(graphics, Component.literal(Money.format(display.valueOf(type), symbol)),
-                    PRICE_RIGHT, y, display.cashColor());
+            drawRight(graphics, Component.literal(Money.format(menu.rate(type), symbol)),
+                    PRICE_RIGHT, y, 0xFF4CD964);
         }
 
         // Footer: what the buttons do, and which way the exchange currently runs.
@@ -209,17 +232,16 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
     /** Extra detail when hovering a coin icon. */
     @Override
     protected void renderTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
-        DisplaySettings display = menu.display();
-        String symbol = display.currencySymbol();
+        String symbol = "$";
         for (CoinType type : CoinType.ORDERED) {
             int x = leftPos + ICON_X;
             int y = topPos + ROW_Y[type.ordinal()] + ICON_DY;
             if (mouseX >= x && mouseX < x + 16 && mouseY >= y && mouseY < y + 16) {
                 int count = menu.coinCount(type);
-                long unit = display.valueOf(type);
+                long unit = menu.rate(type);
                 List<Component> lines = new ArrayList<>();
                 lines.add(type.displayName().copy()
-                        .withStyle(style -> style.withColor(display.colorOf(type))));
+                        .withStyle(style -> style.withColor(0xD8C0A0)));
                 lines.add(Component.translatable("tooltip.athens_coins.carried",
                                 Component.literal(Money.compactCount(count)).withStyle(ChatFormatting.WHITE))
                         .withStyle(ChatFormatting.GRAY));

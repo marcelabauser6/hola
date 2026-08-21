@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-3.1.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-4.0.0-1.20.1.jar")
 
 problems = []
 notes = []

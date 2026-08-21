@@ -123,8 +123,12 @@ public final class WalletManager {
      *
      * @param requested how many coins to hand in; {@code -1} means everything carried
      */
-    public static Exchange exchangeToCash(ServerPlayer player, CoinType type, int requested) {
+    public static Exchange exchangeToCash(ServerPlayer player, CoinType type, int requested,
+                                          long unitRate) {
         CurrencyConfig.Settings settings = CurrencyConfig.get();
+        if (!com.athensmc.athenscoins.bank.BankManager.hasAccount(player)) {
+            return Exchange.NONE;   // no account means no electronic money at all
+        }
         int carried = countCoins(player, type);
         int amount = requested < 0 ? carried : Math.min(requested, carried);
         amount = Math.min(amount, settings.maxCoinsPerExchange);
@@ -132,7 +136,7 @@ public final class WalletManager {
             return Exchange.NONE;
         }
 
-        long gross = Money.multiply(type.cashValueCents(), amount);
+        long gross = Money.multiply(unitRate, amount);
         long credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
         if (credited <= 0L) {
             return Exchange.NONE;
@@ -144,14 +148,15 @@ public final class WalletManager {
         }
         if (taken != amount) {
             // Inventory changed underneath us; only pay for what we actually got.
-            gross = Money.multiply(type.cashValueCents(), taken);
+            gross = Money.multiply(unitRate, taken);
             credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
         }
 
-        accountOf(player).add(credited);
+        // Fill the wallet card up to the bank's ceiling and park the rest in the account.
+        com.athensmc.athenscoins.bank.BankManager.credit(player, credited,
+                com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_DEPOSIT, type.id());
         markDirty(player);
         syncInventory(player);
-        pushBalance(player);
         return new Exchange(taken, credited);
     }
 
@@ -160,9 +165,13 @@ public final class WalletManager {
      *
      * @param requested how many coins to buy; {@code -1} means as many as affordable
      */
-    public static Exchange exchangeToCoins(ServerPlayer player, CoinType type, int requested) {
+    public static Exchange exchangeToCoins(ServerPlayer player, CoinType type, int requested,
+                                           long unitRate) {
         CurrencyConfig.Settings settings = CurrencyConfig.get();
-        long unitPrice = Money.plusFee(type.cashValueCents(), settings.exchangeToCoinsFeePercent);
+        if (!com.athensmc.athenscoins.bank.BankManager.hasAccount(player)) {
+            return Exchange.NONE;
+        }
+        long unitPrice = Money.plusFee(unitRate, settings.exchangeToCoinsFeePercent);
         if (unitPrice <= 0L) {
             return Exchange.NONE;
         }

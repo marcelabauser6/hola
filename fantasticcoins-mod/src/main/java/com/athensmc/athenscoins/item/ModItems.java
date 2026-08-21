@@ -37,6 +37,10 @@ public class ModItems {
     public static final RegistryObject<Item> BANK_TERMINAL_ITEM = ITEMS.register("bank_terminal",
             () -> new BlockItem(ModBlocks.BANK_TERMINAL.get(), new Item.Properties()));
 
+    /** Bearer card holding a closed account's balance, used to move between banks. */
+    public static final RegistryObject<Item> BANK_CARD = ITEMS.register("bank_card",
+            () -> new BankCardItem(new Item.Properties().stacksTo(1)));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

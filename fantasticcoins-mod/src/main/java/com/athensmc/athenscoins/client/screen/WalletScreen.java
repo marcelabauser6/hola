@@ -127,7 +127,9 @@ public class WalletScreen extends Screen {
         graphics.drawString(font, Component.literal(display.currencyName()),
                 x0 + 6, textY, themeColor(3), false);
 
-        String amount = Money.format(snapshot.cashCents(), display.currencySymbol());
+        String amount = snapshot.bank().hasAccount()
+                ? Money.format(snapshot.cashCents(), display.currencySymbol())
+                : Component.translatable("gui.athens_coins.no_bank_short").getString();
         graphics.drawString(font, amount,
                 x1 - 6 - font.width(amount), textY, display.cashColor(), true);
     }
@@ -213,13 +215,20 @@ public class WalletScreen extends Screen {
             lines.add(Component.translatable("tooltip.athens_coins.carried",
                             Component.literal(Money.compactCount(count)).withStyle(ChatFormatting.WHITE))
                     .withStyle(ChatFormatting.GRAY));
-            lines.add(Component.translatable("tooltip.athens_coins.unit_value",
-                            Component.literal(Money.format(unit, symbol)).withStyle(ChatFormatting.WHITE))
-                    .withStyle(ChatFormatting.DARK_GRAY));
-            lines.add(Component.translatable("tooltip.athens_coins.stack_value",
-                            Component.literal(Money.format(Money.multiply(unit, count), symbol))
-                                    .withStyle(ChatFormatting.WHITE))
-                    .withStyle(ChatFormatting.DARK_GRAY));
+            // Coin values in cash only mean something once a bank is quoting you a rate.
+            if (snapshot.bank().hasAccount()) {
+                lines.add(Component.translatable("tooltip.athens_coins.unit_value",
+                                Component.literal(Money.format(unit, symbol))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.DARK_GRAY));
+                lines.add(Component.translatable("tooltip.athens_coins.stack_value",
+                                Component.literal(Money.format(Money.multiply(unit, count), symbol))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            } else {
+                lines.add(Component.translatable("tooltip.athens_coins.no_rates")
+                        .withStyle(ChatFormatting.DARK_GRAY));
+            }
             return lines;
         }
 
@@ -241,17 +250,45 @@ public class WalletScreen extends Screen {
                         .withStyle(ChatFormatting.YELLOW));
             }
             case 4 -> {
-                lines.add(Component.translatable("tooltip.athens_coins.account")
-                        .withStyle(ChatFormatting.WHITE));
-                lines.add(Component.translatable("tooltip.athens_coins.account_owner",
-                                Component.literal(snapshot.ownerName()).withStyle(ChatFormatting.WHITE))
-                        .withStyle(ChatFormatting.GRAY));
-                for (CoinType type : CoinType.ORDERED) {
-                    lines.add(Component.translatable("tooltip.athens_coins.rate_line",
-                                    type.shortName(),
-                                    Component.literal(Money.format(display.valueOf(type), symbol))
-                                            .withStyle(ChatFormatting.WHITE))
+                WalletSnapshot.BankInfo info = snapshot.bank();
+                if (!info.hasAccount()) {
+                    lines.add(Component.translatable("tooltip.athens_coins.bank_none")
+                            .withStyle(ChatFormatting.RED));
+                    lines.add(Component.translatable("tooltip.athens_coins.bank_none_how")
+                            .withStyle(ChatFormatting.GRAY));
+                    lines.add(Component.translatable("tooltip.athens_coins.bank_none_note")
                             .withStyle(ChatFormatting.DARK_GRAY));
+                    break;
+                }
+                lines.add(Component.translatable("tooltip.athens_coins.my_bank",
+                                Component.literal(info.name()).withStyle(ChatFormatting.WHITE))
+                        .withStyle(style -> style.withColor(info.themeColor())));
+                lines.add(Component.translatable("tooltip.athens_coins.bank_account_no",
+                                Component.literal("#" + info.accountNumber())
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("tooltip.athens_coins.bank_held",
+                                Component.literal(Money.format(info.accountCents(), symbol))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.AQUA));
+                lines.add(Component.translatable("tooltip.athens_coins.bank_wallet_cap",
+                                Component.literal(info.walletLimit() <= 0L
+                                        ? "\u221e"
+                                        : Money.format(info.walletLimit(), symbol))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("tooltip.athens_coins.bank_fee_line",
+                                Component.literal(Money.format(info.commissionFee(), symbol))
+                                        .withStyle(ChatFormatting.WHITE),
+                                info.commissionDays())
+                        .withStyle(ChatFormatting.GRAY));
+                if (info.loanOwed() > 0L) {
+                    long daysLeft = Math.max(0L,
+                            (info.loanDueAt() - System.currentTimeMillis()) / 86_400_000L);
+                    lines.add(Component.translatable("tooltip.athens_coins.bank_loan_line",
+                                    Component.literal(Money.format(info.loanOwed(), symbol))
+                                            .withStyle(ChatFormatting.WHITE), daysLeft)
+                            .withStyle(ChatFormatting.RED));
                 }
                 lines.add(Component.translatable("tooltip.athens_coins.account_theme")
                         .withStyle(ChatFormatting.DARK_GRAY));

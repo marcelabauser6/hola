@@ -43,7 +43,10 @@ public class C2STerminalActionPacket {
         SET_LOANS_ENABLED,
         SET_LOAN_MAX,
         SET_LOAN_DAYS,
-        SET_LOAN_INTEREST;
+        SET_LOAN_INTEREST,
+        ISSUE_ATM,
+        WITHDRAW_ALL,
+        GRANT_LOAN;
 
         private static final Action[] VALUES = values();
 
@@ -52,7 +55,10 @@ public class C2STerminalActionPacket {
         }
 
         boolean operatorOnly() {
-            return this != OPEN_ACCOUNT;
+            return switch (this) {
+                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN -> false;
+                default -> true;
+            };
         }
     }
 
@@ -130,6 +136,9 @@ public class C2STerminalActionPacket {
                 feedback(player, "message.athens_coins.bank_banker_removed");
             }
             case OPEN_ACCOUNT -> openAccount(player, data, bank);
+            case ISSUE_ATM -> issueAtm(player, bank);
+            case WITHDRAW_ALL -> withdrawAll(player, data, bank);
+            case GRANT_LOAN -> grantLoan(player, data, bank);
             case SET_NAME -> {
                 bank.setName(text);
                 data.setDirty();
@@ -230,6 +239,59 @@ public class C2STerminalActionPacket {
         holder.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_yours",
                         bank.name(), result.number())
                 .withStyle(ChatFormatting.GREEN));
+    }
+
+    /** Hands the banker a machine branded with this bank. */
+    private void issueAtm(ServerPlayer player, Bank bank) {
+        ItemStack atm = new ItemStack(
+                com.athensmc.athenscoins.item.ModItems.ATM_ITEM.get(),
+                (int) Math.max(1L, Math.min(16L, value)));
+        com.athensmc.athenscoins.block.AtmBlockEntity.brand(atm, bank);
+        atm.setHoverName(Component.translatable("item.athens_coins.atm_of", bank.name()));
+        if (!player.getInventory().add(atm)) {
+            player.drop(atm, false);
+        }
+        feedback(player, "message.athens_coins.bank_atm_issued");
+    }
+
+    /** Closes an account and puts everything it held onto a signed card. */
+    private void withdrawAll(ServerPlayer player, BankData data, Bank bank) {
+        BankAccount account = data.account((int) value);
+        if (account == null || !account.bankId().equals(bank.id())) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        String holder = account.ownerName();
+        int number = account.number();
+        long payout = BankManager.closeAccount(player.server, account);
+        ItemStack card = com.athensmc.athenscoins.item.BankCardItem.create(
+                player.server, payout, holder, number, bank.name());
+        if (!player.getInventory().add(card)) {
+            player.drop(card, false);
+        }
+        player.sendSystemMessage(Component.translatable("message.athens_coins.bank_closed_account",
+                        holder, Money.format(payout, CurrencyConfig.get().currencySymbol))
+                .withStyle(ChatFormatting.YELLOW));
+        ServerPlayer owner = player.server.getPlayerList().getPlayer(account.owner());
+        if (owner != null) {
+            owner.sendSystemMessage(Component.translatable("message.athens_coins.bank_closed_yours",
+                    bank.name()).withStyle(ChatFormatting.YELLOW));
+            com.athensmc.athenscoins.wallet.WalletManager.pushBalance(owner);
+        }
+    }
+
+    private void grantLoan(ServerPlayer player, BankData data, Bank bank) {
+        BankAccount account = data.account((int) (value / 1_000_000L));
+        long amount = value % 1_000_000L;
+        if (account == null || !account.bankId().equals(bank.id())) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        BankManager.LoanResult result = BankManager.grantLoan(player.server, account, amount);
+        player.sendSystemMessage(Component.translatable(result.messageKey())
+                .withStyle(result.ok() ? ChatFormatting.GREEN : ChatFormatting.RED));
     }
 
     private void feedback(ServerPlayer player, String key) {
