@@ -2,6 +2,7 @@ package com.athensmc.athenscoins.block;
 
 import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankManager;
+import com.athensmc.athenscoins.item.ModItems;
 import com.athensmc.athenscoins.menu.AtmMenu;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -30,12 +31,15 @@ import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.NetworkHooks;
 
 import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * A bank's cash machine. Right-click to swap coins for cash at that bank's rates.
@@ -89,17 +93,34 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
         }
     }
 
-    /** Keeps the branding when the machine is broken and picked back up. */
+    /** Middle-click pick block keeps the branding. */
     @Override
     public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
         ItemStack stack = super.getCloneItemStack(level, pos, state);
-        if (level.getBlockEntity(pos) instanceof AtmBlockEntity atm && !atm.unbranded()) {
-            net.minecraft.nbt.CompoundTag tag = stack.getOrCreateTag();
-            tag.putUUID(AtmBlockEntity.TAG_BANK, atm.bankId());
-            tag.putString(AtmBlockEntity.TAG_BANK_NAME, atm.bankName());
-            tag.putInt(AtmBlockEntity.TAG_BANK_COLOR, atm.themeColor());
+        if (level.getBlockEntity(pos) instanceof AtmBlockEntity atm) {
+            atm.applyTo(stack);
         }
         return stack;
+    }
+
+    /**
+     * Breaking a machine returns it still branded.
+     *
+     * <p>Without this the loot table hands back a blank ATM, so relocating a bank's machine would
+     * quietly turn it into a useless block that gets refused on use.</p>
+     */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        List<ItemStack> drops = super.getDrops(state, params);
+        if (params.getOptionalParameter(LootContextParams.BLOCK_ENTITY)
+                instanceof AtmBlockEntity atm && !atm.unbranded()) {
+            for (ItemStack stack : drops) {
+                if (stack.is(ModItems.ATM_ITEM.get())) {
+                    atm.applyTo(stack);
+                }
+            }
+        }
+        return drops;
     }
 
     @Override

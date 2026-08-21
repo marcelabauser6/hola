@@ -22,7 +22,9 @@ public class ModCreativeModTabs {
                         output.accept(ModItems.BRONZE_COIN.get());
                         output.accept(ModItems.SILVER_COIN.get());
                         output.accept(ModItems.GOLD_COIN.get());
-                        output.accept(ModItems.ATM_ITEM.get());
+                        // The ATM is deliberately absent: machines are issued by a bank's
+                        // terminal so they carry its identity and rates. One taken from here
+                        // would have no bank behind it and would be refused on use.
                         output.accept(ModItems.BANK_TERMINAL_ITEM.get());
                         output.accept(ModItems.CENTRAL_BANK_TERMINAL_ITEM.get());
                         output.accept(ModItems.BANK_CARD.get());

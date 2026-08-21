@@ -78,10 +78,23 @@ public class AtmBlockEntity extends BlockEntity {
 
     /** Stamps an ATM item with a bank's identity, ready to be placed. */
     public static void brand(ItemStack stack, Bank bank) {
+        write(stack, bank.id(), bank.name(), bank.themeColor());
+    }
+
+    /** Copies this machine's branding onto an item, so breaking one does not erase its bank. */
+    public void applyTo(ItemStack stack) {
+        if (bankId != null) {
+            write(stack, bankId, bankName, themeColor);
+        }
+    }
+
+    private static void write(ItemStack stack, UUID id, String name, int color) {
         CompoundTag tag = stack.getOrCreateTag();
-        tag.putUUID(TAG_BANK, bank.id());
-        tag.putString(TAG_BANK_NAME, bank.name());
-        tag.putInt(TAG_BANK_COLOR, bank.themeColor());
+        tag.putUUID(TAG_BANK, id);
+        tag.putString(TAG_BANK_NAME, name);
+        tag.putInt(TAG_BANK_COLOR, color);
+        stack.setHoverName(net.minecraft.network.chat.Component
+                .translatable("item.athens_coins.atm_of", name));
     }
 
     // ------------------------------------------------------------------ persistence

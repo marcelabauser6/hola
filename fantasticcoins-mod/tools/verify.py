@@ -9,7 +9,7 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.0.0-1.20.1.jar")
+JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.0.1-1.20.1.jar")
 
 problems = []
 notes = []
@@ -203,7 +203,6 @@ else:
             "assets/athens_coins/textures/gui/icons/balance.png",
             "assets/athens_coins/textures/gui/icons/documents.png",
             "data/athens_coins/loot_tables/blocks/atm.json",
-            "data/athens_coins/recipes/atm.json",
             "data/minecraft/tags/blocks/mineable/pickaxe.json",
             "com/athensmc/athenscoins/AthensCoinsMod.class",
             "com/athensmc/athenscoins/command/FsCurrencyCommand.class",
