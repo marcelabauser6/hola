@@ -20,11 +20,11 @@ import net.minecraftforge.registries.ForgeRegistries;
  * 2 gold). Extended with {@link #CASH} (3), the digital Fantastic Cash balance from the currency
  * mod, so an offer can be priced in coins or in cash.</p>
  *
- * <h2>Cash is counted in whole units</h2>
- * Accounts keep two decimals, but FShop prices are plain {@code long}s. Cash here is therefore
- * measured in whole units: a price of {@code 10} means 10.00, and a player holding 9.99 reads as
- * 9 and cannot afford it. Their remaining cents are never touched. This keeps every existing
- * price field, packet and comparison working untouched.
+ * <h2>Cash is counted in cents</h2>
+ * FShop prices are plain {@code long}s, so a cash price is stored as a count of cents: {@code 150}
+ * means 1.50. Nothing in the shop needs to know that - totals, balance checks and earnings all stay
+ * plain integer arithmetic - but anywhere a cash figure reaches the screen it goes through
+ * {@link #formatAmount(int, long)} so the player reads 1.50 rather than 150.
  */
 public final class CoinEconomy {
     public static final int BRONZE = 0;
@@ -32,6 +32,9 @@ public final class CoinEconomy {
     public static final int GOLD = 2;
     /** Digital Fantastic Cash. */
     public static final int CASH = 3;
+
+    /** Cents in one unit of cash. */
+    public static final long CASH_SCALE = 100L;
 
     /** Number of selectable currencies, used by the UI loops. */
     public static final int TYPES = 4;
@@ -118,6 +121,26 @@ public final class CoinEconomy {
         return CASH_MOD ? FantasticCurrencyAPI.currencyName() : "Cash";
     }
 
+    /**
+     * Formats a raw price or total for display.
+     *
+     * <p>Coin amounts are plain counts. Cash amounts are stored in cents, so they are rendered
+     * with the currency symbol and two decimals.</p>
+     */
+    public static String formatAmount(int type, long raw) {
+        if (type != CASH) {
+            return Long.toString(raw);
+        }
+        long abs = Math.abs(raw);
+        String digits = String.format(java.util.Locale.ROOT, "%d.%02d", abs / CASH_SCALE, abs % CASH_SCALE);
+        return (raw < 0 ? "-" : "") + cashSymbol() + digits;
+    }
+
+    /** Suffix used in compact lists: the symbol for cash, a short letter for coins. */
+    public static String amountSuffix(int type) {
+        return type == CASH ? "" : "";
+    }
+
     public static boolean available() {
         if (CASH_MOD) {
             return true;
@@ -136,7 +159,7 @@ public final class CoinEconomy {
      */
     public static long balance(Player player, int type) {
         if (type == CASH) {
-            return CASH_MOD ? FantasticCurrencyAPI.getDisplayBalanceUnits(player) : 0L;
+            return CASH_MOD ? FantasticCurrencyAPI.getDisplayBalance(player) : 0L;
         }
         Item coin = CoinEconomy.coinItem(type);
         if (coin == Items.f_41852_) {
@@ -161,7 +184,7 @@ public final class CoinEconomy {
             if (!CASH_MOD || !(player instanceof ServerPlayer serverPlayer)) {
                 return false;
             }
-            return FantasticCurrencyAPI.chargeUnits(serverPlayer.f_8924_,
+            return FantasticCurrencyAPI.charge(serverPlayer.f_8924_,
                     serverPlayer.m_20148_(), count);
         }
         if (CoinEconomy.balance(player, type) < count) {
@@ -187,7 +210,7 @@ public final class CoinEconomy {
         }
         if (type == CASH) {
             if (CASH_MOD && player instanceof ServerPlayer serverPlayer) {
-                FantasticCurrencyAPI.depositUnits(serverPlayer.f_8924_,
+                FantasticCurrencyAPI.deposit(serverPlayer.f_8924_,
                         serverPlayer.m_20148_(), count);
             }
             return;

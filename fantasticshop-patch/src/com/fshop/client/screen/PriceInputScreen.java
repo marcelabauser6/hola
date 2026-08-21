@@ -202,7 +202,7 @@ extends Screen {
             }
         }
         g.m_280137_(this.f_96547_, CoinEconomy.coinColorCode(this.coin)
-                + (CoinEconomy.isCash(this.coin) ? CoinEconomy.cashSymbol() : "") + this.price(),
+                + CoinEconomy.formatAmount(this.coin, this.price()),
                 this.left + 128, this.top + 110, CoinEconomy.coinColor(this.coin));
         int coinHov = -1;
         for (int c = 0; c < PriceInputScreen.currencyCount(); ++c) {

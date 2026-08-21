@@ -232,7 +232,7 @@ extends Screen {
             this.m_232761_();
         }).m_257505_(Tooltip.m_257550_((Component)Component.m_237113_((String)"Quita TODAS las ofertas de la tienda."))).m_252987_(x + 2 * (bw + 2), r4, bw, 16).m_253136_());
         int editorH = 116;
-        ScrollSelector<ShopOffer> list = new ScrollSelector<ShopOffer>(rightX, y, colW, this.bodyH() - editorH, 16, o -> (o == this.selected ? "\u00a7e\u25b6 " : "\u00a7f") + o.getItem().m_41786_().getString() + (String)(o.getBundle() > 1 ? " \u00a78x" + o.getBundle() : "") + " " + CoinEconomy.coinColorCode(o.getCoin()) + o.getUnitPrice() + MainShopCreatorScreen.coinShort(o.getCoin()), o -> o.getItem().m_41786_().getString(), ShopOffer::getItem);
+        ScrollSelector<ShopOffer> list = new ScrollSelector<ShopOffer>(rightX, y, colW, this.bodyH() - editorH, 16, o -> (o == this.selected ? "\u00a7e\u25b6 " : "\u00a7f") + o.getItem().m_41786_().getString() + (String)(o.getBundle() > 1 ? " \u00a78x" + o.getBundle() : "") + " " + CoinEconomy.coinColorCode(o.getCoin()) + CoinEconomy.formatAmount(o.getCoin(), o.getUnitPrice()) + MainShopCreatorScreen.coinShort(o.getCoin()), o -> o.getItem().m_41786_().getString(), ShopOffer::getItem);
         list.setItems(new ArrayList<ShopOffer>(this.offers));
         list.onSelect(o -> {
             this.selected = o;
