@@ -36,6 +36,30 @@ marcado que YAWP ya define, escritos con su propio `StickUtil`, y de ahí salen 
 Las cinco formas son las cinco que YAWP tiene, y cuántos puntos pide cada una se lee de sus campos
 `AreaType.neededBlocks`/`maxBlocks` en tiempo de ejecución, no de una copia aquí.
 
+## Si `/yawp wand` no aparece
+
+Hay un segundo comando que hace exactamente lo mismo y **no depende del árbol de YAWP**:
+
+```
+/yawpwand cuboide
+```
+
+`/yawp wand` funciona colgando un nodo del árbol que construye YAWP, y eso no está del todo en manos
+de este mod: supone que ese nodo ya existe cuando nos toca registrar, y que nada reconstruye el árbol
+después. Lo normal es que ambas cosas se cumplan, pero ninguna está garantizada — los servidores
+híbridos como Mohist envuelven el mapa de comandos para Bukkit, y un nodo injertado en el literal de
+otro mod es justo lo que puede no sobrevivir a esa copia.
+
+El log del servidor lo dice sin ambigüedad al arrancar:
+
+```
+YAWP Wand available as: /yawp wand, /yawpwand (registered at command registration)
+YAWP Wand ready: /yawp wand and /yawpwand are both in the tree.
+```
+
+Si en su lugar sale `Could not attach to YAWP's command tree`, usa `/yawpwand`. Ambos piden nivel de
+operador (2), igual que el `marker` de YAWP.
+
 ## Instalación: solo servidor
 
 No hay item nuevo, ni paquete de red, ni código de renderizado. El contorno son partículas dirigidas
