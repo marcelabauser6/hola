@@ -1,0 +1,39 @@
+{
+  "credit": "FantasticCurrency stats projector - a plinth for the hologram above it (tools/gen_machine_textures.py)",
+  "__comment": "Low and flat on purpose. The block is a mount; the thing worth looking at is the floating text the block entity renderer draws over it, and a tall model would compete with it.",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/stats_hologram_side",
+    "top": "athens_coins:block/stats_hologram_top",
+    "side": "athens_coins:block/stats_hologram_side",
+    "bottom": "athens_coins:block/stats_hologram_bottom"
+  },
+  "elements": [
+    {
+      "name": "plinth",
+      "from": [2, 0, 2],
+      "to": [14, 4, 14],
+      "faces": {
+        "north": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "up": { "texture": "#top", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "lens",
+      "__comment": "A thin lit disc sitting a fraction above the plinth's top face, so the emitter reads as a separate part instead of a pattern painted on the lid.",
+      "from": [4, 4, 4],
+      "to": [12, 5, 12],
+      "faces": {
+        "north": { "texture": "#top", "uv": [4, 6, 12, 8] },
+        "south": { "texture": "#top", "uv": [4, 6, 12, 8] },
+        "east": { "texture": "#top", "uv": [4, 6, 12, 8] },
+        "west": { "texture": "#top", "uv": [4, 6, 12, 8] },
+        "up": { "texture": "#top", "uv": [2, 2, 14, 14] }
+      }
+    }
+  ]
+}

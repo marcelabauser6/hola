@@ -16,6 +16,11 @@ public class ModBlockEntities {
                     .of(AtmBlockEntity::new, ModBlocks.ATM.get())
                     .build(null));
 
+    public static final RegistryObject<BlockEntityType<StatsHologramBlockEntity>> STATS_HOLOGRAM =
+            BLOCK_ENTITIES.register("stats_hologram", () -> BlockEntityType.Builder
+                    .of(StatsHologramBlockEntity::new, ModBlocks.STATS_HOLOGRAM.get())
+                    .build(null));
+
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);
     }

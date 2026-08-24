@@ -2,13 +2,16 @@ package com.athensmc.athenscoins.client;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
 import com.athensmc.athenscoins.block.AtmBlockEntity;
+import com.athensmc.athenscoins.block.ModBlockEntities;
 import com.athensmc.athenscoins.block.ModBlocks;
+import com.athensmc.athenscoins.client.render.StatsHologramRenderer;
 import com.athensmc.athenscoins.client.screen.AtmScreen;
 import com.athensmc.athenscoins.item.ModItems;
 import com.athensmc.athenscoins.menu.ModMenus;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.EntityRenderersEvent;
 import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -41,6 +44,18 @@ public final class ClientSetup {
      * actually on - has to look down for its colour. Reading its own position would give the default
      * every time and the band would never change.</p>
      */
+    /**
+     * The stats hologram's world renderer.
+     *
+     * <p>The mod's only block entity renderer. Everything else it draws is either a GUI or a block model,
+     * which is why this is the one place {@code EntityRenderersEvent} appears.</p>
+     */
+    @SubscribeEvent
+    public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+        event.registerBlockEntityRenderer(ModBlockEntities.STATS_HOLOGRAM.get(),
+                StatsHologramRenderer::new);
+    }
+
     @SubscribeEvent
     public static void onRegisterBlockColors(RegisterColorHandlersEvent.Block event) {
         event.register((state, level, pos, tintIndex) -> {

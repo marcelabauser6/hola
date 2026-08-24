@@ -1,11 +1,11 @@
 package com.athensmc.athenscoins.command;
 
 import com.athensmc.athenscoins.bank.BankConfirmations;
+import com.athensmc.athenscoins.block.ModBlocks;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
-import com.athensmc.athenscoins.network.S2COpenStatsPacket;
+import com.athensmc.athenscoins.network.S2COpenHologramPacket;
 import com.athensmc.athenscoins.network.S2COpenWalletPacket;
-import com.athensmc.athenscoins.stats.EconomyStats;
 import com.athensmc.athenscoins.transfer.PendingTransfer;
 import com.athensmc.athenscoins.transfer.TransferManager;
 import com.athensmc.athenscoins.transfer.TransferRequests;
@@ -21,11 +21,14 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
+
+import javax.annotation.Nullable;
 
 /**
  * {@code /fscurrency} — the Fantastic Currency command. Command names stay in English on purpose;
@@ -295,10 +298,47 @@ public final class FsCurrencyCommand {
 
     // ------------------------------------------------------------------ stats
 
+    /** How far the command will look for a projector to edit. */
+    private static final int HOLOGRAM_SEARCH_RADIUS = 16;
+
+    /**
+     * Opens the hologram editor for the nearest projector.
+     *
+     * <p>The command used to open a read-only dashboard. The statistics are a hologram now, so there is
+     * nothing for a private window to be: {@code /fscurrency stats} edits the board you are standing
+     * next to. Finding nothing is a message telling you to place one, not an empty editor - an editor
+     * with no projector behind it would have nowhere to save to.</p>
+     */
     private static int openStats(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer admin = self(context);
-        ModNetwork.toPlayer(admin, new S2COpenStatsPacket(EconomyStats.compute(admin.server)));
+        BlockPos found = nearestHologram(admin);
+        if (found == null) {
+            context.getSource().sendFailure(
+                    Component.translatable("message.athens_coins.hologram_none_near",
+                            HOLOGRAM_SEARCH_RADIUS));
+            return 0;
+        }
+        ModNetwork.toPlayer(admin, new S2COpenHologramPacket(found));
         return 1;
+    }
+
+    @Nullable
+    private static BlockPos nearestHologram(ServerPlayer admin) {
+        BlockPos origin = admin.blockPosition();
+        BlockPos best = null;
+        double bestDistance = Double.MAX_VALUE;
+        int r = HOLOGRAM_SEARCH_RADIUS;
+        for (BlockPos pos : BlockPos.betweenClosed(origin.offset(-r, -r, -r), origin.offset(r, r, r))) {
+            if (!admin.level().getBlockState(pos).is(ModBlocks.STATS_HOLOGRAM.get())) {
+                continue;
+            }
+            double distance = pos.distSqr(origin);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = pos.immutable();
+            }
+        }
+        return best;
     }
 
     // ------------------------------------------------------------------ reload

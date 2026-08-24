@@ -1,15 +1,18 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.block.StatsHologramBlockEntity;
 import com.athensmc.athenscoins.client.screen.AccountDetailScreen;
 import com.athensmc.athenscoins.client.screen.AtmScreen;
 import com.athensmc.athenscoins.client.screen.BankTerminalScreen;
 import com.athensmc.athenscoins.client.screen.CentralBankScreen;
-import com.athensmc.athenscoins.client.screen.StatsScreen;
+import com.athensmc.athenscoins.client.screen.StatsHologramEditorScreen;
 import com.athensmc.athenscoins.client.screen.WalletScreen;
 import com.athensmc.athenscoins.client.ClientCashCache;
 import com.athensmc.athenscoins.menu.AtmMenu;
 import com.athensmc.athenscoins.menu.WalletStateHolder;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -52,10 +55,25 @@ final class ClientWalletSync {
         }
     }
 
-    static void openStats(S2COpenStatsPacket packet) {
+    /**
+     * Opens the hologram editor from the projector the client already has.
+     *
+     * <p>Unlike every other open handler here, there is no payload to unpack: the configuration and the
+     * figures live in the block entity, because that is what the world renderer draws from. If the
+     * projector has gone - broken between the click and the packet landing - say so rather than opening
+     * an editor pointed at nothing.</p>
+     */
+    static void openHologramEditor(S2COpenHologramPacket packet) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null) {
-            minecraft.setScreen(new StatsScreen(packet.snapshot()));
+        if (minecraft.player == null || minecraft.level == null) {
+            return;
+        }
+        if (minecraft.level.getBlockEntity(packet.pos()) instanceof StatsHologramBlockEntity projector) {
+            minecraft.setScreen(StatsHologramEditorScreen.forProjector(projector));
+        } else {
+            minecraft.player.displayClientMessage(
+                    Component.translatable("message.athens_coins.hologram_gone")
+                            .withStyle(ChatFormatting.RED), false);
         }
     }
 

@@ -185,7 +185,7 @@ public class AccountDetailScreen extends Screen {
         hoverTooltip = null;
         ScreenLayout.Rect panel = layout.panel();
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
-        StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFFC9A227);
+        Panels.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFFC9A227);
         graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, 0xFF3A2A1E);
         renderHeader(graphics, mouseX, mouseY);
 

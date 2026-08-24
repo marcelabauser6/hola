@@ -51,13 +51,13 @@ public final class ScreenLayoutStaticTest {
             verifyStandardScreens(viewport[0], viewport[1], true);
             verifyWallet(viewport[0], viewport[1]);
             verifyAtm(viewport[0], viewport[1], true);
-            verifyThemeEditor(viewport[0], viewport[1], true);
+            verifyHologramEditorLook(viewport[0], viewport[1], true);
         }
         // Same invariants, minus the "usable" requirements, at sizes nothing has to support.
         for (int[] viewport : CRAMPED_VIEWPORTS) {
             verifyStandardScreens(viewport[0], viewport[1], false);
             verifyAtm(viewport[0], viewport[1], false);
-            verifyThemeEditor(viewport[0], viewport[1], false);
+            verifyHologramEditorLook(viewport[0], viewport[1], false);
         }
         verifyAmountInput();
 
@@ -104,20 +104,39 @@ public final class ScreenLayoutStaticTest {
                     "central close button escapes the footer band" + at);
         }
 
-        ScreenLayout.Regions stats = PanelMetrics.stats(width, height);
-        verifyRegions("stats" + at, stats);
-        // Edit and Close are two halves of one partition, so they cannot meet at any width.
-        ScreenLayout.Rect statsFooter = stats.footer().inset(6);
-        ScreenLayout.Rect edit = ScreenLayout.partition(statsFooter, 2, 0);
-        ScreenLayout.Rect close = ScreenLayout.partition(statsFooter, 2, 1);
-        require(!edit.intersects(close), "stats footer buttons overlap" + at);
-        require(statsFooter.contains(edit) && statsFooter.contains(close),
-                "stats footer buttons escape the footer" + at);
+        // The hologram editor. Save, Reset and Close are three cells of one grid, and the feedback line
+        // sits between that row and the bottom of the band.
+        ScreenLayout.Regions editor = PanelMetrics.stats(width, height);
+        verifyRegions("hologram editor" + at, editor);
+        ScreenLayout.Rect editorFooter = editor.footer().inset(6);
+        int cell = ScreenLayout.gridCellWidth(editorFooter, 3, 4);
+        ScreenLayout.Rect save = new ScreenLayout.Rect(editorFooter.x(), editorFooter.y(), cell, 18);
+        ScreenLayout.Rect reset = new ScreenLayout.Rect(editorFooter.x() + cell + 4,
+                editorFooter.y(), cell, 18);
+        int closeWidth = Math.min(82, cell);
+        ScreenLayout.Rect close = new ScreenLayout.Rect(editorFooter.right() - closeWidth,
+                editorFooter.y(), closeWidth, 18);
+        require(!save.intersects(reset), "editor Save and Reset overlap" + at);
+        require(!reset.intersects(close), "editor Reset and Close overlap" + at);
+
+        // Three columns: lines, metrics and the live preview. They must tile the body without touching,
+        // or the preview would sit on top of the palette it is supposed to be showing the result of.
+        ScreenLayout.Rect body = editor.content().inset(PanelMetrics.CONTENT_PAD);
+        ScreenLayout.Rect first = ScreenLayout.column(body, 3, 10, 0);
+        ScreenLayout.Rect second = ScreenLayout.column(body, 3, 10, 1);
+        ScreenLayout.Rect third = ScreenLayout.column(body, 3, 10, 2);
+        require(!first.intersects(second) && !second.intersects(third),
+                "editor columns overlap" + at);
+        require(body.contains(first) && body.contains(third),
+                "editor columns escape the content band" + at);
 
         if (usable) {
-            require(ScreenLayout.visibleRows(stats.content().inset(PanelMetrics.CONTENT_PAD), 12) >= 10,
-                    "stats content too short" + at);
+            require(ScreenLayout.visibleRows(body, 12) >= 10, "editor content too short" + at);
         }
+
+        // The wallet keeps its artwork at native size, so the panel has to be able to hold it.
+        ScreenLayout.Regions wallet = PanelMetrics.wallet(width, height);
+        verifyRegions("wallet" + at, wallet);
     }
 
     // ------------------------------------------------------------------ ATM
@@ -178,80 +197,69 @@ public final class ScreenLayoutStaticTest {
         }
     }
 
-    // ------------------------------------------------------------------ theme editor
+    // ------------------------------------------------------------------ hologram editor
 
-    private static void verifyThemeEditor(int width, int height, boolean usable) {
+    /**
+     * The appearance column of the hologram editor.
+     *
+     * <p>Inherited from the colour editor this replaced, and kept for the same reason: that screen once
+     * shipped with its opacity slider drawn on top of the buttons under it, with both reacting to one
+     * click, at any window shorter than the developer's. The bands are handed out by a cursor that never
+     * moves backwards, and this is what proves it.</p>
+     */
+    private static void verifyHologramEditorLook(int width, int height, boolean usable) {
         String at = " at " + width + "x" + height;
-        // Nine colour slots and three toggles: the real counts, which is what made both collisions
-        // reachable in the first place.
-        ThemeEditorLayout layout = ThemeEditorLayout.of(width, height, 9);
-        verifyRegions("theme editor" + at, layout.regions());
+        // Five colour slots: the real count, which is what decides how much room is left for the picker.
+        ScreenLayout.Regions regions = PanelMetrics.stats(width, height);
+        ScreenLayout.Rect body = regions.content().inset(PanelMetrics.CONTENT_PAD);
+        ScreenLayout.Rect leftColumn = ScreenLayout.column(body, 3, 10, 0);
+        HologramEditorLayout layout = HologramEditorLayout.of(leftColumn, 5);
 
-        ScreenLayout.Rect left = layout.left();
-        require(left.contains(layout.slotList()), "theme slot list escapes the left column" + at);
-        require(left.contains(layout.presetRow()), "theme preset row escapes the left column" + at);
-        require(!layout.slotList().intersects(layout.presetRow()),
-                "theme slot list overlaps the preset buttons" + at);
-
-        // Every right-column band, in the order the cursor hands them out.
-        ScreenLayout.Rect right = layout.right();
         ScreenLayout.Rect[] bands = {
-                layout.pickerSquare(), layout.hexRow(), layout.rainbowRow(),
-                layout.neutralRow(), layout.alphaLabel(), layout.alphaBar(), layout.toggleColumn()
+                layout.colorList(), layout.pickerSquare(), layout.hexRow(), layout.alphaBar()
         };
-        String[] names = {
-                "picker", "hex readout", "rainbow row", "neutral row",
-                "opacity label", "opacity bar", "toggle column"
-        };
+        String[] names = { "colour list", "picker square", "hex readout", "opacity bar" };
         for (int i = 0; i < bands.length; i++) {
-            require(right.contains(bands[i]),
-                    "theme " + names[i] + " escapes the right column" + at);
+            require(leftColumn.contains(bands[i]),
+                    "hologram " + names[i] + " escapes the appearance column" + at);
             for (int j = i + 1; j < bands.length; j++) {
                 require(!bands[i].intersects(bands[j]),
-                        "theme " + names[i] + " overlaps " + names[j] + at);
-            }
-        }
-        // The slider's grab area is larger than the bar, so check the grown rectangle too: this is
-        // the exact pair that used to be drawn on top of each other.
-        require(!layout.alphaBar().expand(2).intersects(layout.toggleColumn()),
-                "theme opacity slider grab area overlaps the toggles" + at);
-
-        for (int i = 0; i < ThemeEditorLayout.TOGGLES; i++) {
-            ScreenLayout.Rect toggle = layout.toggle(i);
-            require(layout.toggleColumn().contains(toggle),
-                    "theme toggle " + i + " escapes the toggle column" + at);
-            for (int j = i + 1; j < ThemeEditorLayout.TOGGLES; j++) {
-                require(!toggle.intersects(layout.toggle(j)),
-                        "theme toggles " + i + " and " + j + " overlap" + at);
+                        "hologram " + names[i] + " overlaps " + names[j] + at);
             }
         }
 
-        // Drawing and hit-testing must agree on which swatch a point belongs to.
-        for (int i = 0; i < 12; i++) {
-            ScreenLayout.Rect row = layout.rainbowRow();
-            ScreenLayout.Rect swatch = ScreenLayout.partition(row, 12, i);
-            // A collapsed row has no area to hit-test; that is the intended degradation, not a bug.
-            if (swatch.width() <= 0 || swatch.height() <= 0) {
-                continue;
-            }
-            double[] points = {
-                    swatch.x(),
-                    swatch.x() + swatch.width() / 2.0D,
-                    Math.nextDown((double) swatch.right())
-            };
-            for (double point : points) {
-                int resolved = ScreenLayout.partitionIndex(row, 12, point, swatch.y() + 2);
-                require(resolved == i, "theme swatch " + i + " resolves to " + resolved
-                        + " at x=" + point + at);
-            }
+        // The picker draws its hue strip below its square, at square bottom + GAP. Nothing allocated
+        // afterwards may land on it.
+        ScreenLayout.Rect hueStrip = new ScreenLayout.Rect(layout.pickerSquare().x(),
+                layout.pickerSquare().bottom() + HologramEditorLayout.GAP,
+                layout.pickerSquare().width(), layout.hueHeight());
+        require(!hueStrip.intersects(layout.hexRow()), "hologram hue strip overlaps the hex row" + at);
+        require(!hueStrip.intersects(layout.alphaBar()),
+                "hologram hue strip overlaps the opacity bar" + at);
+
+        // The slider's grab area is larger than the bar, so check the grown rectangle too - but only
+        // where both bands are actually drawn. A collapsed band has nothing to click, so a grab area
+        // reaching over it is the intended degradation at a size nothing has to support, not a bug.
+        if (!layout.alphaBar().isEmpty() && !layout.hexRow().isEmpty()) {
+            require(!layout.alphaBar().expand(2).intersects(layout.hexRow()),
+                    "hologram opacity grab area overlaps the hex row" + at);
+        }
+
+        // Drawing and hit-testing must agree on which colour row a point belongs to.
+        for (int i = 0; i < Math.min(5, layout.visibleSlots()); i++) {
+            ScreenLayout.Rect slot = layout.slot(i);
+            require(layout.colorList().contains(slot),
+                    "hologram colour slot " + i + " escapes its list" + at);
+            int resolved = (int) ((slot.y() + 1 - layout.colorList().y())
+                    / HologramEditorLayout.SLOT_H);
+            require(resolved == i, "hologram colour slot " + i + " resolves to " + resolved + at);
         }
 
         if (usable) {
-            require(layout.visibleSlots() >= 9,
-                    "theme editor hides colour slots at a supported size" + at);
-            require(layout.toggleColumn().height() >= ThemeEditorLayout.TOGGLES
-                            * ThemeEditorLayout.TOGGLE_H,
-                    "theme editor toggles do not fit at a supported size" + at);
+            require(layout.visibleSlots() >= 5,
+                    "hologram editor hides colour slots at a supported size" + at);
+            require(layout.pickerSquare().height() >= HologramEditorLayout.PICKER_MIN,
+                    "hologram colour picker collapsed at a supported size" + at);
         }
     }
 
@@ -260,8 +268,19 @@ public final class ScreenLayoutStaticTest {
     private static void verifyWallet(int width, int height) {
         String at = " at " + width + "x" + height;
         ScreenLayout.Rect viewport = new ScreenLayout.Rect(0, 0, width, height);
-        ScreenLayout.Rect wallet = ScreenLayout.centeredPanel(width, height, 176, 98);
-        require(viewport.contains(wallet), "wallet outside viewport" + at);
+        // The wallet is now a responsive panel with the 176x98 artwork centred inside it at native size,
+        // so there are two things to check: the panel fits the viewport, and the artwork fits the panel's
+        // content band rather than being clipped by the new title bar and footer.
+        ScreenLayout.Regions regions = PanelMetrics.wallet(width, height);
+        require(viewport.contains(regions.panel()), "wallet panel outside viewport" + at);
+        verifyRegions("wallet" + at, regions);
+        ScreenLayout.Rect content = regions.content().inset(PanelMetrics.CONTENT_PAD);
+        int artX = content.x() + Math.max(0, (content.width() - 176) / 2);
+        int artY = content.y() + Math.max(0, (content.height() - 98) / 2);
+        ScreenLayout.Rect art = new ScreenLayout.Rect(artX, artY, 176, 98);
+        if (content.width() >= 176 && content.height() >= 98) {
+            require(content.contains(art), "wallet artwork escapes the content band" + at);
+        }
         int innerText = 176 - 12;
         // Widest plausible amount string, to catch the case the budgets are meant to survive.
         for (int amountPixels : new int[] {10, 42, 80, 120, 400}) {

@@ -42,10 +42,24 @@ public final class PanelMetrics {
     public static final int CENTRAL_TABS = 0;
     public static final int CENTRAL_FOOTER = 86;
 
-    /** Economy statistics: title, two tabs, one button row. */
+    /** Hologram editor: title, two tabs plus the preset row, and a footer of two rows. */
     public static final int STATS_HEADER = 22;
     public static final int STATS_TABS = 24;
-    public static final int STATS_FOOTER = 30;
+    public static final int STATS_FOOTER = 34;
+
+    /**
+     * Wallet: title, no tabs, one button row.
+     *
+     * <p>The wallet is the one screen whose contents are a fixed-size drawing - a 176x76 PNG of a
+     * wallet, plus a footer bar aligned to its edges. Stretching that to fill the viewport would blur
+     * the artwork and pull the face panel and the item cells away from the slots painted into it. So the
+     * <em>panel</em> is responsive like every other screen and the artwork sits centred inside it at its
+     * native size, which is what gives the wallet the same frame as the rest of the mod without
+     * distorting the one thing here that cannot scale.</p>
+     */
+    public static final int WALLET_HEADER = 22;
+    public static final int WALLET_TABS = 0;
+    public static final int WALLET_FOOTER = 30;
 
     /** Inner padding shared by the standard panels' content bands. */
     public static final int CONTENT_PAD = 8;
@@ -88,6 +102,11 @@ public final class PanelMetrics {
     public static Regions stats(int viewportWidth, int viewportHeight) {
         return ScreenLayout.regions(panel(viewportWidth, viewportHeight),
                 STATS_HEADER, STATS_TABS, STATS_FOOTER);
+    }
+
+    public static Regions wallet(int viewportWidth, int viewportHeight) {
+        return ScreenLayout.regions(panel(viewportWidth, viewportHeight),
+                WALLET_HEADER, WALLET_TABS, WALLET_FOOTER);
     }
 
     /**

@@ -439,6 +439,16 @@ G_DEEP = (112, 90, 38, 255)
 TICKER = (126, 226, 168, 255)
 
 
+# ========================================================== STATS PROJECTOR
+# Dark metal and cyan light. Deliberately not sharing a palette with any of the three banks: this is a
+# display, not a counter, and it should not read as a fourth kind of bank furniture.
+H_DARK = (16, 22, 28, 255)
+H_BODY = (34, 44, 54, 255)
+H_HI = (74, 92, 108, 255)
+H_GLOW = (126, 226, 244, 255)
+H_GLOW_DIM = (46, 122, 142, 255)
+
+
 def marble(d, x0, y0, x1, y1):
     """Veining: a few diagonal strokes. Marble with no veins is just grey."""
     for i, (vx, vy) in enumerate(((3, 6), (14, 2), (22, 11), (8, 20), (25, 22))):
@@ -508,6 +518,48 @@ def central_body():
     save(img, "central_bank_top")
 
 
+def hologram_projector():
+    """
+    The stats projector: a dark ring of emitters on a metal plinth.
+
+    Cyan rather than the ATM's green or the central bank's gold, because it is the one block here that
+    is not a bank - it is a display, and it should read as one from across a square. The lens ring is
+    what says "this thing projects": a plain plate with a light on it would look like a pressure plate.
+    """
+    img, d = new(H_BODY)
+    bevel(d, H_HI, H_DARK)
+    d.rectangle([3, 3, 28, 28], fill=H_DARK)
+    # The emitter ring, with the lens itself brightest at the centre.
+    d.ellipse([5, 5, 26, 26], fill=H_BODY, outline=H_GLOW_DIM)
+    d.ellipse([8, 8, 23, 23], fill=(10, 22, 30, 255), outline=H_GLOW)
+    d.ellipse([12, 12, 19, 19], fill=H_GLOW_DIM, outline=H_GLOW)
+    d.ellipse([14, 14, 17, 17], fill=(226, 253, 255, 255))
+    # Four mounting bolts, so the top does not read as a hole in the floor.
+    for bx, by in ((4, 4), (27, 4), (4, 27), (27, 27)):
+        d.rectangle([bx - 1, by - 1, bx + 1, by + 1], fill=H_HI)
+    save(img, "stats_hologram_top")
+
+    img, d = new(H_BODY)
+    bevel(d, H_HI, H_DARK)
+    # Vents low down and a lit strip along the top, which is the face a player sees at eye level.
+    d.rectangle([0, 1, LAST, 4], fill=H_GLOW_DIM)
+    d.line([(0, 1), (LAST, 1)], fill=H_GLOW)
+    d.line([(0, 4), (LAST, 4)], fill=(12, 40, 52, 255))
+    inset(d, 3, 8, 28, 27, H_DARK, H_HI, fill=H_BODY)
+    for vy in range(11, 26, 3):
+        d.line([(6, vy), (25, vy)], fill=H_DARK)
+        d.line([(6, vy + 1), (25, vy + 1)], fill=H_HI)
+    save(img, "stats_hologram_side")
+
+    img, d = new(H_DARK)
+    d.rectangle([2, 2, S - 3, S - 3], fill=H_BODY)
+    inset(d, 6, 6, 25, 25, H_DARK, H_HI, fill=H_DARK)
+    for fx in (7, 24):
+        for fy in (7, 24):
+            d.rectangle([fx - 1, fy - 1, fx + 1, fy + 1], fill=H_HI)
+    save(img, "stats_hologram_bottom")
+
+
 def central_head():
     img, d = new(M_BODY)
     bevel(d, M_HI, M_SHADOW)
@@ -557,6 +609,7 @@ terminal_body()
 terminal_head()
 central_body()
 central_head()
+hologram_projector()
 
 print(f"{len(written)} machine textures written at {S}x{S} to {os.path.relpath(BLOCK)}")
 for name in written:

@@ -104,6 +104,9 @@ public class AthensCoinsMod {
         // Pending requests are per-session; never leak them into the next world.
         TransferManager.clear();
         com.athensmc.athenscoins.bank.BankConfirmations.clear();
+        // Same reason: a single-player client that opens a second world must not be handed the first
+        // world's economy figures on the next hologram refresh.
+        com.athensmc.athenscoins.stats.StatsCache.clear();
     }
 
     @SubscribeEvent

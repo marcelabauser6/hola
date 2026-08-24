@@ -45,6 +45,10 @@ public class ModItems {
             ITEMS.register("central_bank_terminal", () -> new BlockItem(
                     ModBlocks.CENTRAL_BANK_TERMINAL.get(), new Item.Properties()));
 
+    /** Stats hologram projector. Operator-gated in OperatorOnlyPlacement. */
+    public static final RegistryObject<Item> STATS_HOLOGRAM_ITEM = ITEMS.register("stats_hologram",
+            () -> new BlockItem(ModBlocks.STATS_HOLOGRAM.get(), new Item.Properties()));
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

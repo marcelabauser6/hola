@@ -16,8 +16,12 @@ public final class ModNetwork {
      * (loan, lending policy and transfer peers) instead of a handful of loose fields. A 5-era client
      * would read those extra bytes as garbage, so the mismatch has to be refused at handshake rather
      * than surface as nonsensical balances.
+     *
+     * <p>7 added the bank's configured flag, the loan-request queue and the account credit record.
+     * 8 adds the stats hologram's two packets, which also shift the ids of nothing before them but
+     * would leave an older client with no decoder for the two at the end.</p>
      */
-    private static final String PROTOCOL_VERSION = "7";
+    private static final String PROTOCOL_VERSION = "8";
 
     private static SimpleChannel channel;
 
@@ -42,12 +46,6 @@ public final class ModNetwork {
                 .encoder(S2COpenWalletPacket::encode)
                 .decoder(S2COpenWalletPacket::new)
                 .consumerMainThread(S2COpenWalletPacket::handle)
-                .add();
-
-        channel.messageBuilder(S2COpenStatsPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(S2COpenStatsPacket::encode)
-                .decoder(S2COpenStatsPacket::new)
-                .consumerMainThread(S2COpenStatsPacket::handle)
                 .add();
 
         channel.messageBuilder(S2COpenTerminalPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
@@ -102,6 +100,18 @@ public final class ModNetwork {
                 .encoder(C2SBankConfigPacket::encode)
                 .decoder(C2SBankConfigPacket::new)
                 .consumerMainThread(C2SBankConfigPacket::handle)
+                .add();
+
+        channel.messageBuilder(S2COpenHologramPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2COpenHologramPacket::encode)
+                .decoder(S2COpenHologramPacket::new)
+                .consumerMainThread(S2COpenHologramPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2SHologramConfigPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SHologramConfigPacket::encode)
+                .decoder(C2SHologramConfigPacket::new)
+                .consumerMainThread(C2SHologramConfigPacket::handle)
                 .add();
     }
 

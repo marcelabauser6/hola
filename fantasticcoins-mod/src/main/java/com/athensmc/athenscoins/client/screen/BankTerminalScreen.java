@@ -449,7 +449,7 @@ public class BankTerminalScreen extends Screen {
         hoverTooltip = null;
         ScreenLayout.Rect panel = layout.panel();
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
-        StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), accent());
+        Panels.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), accent());
         graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1,
                 layout.header().bottom() - 2, accent());
 

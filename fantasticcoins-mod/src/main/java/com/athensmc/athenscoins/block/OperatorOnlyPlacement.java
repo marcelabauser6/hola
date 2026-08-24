@@ -23,7 +23,8 @@ public final class OperatorOnlyPlacement {
     @SubscribeEvent
     public static void onPlace(BlockEvent.EntityPlaceEvent event) {
         boolean restricted = event.getPlacedBlock().is(ModBlocks.BANK_TERMINAL.get())
-                || event.getPlacedBlock().is(ModBlocks.CENTRAL_BANK_TERMINAL.get());
+                || event.getPlacedBlock().is(ModBlocks.CENTRAL_BANK_TERMINAL.get())
+                || event.getPlacedBlock().is(ModBlocks.STATS_HOLOGRAM.get());
         if (!restricted) {
             return;
         }

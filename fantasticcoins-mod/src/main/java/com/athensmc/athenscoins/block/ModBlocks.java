@@ -44,6 +44,22 @@ public class ModBlocks {
                             .requiresCorrectToolForDrops()
                             .noOcclusion()));
 
+    /**
+     * Stats hologram projector. Operator only, like the terminals: it publishes the whole server's
+     * finances to anyone who walks past.
+     *
+     * <p>Brighter than the ATM's light level 6 - a projector that is visibly running is the only cue
+     * that the block is doing anything when its hologram is set to show nothing yet.</p>
+     */
+    public static final RegistryObject<Block> STATS_HOLOGRAM = BLOCKS.register("stats_hologram",
+            () -> new StatsHologramBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_CYAN)
+                    .strength(3.0F, 6.0F)
+                    .sound(SoundType.METAL)
+                    .requiresCorrectToolForDrops()
+                    .lightLevel(state -> 10)
+                    .noOcclusion()));
+
     public static void register(IEventBus eventBus) {
         BLOCKS.register(eventBus);
     }

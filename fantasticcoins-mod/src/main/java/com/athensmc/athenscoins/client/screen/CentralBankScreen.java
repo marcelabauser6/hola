@@ -166,7 +166,7 @@ public class CentralBankScreen extends Screen {
         hoverTooltip = null;
         ScreenLayout.Rect panel = layout.panel();
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF00E1018);
-        StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFF7FB2E5);
+        Panels.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFF7FB2E5);
         graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, 0xFF1B2A44);
         renderHeader(graphics, mouseX, mouseY);
 

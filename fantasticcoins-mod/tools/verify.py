@@ -50,7 +50,7 @@ JAVA_STRING = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 
 LANG_PREFIXES = ("gui.athens_coins.", "tooltip.athens_coins.", "message.athens_coins.",
                  "coin.athens_coins.", "item.athens_coins.", "block.athens_coins.",
-                 "theme.athens_coins.",
+                 "metric.athens_coins.",
                  "creative_tab.athens_coins")
 
 used = set()
@@ -131,11 +131,33 @@ for base, _, files in os.walk(os.path.join(RES, "assets/athens_coins/models")):
                 problems.append(f"{rel}: parent model '{parent}' not found")
 
 # blockstate models
-bs = json.load(open(os.path.join(RES, "assets/athens_coins/blockstates/atm.json"), encoding="utf-8"))
-for variant, cfg in bs["variants"].items():
-    ns, mp = asset_path(cfg["model"], "models", ".json")
-    if not os.path.exists(mp):
-        problems.append(f"blockstates/atm.json[{variant}]: model {cfg['model']} not found")
+#
+# Every blockstate, not just the ATM's. A variant pointing at a model that does not exist is not a
+# crash and not a warning - the block renders as the missing-model cube, which is only ever found by
+# placing it. This used to check one file, which is exactly why the hologram's blockstate could have
+# shipped broken.
+blockstate_variants = 0
+blockstate_dir = os.path.join(RES, "assets/athens_coins/blockstates")
+for name in sorted(os.listdir(blockstate_dir)):
+    if not name.endswith(".json"):
+        continue
+    with open(os.path.join(blockstate_dir, name), encoding="utf-8") as fh:
+        bs = json.load(fh)
+    for variant, cfg in bs.get("variants", {}).items():
+        entries = cfg if isinstance(cfg, list) else [cfg]
+        for entry in entries:
+            blockstate_variants += 1
+            ns, mp = asset_path(entry["model"], "models", ".json")
+            if not os.path.exists(mp):
+                problems.append(
+                    f"blockstates/{name}[{variant}]: model {entry['model']} not found")
+notes.append(f"{blockstate_variants} blockstate variants resolved to models")
+
+# Every placeable block needs a loot table, or breaking it silently returns nothing.
+for block_id in ("atm", "bank_terminal", "central_bank_terminal", "stats_hologram"):
+    loot = os.path.join(RES, f"data/athens_coins/loot_tables/blocks/{block_id}.json")
+    if not os.path.exists(loot):
+        problems.append(f"block '{block_id}' has no loot table; breaking it would drop nothing")
 
 # GUI textures referenced from Java
 for base, _, files in os.walk(SRC):
@@ -231,12 +253,17 @@ else:
             "com/athensmc/athenscoins/api/FantasticCurrencyAPI.class",
             "com/athensmc/athenscoins/stats/EconomyStats.class",
             "com/athensmc/athenscoins/stats/EconomySnapshot.class",
-            "com/athensmc/athenscoins/network/S2COpenStatsPacket.class",
-            "com/athensmc/athenscoins/client/screen/StatsScreen.class",
-            "com/athensmc/athenscoins/client/screen/StatsThemeEditorScreen.class",
+            "com/athensmc/athenscoins/network/S2COpenHologramPacket.class",
+            "com/athensmc/athenscoins/network/C2SHologramConfigPacket.class",
+            "com/athensmc/athenscoins/client/screen/StatsHologramEditorScreen.class",
+            "com/athensmc/athenscoins/client/render/StatsHologramRenderer.class",
+            "com/athensmc/athenscoins/stats/StatsMetric.class",
+            "com/athensmc/athenscoins/stats/HologramConfig.class",
+            "com/athensmc/athenscoins/stats/HologramLines.class",
+            "com/athensmc/athenscoins/block/StatsHologramBlock.class",
+            "com/athensmc/athenscoins/block/StatsHologramBlockEntity.class",
             "com/athensmc/athenscoins/client/layout/ScreenLayout.class",
             "com/athensmc/athenscoins/client/layout/ScreenText.class",
-            "com/athensmc/athenscoins/client/theme/StatsTheme.class",
             "com/athensmc/athenscoins/client/widget/ColorPicker.class",
             "com/athensmc/athenscoins/client/ClientCashCache.class",
             "com/athensmc/athenscoins/bank/BankRules.class",
@@ -381,6 +408,43 @@ for locale in ("en_us", "es_es", "es_mx", "es_ar"):
         problems.append(f"{locale}.json text differs from en_us: {differing[:5]}")
 notes.append("all four locales carry identical Spanish text")
 
+# All four locales are identical (checked immediately above), so one of them stands for the set.
+with open(os.path.join(lang_dir, "es_es.json"), encoding="utf-8") as fh:
+    lang_text = json.load(fh)
+
+# (d1) Every hologram metric must be translatable.
+#
+# The metric names are built as "metric.athens_coins." + the enum's own id, so the generic
+# string-literal scan can never see them - which means a metric added without its lang key would ship
+# and show up on a hologram as the raw key. The enum is the source of truth, so read the ids out of it
+# and check each one.
+metric_source = open(os.path.join(SRC, "com/athensmc/athenscoins/stats/StatsMetric.java"),
+                     encoding="utf-8").read()
+metric_ids = re.findall(r'^\s{4}[A-Z_]+\("([a-z_]+)"', metric_source, re.MULTILINE)
+if len(metric_ids) < 10:
+    problems.append(f"only found {len(metric_ids)} metric ids in StatsMetric.java; "
+                    f"the enum's shape changed and this check is no longer reading it")
+for metric_id in metric_ids:
+    key = f"metric.athens_coins.{metric_id}"
+    if key not in lang_text:
+        problems.append(f"hologram metric '{metric_id}' has no {key} translation")
+notes.append(f"{len(metric_ids)} hologram metrics all have a translated name")
+
+# (d3) The hologram's rows must be built in exactly one place.
+#
+# The editor draws a live preview of a hologram the player is not looking at while they edit it, so a
+# preview that laid out its rows with its own copy of the rules would quietly promise something the
+# projector would not produce - and both would look plausible in review. Both sides go through
+# HologramLines, and the widest-row measurement is shared too.
+for name, path in (("world renderer", "com/athensmc/athenscoins/client/render/StatsHologramRenderer.java"),
+                   ("editor preview", "com/athensmc/athenscoins/client/screen/StatsHologramEditorScreen.java")):
+    source = open(os.path.join(SRC, path), encoding="utf-8").read()
+    if "HologramLines.build" not in source:
+        problems.append(f"the {name} does not build its rows through HologramLines")
+    if "HologramLines.panelWidth" not in source:
+        problems.append(f"the {name} measures its panel width itself instead of sharing panelWidth")
+notes.append("hologram rows and width come from one shared builder")
+
 # (d2) Text budgets for the strings that share a row with a value.
 #
 # "there are texts in every GUI that do not fit" was a real bug, and the fix is not one pass of
@@ -401,8 +465,6 @@ TEXT_BUDGETS = (
     (r"^gui\.athens_coins\.acct_(?!hint|section|ledger|scroll|overdue|no_)", 18, "account label"),
 )
 budgeted = 0
-with open(os.path.join(lang_dir, "es_es.json"), encoding="utf-8") as fh:
-    lang_text = json.load(fh)
 for key, value in lang_text.items():
     if key.endswith(("_tip", "_hint")):
         continue
@@ -453,7 +515,7 @@ notes.append("four amount-taking screens share one parser")
 screen_dir = os.path.join(SRC, "com/athensmc/athenscoins/client/screen")
 redesigned = (
     "BankTerminalScreen.java", "AccountDetailScreen.java", "CentralBankScreen.java",
-    "AtmScreen.java", "WalletScreen.java", "StatsScreen.java", "StatsThemeEditorScreen.java",
+    "AtmScreen.java", "WalletScreen.java", "StatsHologramEditorScreen.java",
 )
 for name in redesigned:
     source = open(os.path.join(screen_dir, name), encoding="utf-8").read()

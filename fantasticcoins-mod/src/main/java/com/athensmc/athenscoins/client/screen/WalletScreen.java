@@ -1,6 +1,7 @@
 package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
+import com.athensmc.athenscoins.client.layout.PanelMetrics;
 import com.athensmc.athenscoins.client.layout.ScreenLayout;
 import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.config.DisplaySettings;
@@ -72,6 +73,7 @@ public class WalletScreen extends Screen {
 
     private final WalletSnapshot snapshot;
     private int theme;
+    private ScreenLayout.Regions layout;
     private int leftPos;
     private int topPos;
     private String footerTooltip;
@@ -82,11 +84,28 @@ public class WalletScreen extends Screen {
         this.theme = snapshot.display().walletTheme();
     }
 
+    /**
+     * A responsive panel with the artwork centred inside it at its native size.
+     *
+     * <p>This screen used to be nothing but the 176x76 drawing floating in the middle of the window,
+     * which made it the odd one out once every other screen filled the viewport. It now gets the same
+     * frame as the rest of the mod - title bar, border, footer - while the drawing itself stays 1:1,
+     * because the face panel and the six item cells are positioned against slots painted into the PNG
+     * and scaling it would pull them apart.</p>
+     */
     @Override
     protected void init() {
-        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, ART_W, TOTAL_H);
-        this.leftPos = panel.x();
-        this.topPos = panel.y();
+        layout = PanelMetrics.wallet(width, height);
+        ScreenLayout.Rect content = layout.content().inset(PanelMetrics.CONTENT_PAD);
+        this.leftPos = content.x() + Math.max(0, (content.width() - ART_W) / 2);
+        this.topPos = content.y() + Math.max(0, (content.height() - TOTAL_H) / 2);
+
+        ScreenLayout.Rect footer = layout.footer().inset(6);
+        int closeWidth = Math.min(82, footer.width());
+        addRenderableWidget(net.minecraft.client.gui.components.Button.builder(
+                        Component.translatable("gui.athens_coins.close"), ignored -> onClose())
+                .bounds(footer.right() - closeWidth, footer.y(), closeWidth,
+                        Math.min(18, footer.height())).build());
     }
 
     /** Keep the world running underneath, like any inventory-style screen. */
@@ -108,6 +127,18 @@ public class WalletScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
+        ScreenLayout.Rect panel = layout.panel();
+        graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
+        Panels.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFFC9A227);
+        graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1,
+                layout.header().bottom() - 2, 0xFF3A2A1E);
+        String heading = Component.translatable("gui.athens_coins.wallet").getString();
+        graphics.drawString(font, ScreenText.fit(font, heading, panel.width() - 16),
+                panel.x() + 8, panel.y() + 6, 0xFFFFD98F, false);
+        String hint = Component.translatable("gui.athens_coins.wallet_hint").getString();
+        graphics.drawString(font, ScreenText.fit(font, hint, panel.width() - 16),
+                panel.x() + 8, layout.content().y() + 2, 0xFFB0A090, false);
+
         graphics.blit(walletTexture(), leftPos, topPos, ART_U, ART_V, ART_W, ART_H);
         renderFooter(graphics);
         renderFace(graphics);
