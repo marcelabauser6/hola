@@ -106,12 +106,9 @@ extends Screen {
                 earnHov = c;
             }
             if (CoinEconomy.isCash(c)) {
-                // No item icon for cash: the symbol stands in, and the amount is formatted with its
-                // two decimals rather than printed as a raw count of cents.
-                String symbol = CoinEconomy.cashSymbol();
-                g.m_280056_(this.f_96547_, symbol,
-                        cx + 1 + (16 - this.f_96547_.m_92895_(symbol)) / 2, cy + 3,
-                        CoinEconomy.coinColor(c), true);
+                // No item icon for cash: the shared card icon stands in, and the amount is formatted
+                // with its two decimals rather than printed as a raw count of cents.
+                ShopWidgets.drawCashIcon(g, this.f_96547_, cx, cy);
                 FShopTheme.drawCount(g, this.f_96547_, cx + 1, cy + 1,
                         CoinEconomy.formatAmount(c, this.shop.getPendingEarnings(c)));
                 continue;

@@ -49,8 +49,14 @@ import java.util.List;
  */
 public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock {
 
-    private static final VoxelShape SHAPE = Block.box(1.0D, 0.0D, 2.0D, 15.0D, 16.0D, 14.0D);
-    private static final VoxelShape SHAPE_EW = Block.box(2.0D, 0.0D, 1.0D, 14.0D, 16.0D, 15.0D);
+    /**
+     * Collision reaches z=1, not z=2, because the canopy and the cash tray stick out that far.
+     *
+     * <p>Left at 2 the tray would have been visible but not clickable, and the player would have
+     * walked through the part of the machine that overhangs them.</p>
+     */
+    private static final VoxelShape SHAPE = Block.box(1.0D, 0.0D, 1.0D, 15.0D, 16.0D, 14.0D);
+    private static final VoxelShape SHAPE_EW = Block.box(1.0D, 0.0D, 1.0D, 14.0D, 16.0D, 15.0D);
 
     public AtmBlock(Properties properties) {
         super(properties);

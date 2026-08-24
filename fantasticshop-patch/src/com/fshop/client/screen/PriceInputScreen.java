@@ -20,6 +20,7 @@ import java.util.List;
 import com.fshop.client.FShopTextures;
 import com.fshop.client.FShopTheme;
 import com.fshop.client.Sfx;
+import com.fshop.client.ShopWidgets;
 import com.fshop.economy.CoinEconomy;
 import com.fshop.network.AddOfferPacket;
 import com.fshop.network.PacketHandler;
@@ -272,11 +273,9 @@ extends Screen {
                 coinHov = c;
             }
             if (CoinEconomy.isCash(c)) {
-                // Cash has no item, so the cell shows the currency symbol.
-                String symbol = CoinEconomy.cashSymbol();
-                g.m_280056_(this.f_96547_, symbol,
-                        cx + 1 + (16 - this.f_96547_.m_92895_(symbol)) / 2, cy + 6,
-                        CoinEconomy.coinColor(c), true);
+                // The shared card icon, so this cell does not look like an empty slot next to the
+                // three coin sprites - it is a currency you can select, and it has to look like one.
+                ShopWidgets.drawCashIcon(g, this.f_96547_, cx, cy);
             } else {
                 g.m_280203_(CoinEconomy.coinIcon(c), cx + 1, cy + 1);
             }

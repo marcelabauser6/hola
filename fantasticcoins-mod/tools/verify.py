@@ -206,7 +206,7 @@ else:
             "assets/athens_coins/textures/item/silver_coin.png",
             "assets/athens_coins/textures/item/gold_coin.png",
             "assets/athens_coins/textures/block/atm_front.png",
-            "assets/athens_coins/textures/gui/atm.png",
+
             "assets/athens_coins/textures/gui/wallet_1.png",
             "assets/athens_coins/textures/gui/wallet_2.png",
             "assets/athens_coins/textures/gui/wallet_3.png",
@@ -431,6 +431,30 @@ for name in set(redesigned) - {"AtmScreen.java"}:
     if "ScreenLayout" not in source:
         problems.append(f"{name} does not use shared responsive geometry")
 notes.append("seven redesigned screens use bounded text; six free-form screens use shared geometry")
+
+# ---------------------------------------------------------------- 6b. model texture references
+# Every texture a model names must exist. A mistyped path is not a crash and not a warning: the block
+# simply renders as the missing-texture checkerboard, which is only ever found by looking at it.
+model_refs = 0
+for base, _, files in os.walk(os.path.join(RES, "assets/athens_coins/models")):
+    for name in files:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(base, name), encoding="utf-8") as fh:
+            model = json.load(fh)
+        for slot, ref in (model.get("textures") or {}).items():
+            if not isinstance(ref, str) or ref.startswith("#"):
+                continue
+            namespace, sep, path = ref.partition(":")
+            if not sep:
+                namespace, path = "minecraft", ref
+            if namespace == "minecraft":
+                continue
+            texture = os.path.join(RES, f"assets/{namespace}/textures/{path}.png")
+            model_refs += 1
+            if not os.path.isfile(texture):
+                problems.append(f"models/{name}: texture slot '{slot}' points at missing {ref}")
+notes.append(f"{model_refs} model texture reference(s) resolved")
 
 layout_test = os.path.join(ROOT, "src/test/java/com/athensmc/athenscoins/client/layout/ScreenLayoutStaticTest.java")
 if not os.path.exists(layout_test):

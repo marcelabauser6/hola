@@ -1,5 +1,5 @@
 {
-  "credit": "FantasticCoins ATM",
+  "credit": "FantasticCurrency ATM - shape here, detail in the textures (tools/gen_atm_block.py)",
   "parent": "block/block",
   "textures": {
     "particle": "athens_coins:block/atm_side",
@@ -7,20 +7,62 @@
     "side": "athens_coins:block/atm_side",
     "back": "athens_coins:block/atm_back",
     "top": "athens_coins:block/atm_top",
-    "bottom": "athens_coins:block/atm_bottom"
+    "hood": "athens_coins:block/atm_hood",
+    "bottom": "athens_coins:block/atm_bottom",
+    "tray": "athens_coins:block/atm_tray"
   },
   "elements": [
     {
+      "name": "plinth",
+      "__comment": "A recessed base, so the cabinet stands on the floor instead of being part of it.",
+      "from": [2, 0, 3],
+      "to": [14, 2, 13],
+      "faces": {
+        "north": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "south": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "east": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "west": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
       "name": "cabinet",
-      "from": [1, 0, 2],
+      "__comment": "The body. Explicit UVs so each texture fills a whole face rather than being cropped to the element's slice of the block.",
+      "from": [1, 2, 2],
+      "to": [15, 14, 14],
+      "faces": {
+        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "hood",
+      "__comment": "Two pixels tall and overhanging the front by one. This is what stops the block reading as a cube; a one-pixel lid did not.",
+      "from": [1, 14, 1],
       "to": [15, 16, 14],
       "faces": {
-        "north": { "texture": "#front" },
-        "south": { "texture": "#back" },
-        "east": { "texture": "#side" },
-        "west": { "texture": "#side" },
-        "up": { "texture": "#top" },
-        "down": { "texture": "#bottom" }
+        "north": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "up": { "texture": "#top", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#hood", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "cash_tray",
+      "__comment": "The dispenser, at the bottom where an ATM actually puts it. Placed mid-front it covered the keypad drawn behind it; three pixels tall it ate a quarter of the front and squashed the screen.",
+      "from": [3, 2, 1],
+      "to": [13, 4, 2],
+      "faces": {
+        "north": { "texture": "#tray", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#tray", "uv": [0, 0, 4, 16] },
+        "west": { "texture": "#tray", "uv": [0, 0, 4, 16] },
+        "up": { "texture": "#tray", "uv": [0, 0, 16, 4] },
+        "down": { "texture": "#tray", "uv": [0, 0, 16, 4] }
       }
     }
   ]

@@ -20,6 +20,9 @@ public class ModBlocks {
                     .strength(3.5F, 6.0F)
                     .sound(SoundType.METAL)
                     .requiresCorrectToolForDrops()
+                    // The screen is drawn lit, so the machine gives off a little light. Low enough
+                    // not to light a room, high enough that the block does not look dead at night.
+                    .lightLevel(state -> 6)
                     .noOcclusion()));
 
     /** Bank terminal. No recipe, creative only, and placing it requires an operator. */

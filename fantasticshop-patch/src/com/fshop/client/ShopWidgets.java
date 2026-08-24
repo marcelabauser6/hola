@@ -23,6 +23,28 @@ public final class ShopWidgets {
     private ShopWidgets() {
     }
 
+    /**
+     * Draws the digital currency's icon into a 16x16 slot.
+     *
+     * <p>Cash is the only currency with no item behind it, so every screen that offered it drew a bare
+     * {@code $} glyph. Sitting in a row next to three coin sprites that cell read as <em>empty</em> -
+     * it looked like a currency that was not available rather than one you could pick, which is
+     * exactly the confusion this is meant to remove. A card with a coloured band gives it the same
+     * visual weight as the coins beside it.</p>
+     *
+     * <p>One implementation, called from every screen that shows a currency cell, so the icon cannot
+     * drift between them.</p>
+     */
+    public static void drawCashIcon(GuiGraphics g, Font font, int x, int y) {
+        int accent = CoinEconomy.coinColor(CoinEconomy.CASH);
+        // A card: dark body, a coloured band across the top, and the currency symbol on it.
+        g.m_280509_(x + 1, y + 3, x + 15, y + 14, 0xFF0E2A1A);
+        g.m_280509_(x + 1, y + 3, x + 15, y + 6, accent);
+        g.m_280509_(x + 2, y + 7, x + 14, y + 13, 0xFF16452A);
+        String symbol = CoinEconomy.cashSymbol();
+        g.m_280056_(font, symbol, x + 8 - font.m_92895_(symbol) / 2, y + 7, accent, true);
+    }
+
     public static int renderInventory(GuiGraphics g, Font font, Inventory inv, int left, int top, int mouseX, int mouseY, boolean interactive) {
         int hovered = -1;
         for (int row = 0; row < 4; ++row) {
@@ -91,11 +113,9 @@ public final class ShopWidgets {
             }
             long bal = CoinEconomy.balance(player, c);
             if (CoinEconomy.isCash(c)) {
-                // Cash has no item to draw: show the symbol, then the balance where a stack
-                // count would sit. The balance is in cents, so print whole units here.
-                String symbol = CoinEconomy.cashSymbol();
-                g.m_280056_(font, symbol, cx + 1 + (16 - font.m_92895_(symbol)) / 2, cy + 3,
-                        CoinEconomy.coinColor(c), true);
+                // Cash has no item to draw, so the shared card icon stands in for one; the balance
+                // then sits where a stack count would, in whole units.
+                ShopWidgets.drawCashIcon(g, font, cx, cy);
                 String amount = ShopWidgets.shortCount(bal / CoinEconomy.CASH_SCALE);
                 g.m_280056_(font, amount, cx + 17 - font.m_92895_(amount), cy + 11, -1, true);
                 continue;
