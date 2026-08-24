@@ -2,6 +2,7 @@ package com.athensmc.athenscoins.client.screen;
 
 import com.athensmc.athenscoins.client.layout.ScreenLayout;
 import com.athensmc.athenscoins.client.layout.ScreenText;
+import com.athensmc.athenscoins.client.layout.ThemeEditorLayout;
 import com.athensmc.athenscoins.client.theme.StatsTheme;
 import com.athensmc.athenscoins.client.widget.ColorPicker;
 import net.minecraft.client.gui.GuiGraphics;
@@ -15,9 +16,8 @@ import java.util.Locale;
 
 /** Responsive stats-theme editor with explicitly separated picker, swatches, opacity and actions. */
 public class StatsThemeEditorScreen extends Screen {
-    private static final int PANEL_W = 340;
-    private static final int PANEL_H = 232;
-    private static final int SLOT_H = 14;
+    /** One definition, shared with the layout that positions the list. */
+    private static final int SLOT_H = ThemeEditorLayout.SLOT_H;
     private static final int SWATCH = 11;
     private static final int[] RAINBOW = new int[12];
     private static final int[] NEUTRALS = {
@@ -37,16 +37,7 @@ public class StatsThemeEditorScreen extends Screen {
     private List<StatsTheme.Slot> slots;
     private int selected;
 
-    private ScreenLayout.Regions layout;
-    private ScreenLayout.Columns columns;
-    private int pickerX;
-    private int pickerY;
-    private int pickerW;
-    private int rainbowY;
-    private int neutralY;
-    private int alphaBarX;
-    private int alphaBarY;
-    private int alphaBarW;
+    private ThemeEditorLayout layout;
     private boolean draggingAlpha;
     private Component hoverTooltip;
 
@@ -57,51 +48,40 @@ public class StatsThemeEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
-        layout = ScreenLayout.regions(panel, 20, 0, 28);
-        columns = ScreenLayout.columns(layout.content().inset(8), 10);
         if (working == null) {
             working = StatsTheme.get().copy();
         }
         slots = working.slots();
         selected = ScreenLayout.clamp(selected, 0, Math.max(0, slots.size() - 1));
+        layout = ThemeEditorLayout.of(width, height, slots.size());
 
-        ScreenLayout.Rect right = columns.second();
-        pickerX = right.x();
-        pickerY = right.y() + 1;
-        pickerW = right.width();
-        int pickerHeight = Math.max(36, Math.min(48, right.height() - 120));
-        picker.setBounds(pickerX, pickerY, pickerW, pickerHeight, 8);
+        ScreenLayout.Rect square = layout.pickerSquare();
+        picker.setBounds(square.x(), square.y(), square.width(), square.height(),
+                layout.hueHeight());
         picker.setRgb(slots.get(selected).getter().getAsInt());
-        int pickerBottom = pickerY + picker.totalHeight();
-        rainbowY = pickerBottom + 14;
-        neutralY = rainbowY + 10;
-        alphaBarX = pickerX;
-        alphaBarY = neutralY + 20;
-        alphaBarW = pickerW;
 
         clearWidgets();
-        int toggleY = right.bottom() - 47;
-        addToggle("gui.athens_coins.theme_shadow", toggleY, 0);
-        addToggle("gui.athens_coins.theme_bold", toggleY + 16, 1);
-        addToggle("gui.athens_coins.theme_italic", toggleY + 32, 2);
+        addToggle("gui.athens_coins.theme_shadow", 0);
+        addToggle("gui.athens_coins.theme_bold", 1);
+        addToggle("gui.athens_coins.theme_italic", 2);
 
-        ScreenLayout.Rect left = columns.first();
+        ScreenLayout.Rect presetRow = layout.presetRow();
         int presets = StatsTheme.presetCount();
         int gap = 3;
-        int presetWidth = ScreenLayout.gridCellWidth(left, Math.max(1, presets), gap);
+        int presetWidth = ScreenLayout.gridCellWidth(presetRow, Math.max(1, presets), gap);
         for (int i = 0; i < presets; i++) {
             int index = i;
             addRenderableWidget(Button.builder(Component.literal(String.valueOf(i + 1)), ignored -> {
                         working = StatsTheme.preset(index);
                         rebuild();
                     })
-                    .bounds(left.x() + i * (presetWidth + gap), left.bottom() - 16, presetWidth, 15)
+                    .bounds(presetRow.x() + i * (presetWidth + gap), presetRow.y(), presetWidth,
+                            presetRow.height())
                     .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.theme_reset")))
                     .build());
         }
 
-        ScreenLayout.Rect footer = layout.footer().inset(6);
+        ScreenLayout.Rect footer = layout.regions().footer().inset(6);
         int footerGap = 4;
         int cell = ScreenLayout.gridCellWidth(footer, 3, footerGap);
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.theme_save"), ignored -> {
@@ -120,7 +100,7 @@ public class StatsThemeEditorScreen extends Screen {
                         Math.min(18, footer.height())).build());
     }
 
-    private void addToggle(String key, int y, int type) {
+    private void addToggle(String key, int type) {
         boolean state = switch (type) {
             case 0 -> working.textShadow;
             case 1 -> working.boldSections;
@@ -142,7 +122,8 @@ public class StatsThemeEditorScreen extends Screen {
                     Component updated = formatLabel(key, current);
                     button.setMessage(updated);
                     button.setTooltip(Tooltip.create(updated));
-                }).bounds(columns.second().x(), y, columns.second().width(), 15)
+                }).bounds(layout.toggle(type).x(), layout.toggle(type).y(),
+                        layout.toggle(type).width(), layout.toggle(type).height())
                 .tooltip(Tooltip.create(fullLabel)).build());
     }
 
@@ -166,10 +147,11 @@ public class StatsThemeEditorScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
         hoverTooltip = null;
-        ScreenLayout.Rect panel = layout.panel();
+        ScreenLayout.Rect panel = layout.regions().panel();
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), working.background());
         StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), working.border());
-        graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, working.titleBar());
+        graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1,
+                layout.regions().header().bottom() - 2, working.titleBar());
         drawFitted(graphics, title.getString(), panel.x() + 8, panel.y() + 6,
                 panel.width() - 16, 0xFF000000 | working.titleTextColor, mouseX, mouseY);
         renderSlots(graphics, mouseX, mouseY);
@@ -181,8 +163,12 @@ public class StatsThemeEditorScreen extends Screen {
     }
 
     private void renderSlots(GuiGraphics graphics, int mouseX, int mouseY) {
-        ScreenLayout.Rect left = columns.first();
-        for (int i = 0; i < slots.size(); i++) {
+        ScreenLayout.Rect left = layout.slotList();
+        // Clip to the list band: the preset buttons live just below it, and an unclipped row would
+        // be drawn under them while still claiming the clicks.
+        graphics.enableScissor(left.x() - 2, left.y() - 1, left.right(), left.bottom());
+        int rows = Math.min(slots.size(), layout.visibleSlots());
+        for (int i = 0; i < rows; i++) {
             StatsTheme.Slot slot = slots.get(i);
             int y = left.y() + i * SLOT_H;
             if (i == selected) {
@@ -202,35 +188,38 @@ public class StatsThemeEditorScreen extends Screen {
                         0xFF000000 | working.labelColor, working.textShadow);
             }
         }
+        graphics.disableScissor();
     }
 
     private void renderPicker(GuiGraphics graphics) {
         picker.render(graphics);
         StatsTheme.Slot slot = slots.get(selected);
         String hex = String.format(Locale.ROOT, "#%06X", picker.rgb());
-        graphics.drawString(font, hex, pickerX, rainbowY - 11,
+        ScreenLayout.Rect hexRow = layout.hexRow();
+        graphics.drawString(font, hex, hexRow.x(), hexRow.y(),
                 0xFF000000 | working.valueColor, working.textShadow);
-        drawSwatches(graphics, RAINBOW, rainbowY);
-        drawSwatches(graphics, NEUTRALS, neutralY);
+        drawSwatches(graphics, RAINBOW, layout.rainbowRow());
+        drawSwatches(graphics, NEUTRALS, layout.neutralRow());
         if (slot.hasAlpha()) {
             int alpha = slot.alphaGetter().getAsInt();
+            ScreenLayout.Rect label = layout.alphaLabel();
+            ScreenLayout.Rect bar = layout.alphaBar();
             graphics.drawString(font, Component.translatable("gui.athens_coins.theme_opacity"),
-                    alphaBarX, alphaBarY - 10, 0xFF000000 | working.labelColor, working.textShadow);
-            for (int i = 0; i < alphaBarW / 4; i++) {
-                int x0 = alphaBarX + i * 4;
-                graphics.fill(x0, alphaBarY, Math.min(x0 + 4, alphaBarX + alphaBarW), alphaBarY + 8,
+                    label.x(), label.y(), 0xFF000000 | working.labelColor, working.textShadow);
+            for (int i = 0; i < bar.width() / 4; i++) {
+                int x0 = bar.x() + i * 4;
+                graphics.fill(x0, bar.y(), Math.min(x0 + 4, bar.right()), bar.bottom(),
                         i % 2 == 0 ? 0xFF6E6E6E : 0xFF3A3A3A);
             }
-            graphics.fill(alphaBarX, alphaBarY, alphaBarX + alphaBarW * alpha / 255, alphaBarY + 8,
+            graphics.fill(bar.x(), bar.y(), bar.x() + bar.width() * alpha / 255, bar.bottom(),
                     0xFF000000 | slot.getter().getAsInt());
-            StatsScreen.outline(graphics, alphaBarX, alphaBarY, alphaBarW, 8, 0xFF000000);
-            int knob = alphaBarX + alphaBarW * alpha / 255;
-            graphics.fill(knob - 1, alphaBarY - 2, knob + 2, alphaBarY + 10, 0xFFFFFFFF);
+            StatsScreen.outline(graphics, bar.x(), bar.y(), bar.width(), bar.height(), 0xFF000000);
+            int knob = bar.x() + bar.width() * alpha / 255;
+            graphics.fill(knob - 1, bar.y() - 2, knob + 2, bar.bottom() + 2, 0xFFFFFFFF);
         }
     }
 
-    private void drawSwatches(GuiGraphics graphics, int[] colors, int y) {
-        ScreenLayout.Rect row = new ScreenLayout.Rect(pickerX, y, pickerW, 8);
+    private void drawSwatches(GuiGraphics graphics, int[] colors, ScreenLayout.Rect row) {
         for (int i = 0; i < colors.length; i++) {
             ScreenLayout.Rect swatch = ScreenLayout.partition(row, colors.length, i);
             graphics.fill(swatch.x(), swatch.y(), swatch.right(), swatch.bottom(),
@@ -252,8 +241,11 @@ public class StatsThemeEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        ScreenLayout.Rect left = columns.first();
-        for (int i = 0; i < slots.size(); i++) {
+        // Hit-test the same clipped band that was drawn, and only the rows that fit in it, so a row
+        // hidden behind the preset buttons cannot swallow their clicks.
+        ScreenLayout.Rect left = layout.slotList();
+        int rows = Math.min(slots.size(), layout.visibleSlots());
+        for (int i = 0; i < rows; i++) {
             int y = left.y() + i * SLOT_H;
             if (mouseX >= left.x() - 2 && mouseX < left.right()
                     && mouseY >= y - 1 && mouseY < y + SLOT_H - 1) {
@@ -266,13 +258,12 @@ public class StatsThemeEditorScreen extends Screen {
             slots.get(selected).setter().accept(picker.rgb());
             return true;
         }
-        if (applySwatch(mouseX, mouseY, RAINBOW, rainbowY)
-                || applySwatch(mouseX, mouseY, NEUTRALS, neutralY)) {
+        if (applySwatch(mouseX, mouseY, RAINBOW, layout.rainbowRow())
+                || applySwatch(mouseX, mouseY, NEUTRALS, layout.neutralRow())) {
             return true;
         }
         StatsTheme.Slot slot = slots.get(selected);
-        if (slot.hasAlpha() && mouseY >= alphaBarY - 2 && mouseY < alphaBarY + 10
-                && mouseX >= alphaBarX && mouseX < alphaBarX + alphaBarW) {
+        if (slot.hasAlpha() && layout.alphaBar().expand(2).contains(mouseX, mouseY)) {
             draggingAlpha = true;
             applyAlpha(mouseX);
             return true;
@@ -280,8 +271,7 @@ public class StatsThemeEditorScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    private boolean applySwatch(double mouseX, double mouseY, int[] colors, int y) {
-        ScreenLayout.Rect row = new ScreenLayout.Rect(pickerX, y, pickerW, 8);
+    private boolean applySwatch(double mouseX, double mouseY, int[] colors, ScreenLayout.Rect row) {
         int index = ScreenLayout.partitionIndex(row, colors.length, mouseX, mouseY);
         if (index < 0) {
             return false;
@@ -297,7 +287,11 @@ public class StatsThemeEditorScreen extends Screen {
 
     private void applyAlpha(double mouseX) {
         StatsTheme.Slot slot = slots.get(selected);
-        int value = (int) Math.round((mouseX - alphaBarX) / (double) alphaBarW * 255.0D);
+        ScreenLayout.Rect bar = layout.alphaBar();
+        if (bar.width() <= 0) {
+            return;
+        }
+        int value = (int) Math.round((mouseX - bar.x()) / (double) bar.width() * 255.0D);
         slot.alphaSetter().accept(ScreenLayout.clamp(value, 0, 255));
     }
 

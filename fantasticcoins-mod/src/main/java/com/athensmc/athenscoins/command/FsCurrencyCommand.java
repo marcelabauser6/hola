@@ -7,6 +7,7 @@ import com.athensmc.athenscoins.network.S2COpenWalletPacket;
 import com.athensmc.athenscoins.stats.EconomyStats;
 import com.athensmc.athenscoins.transfer.PendingTransfer;
 import com.athensmc.athenscoins.transfer.TransferManager;
+import com.athensmc.athenscoins.transfer.TransferRequests;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
 import com.athensmc.athenscoins.wallet.Wallet;
@@ -21,9 +22,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -153,12 +152,6 @@ public final class FsCurrencyCommand {
     // ------------------------------------------------------------------ transfer
 
     private static int requestTransfer(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        CurrencyConfig.Settings settings = CurrencyConfig.get();
-        if (!settings.transfersEnabled) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.transfers_disabled"));
-            return 0;
-        }
-
         ServerPlayer sender = self(context);
         ServerPlayer target = EntityArgument.getPlayer(context, "target");
 
@@ -170,66 +163,16 @@ public final class FsCurrencyCommand {
             return 0;
         }
 
-        if (target.getUUID().equals(sender.getUUID())) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.transfer_self"));
+        // Policy, the request itself and the recipient's accept/deny card all live in
+        // TransferRequests, shared with the ATM screen so both routes enforce the same rules.
+        TransferRequests.Outcome outcome = TransferRequests.request(sender, target, cents);
+        if (!outcome.ok()) {
+            context.getSource().sendFailure(outcome.message());
             return 0;
         }
-        if (cents < settings.minTransferCents()) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.transfer_too_small",
-                    Money.format(settings.minTransferCents(), settings.currencySymbol)));
-            return 0;
-        }
-        if (cents > settings.maxTransferCents()) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.transfer_too_big",
-                    Money.format(settings.maxTransferCents(), settings.currencySymbol)));
-            return 0;
-        }
-        if (!com.athensmc.athenscoins.bank.BankManager.hasAccount(sender)
-                || !com.athensmc.athenscoins.bank.BankManager.hasAccount(target)) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.atm_needs_account"));
-            return 0;
-        }
-        if (!com.athensmc.athenscoins.api.FantasticCurrencyAPI.has(sender, cents)) {
-            context.getSource().sendFailure(Component.translatable("message.athens_coins.insufficient_funds",
-                    Money.format(cents, settings.currencySymbol)));
-            return 0;
-        }
-
-        PendingTransfer request = TransferManager.create(sender, target, cents);
-        String amount = Money.format(cents, settings.currencySymbol);
-
-        target.sendSystemMessage(Component.translatable("message.athens_coins.transfer_incoming",
-                        Component.literal(sender.getGameProfile().getName())
-                                .withStyle(ChatFormatting.WHITE),
-                        Component.literal(amount)
-                                .withStyle(style -> style.withColor(settings.cashColorRgb()).withBold(true)))
-                .withStyle(ChatFormatting.GRAY));
-        target.sendSystemMessage(Component.literal("  ")
-                .append(button("message.athens_coins.button_accept", ChatFormatting.GREEN,
-                        "/fscurrency transfer accept " + request.id(),
-                        "message.athens_coins.button_accept_hover"))
-                .append(Component.literal("   "))
-                .append(button("message.athens_coins.button_deny", ChatFormatting.RED,
-                        "/fscurrency transfer deny " + request.id(),
-                        "message.athens_coins.button_deny_hover")));
-        // Let the recipient's client know accept/deny are available to them right now.
-        TransferManager.refreshCommands(target.server, target.getUUID());
-
-        context.getSource().sendSuccess(() -> Component.translatable("message.athens_coins.transfer_sent",
-                        amount, target.getGameProfile().getName(),
-                        settings.transferRequestTimeoutSeconds)
-                .withStyle(ChatFormatting.GRAY), false);
+        context.getSource().sendSuccess(
+                () -> outcome.message().copy().withStyle(ChatFormatting.GRAY), false);
         return 1;
-    }
-
-    private static MutableComponent button(String labelKey, ChatFormatting color,
-                                           String command, String hoverKey) {
-        return Component.translatable(labelKey).withStyle(style -> style
-                .withColor(color)
-                .withBold(true)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                        Component.translatable(hoverKey))));
     }
 
     private static int answer(CommandContext<CommandSourceStack> context, boolean accepted)

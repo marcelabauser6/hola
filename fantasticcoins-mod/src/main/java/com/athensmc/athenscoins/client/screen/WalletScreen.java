@@ -132,9 +132,11 @@ public class WalletScreen extends Screen {
         String fullAmount = snapshot.bank().hasAccount()
                 ? Money.format(snapshot.cashCents(), display.currencySymbol())
                 : Component.translatable("gui.athens_coins.no_bank_short").getString();
+        // The two budgets must sum to the bar. Flooring the name at 24px was the one way they could
+        // add up to more than the space available, which would draw the name under the amount.
         int innerWidth = ART_W - 12;
         int amountBudget = Math.min(innerWidth * 3 / 5, Math.max(42, font.width(fullAmount)));
-        int nameBudget = Math.max(24, innerWidth - amountBudget - 6);
+        int nameBudget = Math.max(0, innerWidth - amountBudget - 6);
         String name = ScreenText.fit(font, fullName, nameBudget);
         String amount = ScreenText.fit(font, fullAmount, amountBudget);
         footerTooltip = ScreenText.wasTruncated(font, fullName, nameBudget)
@@ -298,12 +300,22 @@ public class WalletScreen extends Screen {
                                 info.commissionDays())
                         .withStyle(ChatFormatting.GRAY));
                 if (info.loanOwed() > 0L) {
-                    long daysLeft = Math.max(0L,
-                            (info.loanDueAt() - System.currentTimeMillis()) / 86_400_000L);
+                    // The old line divided the remaining milliseconds by a calendar day, truncated,
+                    // and clamped at zero. That disagreed with the business-day due date it was
+                    // describing, and printed "0 dia(s)" both for a loan due in six hours and for one
+                    // three weeks overdue - the two states a borrower most needs told apart.
+                    long now = System.currentTimeMillis();
+                    int overdue = com.athensmc.athenscoins.bank.BankRules
+                            .overdueBusinessDays(info.loanDueAt(), now);
+                    Component status = overdue > 0
+                            ? Component.translatable("gui.athens_coins.atm_loan_overdue", overdue)
+                            : Component.translatable("gui.athens_coins.atm_business_days",
+                            com.athensmc.athenscoins.bank.BankRules
+                                    .businessDaysUntil(info.loanDueAt(), now));
                     lines.add(Component.translatable("tooltip.athens_coins.bank_loan_line",
                                     Component.literal(Money.format(info.loanOwed(), symbol))
-                                            .withStyle(ChatFormatting.WHITE), daysLeft)
-                            .withStyle(ChatFormatting.RED));
+                                            .withStyle(ChatFormatting.WHITE), status)
+                            .withStyle(overdue > 0 ? ChatFormatting.RED : ChatFormatting.YELLOW));
                 }
                 lines.add(Component.translatable("tooltip.athens_coins.account_theme")
                         .withStyle(ChatFormatting.DARK_GRAY));

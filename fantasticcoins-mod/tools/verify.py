@@ -372,76 +372,38 @@ for locale in ("en_us", "es_es", "es_mx", "es_ar"):
 notes.append("all four locales carry identical Spanish text")
 
 # ---------------------------------------------------------------- 6. responsive screen layout arithmetic
-# The transfer controls and information footer must occupy separate bands. Check every text row
-# lands inside the band the texture draws for it, then verify all redesigned screens use the shared
-# fitting/geometry helpers for dynamic content.
+# The ATM used to be a grid of constants pinned to a baked 248x198 texture, and this section
+# re-derived that grid to check the bands did not collide. The screen now computes its geometry from
+# client/layout/AtmLayout, which the Java layout guard exercises directly at nine viewports - a much
+# stronger check than parsing constants out of source, because it runs the real code. What is worth
+# asserting here instead is that the screen has not drifted back to hardcoded coordinates.
 atm = open(os.path.join(SRC, "com/athensmc/athenscoins/client/screen/AtmScreen.java"),
            encoding="utf-8").read()
+if "AtmLayout" not in atm:
+    problems.append("AtmScreen no longer derives its geometry from AtmLayout")
+if "leftPos +" in atm or "topPos +" in atm:
+    problems.append("AtmScreen has gone back to texture-relative hardcoded offsets")
+if "trimToWidth" in atm:
+    problems.append("AtmScreen carries a private copy of the text-fitting helper again")
+atm_layout = open(os.path.join(SRC, "com/athensmc/athenscoins/client/layout/AtmLayout.java"),
+                  encoding="utf-8").read()
+for band in ("amountRow", "messageRow", "closeRow"):
+    if band not in atm_layout:
+        problems.append(f"AtmLayout is missing the {band} band")
+notes.append("ATM geometry comes from AtmLayout; bands verified by the Java layout guard")
 
-
-def const(name):
-    m = re.search(r"int " + name + r" = (\d+);", atm)
-    return int(m.group(1)) if m else None
-
-
-def const_array(name):
-    m = re.search(r"int\[\] " + name + r" = \{([^}]+)\}", atm)
-    return [int(v) for v in m.group(1).split(",")] if m else None
-
-
-FONT_H = 9          # a line of text occupies 9px
-rows = const_array("ROW_Y")
-buttons = const_array("BUTTON_X")
-header_y, text_dy, icon_dy, button_dy = const("HEADER_Y"), const("TEXT_DY"), const("ICON_DY"), const("BUTTON_DY")
-btn_w, btn_h = const("BUTTON_W"), const("BUTTON_H")
-panel_w, panel_h = const("PANEL_W"), const("PANEL_H")
-f1, f2 = const("FOOTER_LINE_1"), const("FOOTER_LINE_2")
-have_right, price_right = const("HAVE_RIGHT"), const("PRICE_RIGHT")
-
-# bands drawn by gen_atm_gui.py
-HEADER_BAND = (54, 70)
-TABLE = (53, 148)
-FOOTER_BAND = (175, 195)
-TRANSFER_BAND = (152, 172)
-
-if not (HEADER_BAND[0] <= header_y and header_y + FONT_H <= HEADER_BAND[1] + 1):
-    problems.append(f"ATM header text at y={header_y} escapes the header band {HEADER_BAND}")
-for index, row in enumerate(rows):
-    band = (row - 1, row + 21)
-    if row + text_dy + FONT_H > band[1]:
-        problems.append(f"ATM row {index} text at y={row + text_dy} overflows its band {band}")
-    if row + icon_dy + 16 > band[1]:
-        problems.append(f"ATM row {index} icon overflows its band {band}")
-    if row + button_dy + btn_h > band[1]:
-        problems.append(f"ATM row {index} button overflows its band {band}")
-    if band[1] > TABLE[1]:
-        problems.append(f"ATM row {index} band {band} escapes the table {TABLE}")
-if f2 - f1 < FONT_H:
-    problems.append(f"ATM footer lines only {f2 - f1}px apart; they will collide (need >= {FONT_H})")
-if f1 < FOOTER_BAND[0] or f2 + FONT_H > FOOTER_BAND[1] + 1:
-    problems.append(f"ATM footer text ({f1}, {f2}) escapes the footer band {FOOTER_BAND}")
-card_row_y = const("CARD_ROW_Y")
-transfer_buttons = (card_row_y, card_row_y + 16)
-footer_text = (f1, f2 + FONT_H)
-if transfer_buttons[0] < TRANSFER_BAND[0] or transfer_buttons[1] > TRANSFER_BAND[1] + 1:
-    problems.append(f"ATM transfer buttons {transfer_buttons} escape band {TRANSFER_BAND}")
-if transfer_buttons[0] < footer_text[1] and transfer_buttons[1] > footer_text[0]:
-    problems.append(f"ATM transfer buttons {transfer_buttons} overlap footer text {footer_text}")
-if buttons[-1] + btn_w > panel_w - 5:
-    problems.append(f"ATM buttons reach x={buttons[-1] + btn_w}, past the {panel_w}px panel edge")
-if price_right - have_right < 30:
-    problems.append(f"ATM numeric columns only {price_right - have_right}px apart; headers will crowd")
-notes.append(f"ATM layout arithmetic ok (rows {rows}, footer {f1}/{f2}, {panel_w}x{panel_h})")
-
-# The generator must agree with the screen on the panel size.
-gen = open(os.path.join(ROOT, "tools/gen_atm_gui.py"), encoding="utf-8").read()
-m = re.search(r"PANEL_W, PANEL_H = (\d+), (\d+)", gen)
-if m and (int(m.group(1)), int(m.group(2))) != (panel_w, panel_h):
-    problems.append(f"gen_atm_gui.py draws {m.group(1)}x{m.group(2)} but AtmScreen expects "
-                    f"{panel_w}x{panel_h}")
-m = re.search(r"ROW_Y = \(([^)]+)\)", gen)
-if m and [int(v) for v in m.group(1).split(",")] != rows:
-    problems.append("gen_atm_gui.py row offsets do not match AtmScreen.ROW_Y")
+# Amounts must be interpreted in exactly one place. Every screen that takes a typed figure has to go
+# through AmountField/CountField: the bug this replaced was a per-screen helper that read an entry
+# without a separator as cents and one with a separator as units, a factor of a hundred in one box.
+screen_dir_early = os.path.join(SRC, "com/athensmc/athenscoins/client/screen")
+for name in ("AtmScreen.java", "AccountDetailScreen.java", "CentralBankScreen.java",
+             "BankTerminalScreen.java"):
+    source = open(os.path.join(screen_dir_early, name), encoding="utf-8").read()
+    if "AmountField" not in source and "CountField" not in source:
+        problems.append(f"{name} does not use the shared amount entry widget")
+    if "Long.parseLong" in source:
+        problems.append(f"{name} parses an amount by hand instead of through Money.parse")
+notes.append("four amount-taking screens share one parser")
 
 # Every dynamic-text-heavy screen must use the shared ellipsis helper. Screens whose widgets are
 # not texture-bound must also derive their panel/regions from the pure geometry utility.

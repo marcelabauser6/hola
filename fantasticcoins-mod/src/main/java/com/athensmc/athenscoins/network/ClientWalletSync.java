@@ -1,11 +1,13 @@
 package com.athensmc.athenscoins.network;
 
 import com.athensmc.athenscoins.client.screen.AccountDetailScreen;
+import com.athensmc.athenscoins.client.screen.AtmScreen;
 import com.athensmc.athenscoins.client.screen.BankTerminalScreen;
 import com.athensmc.athenscoins.client.screen.CentralBankScreen;
 import com.athensmc.athenscoins.client.screen.StatsScreen;
 import com.athensmc.athenscoins.client.screen.WalletScreen;
 import com.athensmc.athenscoins.client.ClientCashCache;
+import com.athensmc.athenscoins.menu.AtmMenu;
 import com.athensmc.athenscoins.menu.WalletStateHolder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -31,6 +33,22 @@ final class ClientWalletSync {
         AbstractContainerMenu menu = minecraft.player.containerMenu;
         if (menu instanceof WalletStateHolder holder) {
             holder.applyState(packet.cashCents(), packet.coinCounts(), packet.atmNearby());
+        }
+    }
+
+    /** Replaces the open ATM's whole state, including the bank-side figures and the live loan. */
+    static void applyAtm(S2CAtmSyncPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) {
+            return;
+        }
+        ClientCashCache.set(packet.state().cash());
+        if (minecraft.player.containerMenu instanceof AtmMenu menu) {
+            menu.applyState(packet.state());
+        }
+        // Widgets are built from the state, so the screen has to rebuild them to match.
+        if (minecraft.screen instanceof AtmScreen screen) {
+            screen.onStateChanged();
         }
     }
 

@@ -2,6 +2,7 @@ package com.athensmc.athenscoins.bank;
 
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.wallet.CoinType;
+import com.athensmc.athenscoins.wallet.Money;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -246,18 +247,24 @@ public class Bank {
         bank.id = tag.hasUUID("id") ? tag.getUUID("id") : UUID.randomUUID();
         bank.name = tag.getString("name");
         bank.themeColor = tag.getInt("color");
-        bank.reserve = tag.getLong("reserve");
-        bank.walletLimit = tag.getLong("walletLimit");
-        bank.commissionFee = tag.getLong("fee");
+        // Clamp the money fields on the way in, as BankAccount.load already did. Read raw, a
+        // negative reserve from a corrupt or hand-edited save made drawReserve refuse everything and
+        // maxLoan return zero, so lending stopped permanently with no error anywhere to explain it.
+        bank.reserve = Money.clampBalance(tag.getLong("reserve"));
+        bank.walletLimit = Math.max(0L, tag.getLong("walletLimit"));
+        bank.commissionFee = Money.clampBalance(tag.getLong("fee"));
         bank.commissionPeriodDays = Math.max(1, tag.getInt("feeDays"));
         long[] stored = tag.getLongArray("rates");
         for (int i = 0; i < bank.rates.length; i++) {
             bank.rates[i] = i < stored.length ? stored[i] : 0L;
         }
-        bank.loansEnabled = tag.getBoolean("loans");
-        bank.loanMaxAmount = tag.getLong("loanMax");
-        bank.loanDays = Math.max(1, tag.getInt("loanDays"));
-        bank.loanInterestBasisPoints = tag.getInt("loanBp");
+        // getBoolean returns false for a missing key, so a bank saved before this flag existed came
+        // back with lending switched off. Absent means "keep the default", which is on.
+        bank.loansEnabled = !tag.contains("loans") || tag.getBoolean("loans");
+        bank.loanMaxAmount = Money.clampBalance(tag.getLong("loanMax"));
+        // Same bounds the setters enforce, so a save can never carry an out-of-policy value.
+        bank.loanDays = Math.max(1, Math.min(60, tag.getInt("loanDays")));
+        bank.loanInterestBasisPoints = Math.max(0, Math.min(10_000, tag.getInt("loanBp")));
         ListTag list = tag.getList("bankers", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);

@@ -82,7 +82,7 @@ tasks.named('check') {
 }
 
 
-// Pure-JVM financial persistence guard: NBT migration, ledger compatibility and card anti-replay.
+// Pure-JVM financial persistence guard: NBT migration, ledger compatibility, loans and anti-replay.
 tasks.register('verifyFinancialCore', JavaExec) {
     group = 'verification'
     description = 'Checks financial persistence and transaction invariants without starting Minecraft.'
@@ -91,6 +91,27 @@ tasks.register('verifyFinancialCore', JavaExec) {
     mainClass = 'com.athensmc.athenscoins.bank.FinancialPersistenceStaticTest'
 }
 
+// The money and rules suites used to live in tools/ and be run by hand, which meant a regression in
+// either could reach a release as long as nobody remembered to invoke them. They are part of `check`
+// now, so a build cannot go green past them.
+tasks.register('verifyMoneyMath', JavaExec) {
+    group = 'verification'
+    description = 'Checks cents arithmetic, two-decimal parsing and formatting.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.athenscoins.wallet.MoneyStaticTest'
+}
+
+tasks.register('verifyBankRules', JavaExec) {
+    group = 'verification'
+    description = 'Checks the rate band, wallet ceiling, commission periods and loan rules.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.athenscoins.bank.BankRulesStaticTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyFinancialCore')
+    dependsOn tasks.named('verifyMoneyMath')
+    dependsOn tasks.named('verifyBankRules')
 }

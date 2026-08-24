@@ -1,6 +1,7 @@
 package com.athensmc.athenscoins.network;
 
 import com.athensmc.athenscoins.AthensCoinsMod;
+import com.athensmc.athenscoins.menu.AtmState;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
@@ -10,7 +11,13 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
 
-    private static final String PROTOCOL_VERSION = "5";
+    /**
+     * Bumped to 6 for the ATM rework: the menu-open buffer now carries the whole {@link AtmState}
+     * (loan, lending policy and transfer peers) instead of a handful of loose fields. A 5-era client
+     * would read those extra bytes as garbage, so the mismatch has to be refused at handshake rather
+     * than surface as nonsensical balances.
+     */
+    private static final String PROTOCOL_VERSION = "6";
 
     private static SimpleChannel channel;
 
@@ -77,6 +84,18 @@ public final class ModNetwork {
                 .encoder(C2SCentralActionPacket::encode)
                 .decoder(C2SCentralActionPacket::new)
                 .consumerMainThread(C2SCentralActionPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2SAtmActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SAtmActionPacket::encode)
+                .decoder(C2SAtmActionPacket::new)
+                .consumerMainThread(C2SAtmActionPacket::handle)
+                .add();
+
+        channel.messageBuilder(S2CAtmSyncPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(S2CAtmSyncPacket::encode)
+                .decoder(S2CAtmSyncPacket::new)
+                .consumerMainThread(S2CAtmSyncPacket::handle)
                 .add();
     }
 

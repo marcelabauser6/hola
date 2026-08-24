@@ -21,10 +21,30 @@ public final class ScreenLayout {
             return y + height;
         }
 
+        /**
+         * Shrinks the rectangle on every side, staying inside the original.
+         *
+         * <p>The origin is moved by at most the rectangle's own size. Adding the inset unconditionally
+         * instead let a band shorter than twice the inset end up with its top <em>below</em> its own
+         * floor - the height clamped to zero, but the position did not, so a collapsed content band
+         * was reported as sitting inside the footer underneath it.</p>
+         */
         public Rect inset(int amount) {
             int inset = Math.max(0, amount);
-            return new Rect(x + inset, y + inset,
+            return new Rect(x + Math.min(inset, width), y + Math.min(inset, height),
                     Math.max(0, width - inset * 2), Math.max(0, height - inset * 2));
+        }
+
+        /**
+         * Grows the rectangle on every side.
+         *
+         * <p>Separate from a negative {@link #inset}, which clamps to zero: a grab area that has to
+         * cover a knob's overhang needs to be genuinely larger than what was drawn, and silently
+         * getting the drawn rectangle back instead would make the slider's edges unclickable.</p>
+         */
+        public Rect expand(int amount) {
+            int grow = Math.max(0, amount);
+            return new Rect(x - grow, y - grow, width + grow * 2, height + grow * 2);
         }
 
         public boolean contains(Rect other) {
@@ -36,7 +56,23 @@ public final class ScreenLayout {
             return px >= x && px < right() && py >= y && py < bottom();
         }
 
+        /** True when this rectangle is empty, so it covers no pixel at all. */
+        public boolean isEmpty() {
+            return width <= 0 || height <= 0;
+        }
+
+        /**
+         * True when the two rectangles share at least one pixel.
+         *
+         * <p>An empty rectangle never intersects anything. Without that rule a band that collapsed to
+         * zero height still reported an overlap with whatever sat at the same coordinate, which turned
+         * the intended degradation - a control that is simply not drawn - into a false alarm and hid
+         * the real collisions among the noise.</p>
+         */
         public boolean intersects(Rect other) {
+            if (isEmpty() || other.isEmpty()) {
+                return false;
+            }
             return x < other.right() && right() > other.x
                     && y < other.bottom() && bottom() > other.y;
         }

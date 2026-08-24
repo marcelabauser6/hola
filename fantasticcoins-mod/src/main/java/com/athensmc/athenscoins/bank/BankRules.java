@@ -188,11 +188,37 @@ public final class BankRules {
     }
 
     /**
+     * Business days still to run before {@code dueAt}, zero once it is due or past.
+     *
+     * <p>The mirror of {@link #overdueBusinessDays}, so a countdown and an overdue count are
+     * expressed in the same unit as the due date itself. Showing a borrower a remaining time in
+     * calendar days while the deadline moved in business days is how "0 days left" ended up meaning
+     * both "due this afternoon" and "three weeks late".</p>
+     */
+    public static int businessDaysUntil(long dueAt, long now) {
+        if (now >= dueAt) {
+            return 0;
+        }
+        LocalDate today = Instant.ofEpochMilli(now).atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate due = Instant.ofEpochMilli(dueAt).atZone(ZoneOffset.UTC).toLocalDate();
+        int count = 0;
+        LocalDate cursor = today;
+        while (cursor.isBefore(due)) {
+            cursor = cursor.plusDays(1L);
+            if (isBusinessDay(cursor)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Interest to add for {@code days} overdue at {@code dailyBasisPoints}.
      *
-     * <p>Basis points, so a rate under 1% a day can still be expressed: 250 is 2.5% of the
-     * outstanding amount per overdue business day. Simple interest, not compound, and it is the
-     * caller's job to add it to the balance and record when it was applied.</p>
+     * <p>Basis points, so a rate under 1% a day can still be expressed: 250 is 2.5% per overdue
+     * business day. Simple interest, not compound: callers pass the loan's <em>principal</em>, never
+     * its running balance, which is what keeps repeated charges from compounding. It is the caller's
+     * job to add the result to the balance and record when it was applied.</p>
      */
     public static long overdueInterest(long owedCents, int days, int dailyBasisPoints) {
         if (owedCents <= 0L || days <= 0 || dailyBasisPoints <= 0) {

@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.client.screen;
 
+import com.athensmc.athenscoins.client.layout.PanelMetrics;
 import com.athensmc.athenscoins.client.layout.ScreenLayout;
 import com.athensmc.athenscoins.client.layout.ScreenText;
 import com.athensmc.athenscoins.client.theme.StatsTheme;
@@ -18,9 +19,13 @@ import net.minecraft.util.FormattedCharSequence;
 
 /** Admin economy dashboard split into bounded, scrollable summary and ranking pages. */
 public class StatsScreen extends Screen {
-    private static final int PANEL_W = 340;
-    private static final int PANEL_H = 232;
     private static final int ROW_H = 12;
+    /** Blank space between the summary page's sections. */
+    private static final int SPACER_H = 5;
+    /** The closing note under the summary page. */
+    private static final int NOTE_H = 13;
+    /** Section heading plus the two column headings above the ranking rows. */
+    private static final int RANKING_HEADER_ROWS = 6;
 
     private final EconomySnapshot snapshot;
     private ScreenLayout.Regions layout;
@@ -36,8 +41,7 @@ public class StatsScreen extends Screen {
 
     @Override
     protected void init() {
-        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
-        layout = ScreenLayout.regions(panel, 20, 22, 28);
+        layout = PanelMetrics.stats(width, height);
         ScreenLayout.Rect tabs = layout.tabs().inset(4);
         int gap = 4;
         int tabWidth = ScreenLayout.gridCellWidth(tabs, 2, gap);
@@ -54,14 +58,20 @@ public class StatsScreen extends Screen {
         rankingButton.active = page != 1;
         addRenderableWidget(rankingButton);
 
+        // Two halves of one partition rather than two independent widths. The edit button used to be
+        // floored at 90px while Close was pinned to the right edge at up to 82px, so any footer
+        // narrower than 172px had them overlapping - and the one on top won the clicks.
         ScreenLayout.Rect footer = layout.footer().inset(6);
-        int editWidth = Math.min(150, Math.max(90, footer.width() / 2));
+        int buttonHeight = Math.min(18, footer.height());
+        ScreenLayout.Rect editCell = ScreenLayout.partition(footer, 2, 0);
+        ScreenLayout.Rect closeCell = ScreenLayout.partition(footer, 2, 1);
+        int editWidth = Math.max(0, Math.min(150, editCell.width() - gap));
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.stats_edit"),
                         ignored -> minecraft.setScreen(new StatsThemeEditorScreen(this)))
-                .bounds(footer.x(), footer.y(), editWidth, Math.min(18, footer.height())).build());
-        int closeWidth = Math.min(82, footer.width());
+                .bounds(editCell.x(), footer.y(), editWidth, buttonHeight).build());
+        int closeWidth = Math.min(82, closeCell.width());
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.close"), ignored -> onClose())
-                .bounds(footer.right() - closeWidth, footer.y(), closeWidth, Math.min(18, footer.height())).build());
+                .bounds(closeCell.right() - closeWidth, footer.y(), closeWidth, buttonHeight).build());
     }
 
     private void selectPage(int target) {
@@ -191,8 +201,10 @@ public class StatsScreen extends Screen {
         if (index % 2 == 0) {
             graphics.fill(area.x() - 2, y - 1, area.right(), y + ROW_H - 2, theme.row());
         }
+        // The label takes what the value leaves. Flooring it at 20px instead let it run under the
+        // right-aligned value on a narrow panel; at zero it simply disappears, which is visible.
         int valueWidth = Math.min(area.width() * 48 / 100, Math.max(30, font.width(value)));
-        int labelWidth = Math.max(20, area.width() - valueWidth - 8);
+        int labelWidth = Math.max(0, area.width() - valueWidth - 8);
         MutableComponent styledLabel = label.copy();
         if (theme.italicLabels) {
             styledLabel = styledLabel.withStyle(ChatFormatting.ITALIC);
@@ -244,8 +256,25 @@ public class StatsScreen extends Screen {
         return !clippingContent || layout.content().inset(8).contains(mouseX, mouseY);
     }
 
+    /**
+     * How far the summary page can scroll, derived from what it actually draws.
+     *
+     * <p>This was the literal {@code 17}. It happened to be right, but it was right by coincidence:
+     * adding a single row or a section heading would have made the bottom of the page unreachable,
+     * with nothing to point at the cause. Counting the parts means the bound moves with the content.</p>
+     */
+    private int summaryHeight() {
+        int sections = 3;
+        int keyValueRows = 4 + 4 + CoinType.ORDERED.length;
+        int spacers = 2;
+        return sections * (ROW_H + 2) + keyValueRows * ROW_H + spacers * SPACER_H + NOTE_H;
+    }
+
     private int totalRows() {
-        return page == 0 ? 17 : 6 + snapshot.top().size();
+        if (page != 0) {
+            return RANKING_HEADER_ROWS + snapshot.top().size();
+        }
+        return (summaryHeight() + ROW_H - 1) / ROW_H;
     }
 
     @Override

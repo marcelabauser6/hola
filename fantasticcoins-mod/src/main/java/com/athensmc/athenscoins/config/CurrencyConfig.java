@@ -154,6 +154,22 @@ public final class CurrencyConfig {
         public int rateMarginPercent = 15;
         /** Most commission periods collected at once after the server was offline. */
         public int commissionMaxCatchUp = 7;
+        /**
+         * Most overdue business days of penalty interest charged at once.
+         *
+         * <p>Commissions have always had a catch-up cap; penalty interest had none, so a server that
+         * was down for three months came back and applied roughly sixty-five business days of
+         * penalty in a single tick. This is the same protection for the same reason.</p>
+         */
+        public int loanMaxCatchUp = 7;
+        /**
+         * Ceiling on total penalty interest, as a percentage of the loan's principal.
+         *
+         * <p>There is no default, write-off or bankruptcy path in the mod, so an overdue loan that
+         * nobody collects would otherwise grow without bound and become permanently unpayable. Set
+         * to 0 to remove the ceiling.</p>
+         */
+        public int loanMaxInterestPercent = 100;
 
         // ---- wallet GUI
         public int walletTheme = 1;
@@ -200,6 +216,10 @@ public final class CurrencyConfig {
             rateMarginPercent = clampInt(rateMarginPercent, 0, 100, warnings, "rateMarginPercent");
             commissionMaxCatchUp = clampInt(commissionMaxCatchUp, 1, 60, warnings,
                     "commissionMaxCatchUp");
+            loanMaxCatchUp = clampInt(loanMaxCatchUp, 1, 60, warnings, "loanMaxCatchUp");
+            // 0 is meaningful here (no ceiling), so the floor is 0 rather than 1.
+            loanMaxInterestPercent = clampInt(loanMaxInterestPercent, 0, 10_000, warnings,
+                    "loanMaxInterestPercent");
 
             if (startingBalance < 0.0D) {
                 startingBalance = 0.0D;

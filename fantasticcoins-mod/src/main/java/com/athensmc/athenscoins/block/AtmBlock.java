@@ -158,14 +158,16 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
     public static void open(ServerPlayer player, Level level, BlockPos pos, Bank bank) {
         ContainerLevelAccess access = ContainerLevelAccess.create(level, pos);
         MenuProvider provider = new SimpleMenuProvider(
-                (containerId, inventory, owner) -> createMenu(containerId, inventory, access, bank),
+                (containerId, inventory, owner) -> createMenu(containerId, inventory, access, bank, pos),
                 Component.literal(bank.name()));
-        NetworkHooks.openScreen(player, provider, buffer -> AtmMenu.writeState(buffer, player, bank));
+        NetworkHooks.openScreen(player, provider,
+                buffer -> AtmMenu.writeState(buffer, player, bank, pos));
     }
 
     private static AbstractContainerMenu createMenu(int containerId, Inventory inventory,
-                                                    ContainerLevelAccess access, Bank bank) {
-        return new AtmMenu(containerId, inventory, access, bank);
+                                                    ContainerLevelAccess access, Bank bank,
+                                                    BlockPos pos) {
+        return new AtmMenu(containerId, inventory, access, bank, pos);
     }
 
     @Override

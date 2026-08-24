@@ -6,11 +6,12 @@ import com.athensmc.athenscoins.bank.BankManager;
 import com.athensmc.athenscoins.block.ModBlocks;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
-import com.athensmc.athenscoins.network.S2CWalletSyncPacket;
+import com.athensmc.athenscoins.network.S2CAtmSyncPacket;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
 import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -26,11 +27,15 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
- * The ATM: coins in one direction, cash the other, plus moving cash between the wallet card and
- * the account behind it.
+ * The ATM: coins in one direction, cash the other, plus the account behind the wallet card.
  *
- * <p>Prices are the issuing bank's, not the server's, so competing banks quote differently. Actions
- * ride vanilla's container-button channel, so no custom serverbound packet is needed.</p>
+ * <p>Prices are the issuing bank's, not the server's, so competing banks quote differently.</p>
+ *
+ * <p>Two channels carry actions, for one reason. The exchange <em>presets</em> ride vanilla's
+ * container-button channel, which transmits a bare {@code int} id and needs no custom packet.
+ * Anything with an amount the player typed cannot fit through that channel at all, so it travels as
+ * {@link com.athensmc.athenscoins.network.C2SAtmActionPacket}. The menu keeps the presets; the packet
+ * owns the typed amounts.</p>
  */
 public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder {
 
@@ -43,30 +48,24 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
     public static final int[] AMOUNTS = { 1, 10, 64, -1 };
 
     private static final int BUTTONS_PER_MODE = CoinType.ORDERED.length * 4;
-    /** Ids above the exchange grid, for moving money between the card and the account. */
-    public static final int BUTTON_TO_WALLET = BUTTONS_PER_MODE * 2;
-    public static final int BUTTON_TO_ACCOUNT = BUTTON_TO_WALLET + 1;
 
     private final ContainerLevelAccess access;
     @Nullable
     private final UUID bankId;
+    private final BlockPos atmPos;
 
-    private long cashCents;
-    private long accountCents;
-    private long walletLimit;
-    private final int[] coinCounts = new int[CoinType.ORDERED.length];
-    private final long[] rates = new long[CoinType.ORDERED.length];
-    private String bankName = "";
-    private int themeColor = 0x2E4756;
+    private AtmState state;
 
     /** Server-side. */
-    public AtmMenu(int containerId, Inventory inventory, ContainerLevelAccess access, Bank bank) {
+    public AtmMenu(int containerId, Inventory inventory, ContainerLevelAccess access,
+                   Bank bank, BlockPos atmPos) {
         super(ModMenus.ATM.get(), containerId);
         this.access = access;
         this.bankId = bank.id();
-        if (inventory.player instanceof ServerPlayer serverPlayer) {
-            refreshFrom(serverPlayer, bank);
-        }
+        this.atmPos = atmPos;
+        this.state = inventory.player instanceof ServerPlayer serverPlayer
+                ? AtmState.capture(serverPlayer, bank, atmPos)
+                : AtmState.empty();
     }
 
     /** Client-side. */
@@ -74,28 +73,13 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
         super(ModMenus.ATM.get(), containerId);
         this.access = ContainerLevelAccess.NULL;
         this.bankId = null;
-        this.cashCents = buffer.readVarLong();
-        this.accountCents = buffer.readVarLong();
-        this.walletLimit = buffer.readVarLong();
-        for (int i = 0; i < coinCounts.length; i++) {
-            coinCounts[i] = buffer.readVarInt();
-            rates[i] = buffer.readVarLong();
-        }
-        this.bankName = buffer.readUtf(32);
-        this.themeColor = buffer.readInt();
+        this.state = AtmState.read(buffer);
+        this.atmPos = this.state.atmPos();
     }
 
-    public static void writeState(FriendlyByteBuf buffer, ServerPlayer player, Bank bank) {
-        BankAccount account = BankManager.accountOf(player);
-        buffer.writeVarLong(WalletManager.accountOf(player).balance());
-        buffer.writeVarLong(account == null ? 0L : account.balance());
-        buffer.writeVarLong(bank.walletLimit());
-        for (CoinType type : CoinType.ORDERED) {
-            buffer.writeVarInt(WalletManager.countCoins(player, type));
-            buffer.writeVarLong(bank.rate(type));
-        }
-        buffer.writeUtf(bank.name(), 32);
-        buffer.writeInt(bank.themeColor());
+    public static void writeState(FriendlyByteBuf buffer, ServerPlayer player, Bank bank,
+                                  BlockPos atmPos) {
+        AtmState.capture(player, bank, atmPos).write(buffer);
     }
 
     // ------------------------------------------------------------------ buttons
@@ -120,27 +104,10 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
                     .withStyle(ChatFormatting.RED), true);
             return false;
         }
-        String symbol = CurrencyConfig.get().currencySymbol;
-
-        // Card <-> account, everything the wallet ceiling allows.
-        if (id == BUTTON_TO_WALLET) {
-            long moved = BankManager.toWallet(serverPlayer, account.balance());
-            report(serverPlayer, moved > 0L, "message.athens_coins.atm_to_wallet",
-                    "message.athens_coins.atm_wallet_full", Money.format(moved, symbol));
-            refreshAndSync(serverPlayer, bank);
-            return true;
-        }
-        if (id == BUTTON_TO_ACCOUNT) {
-            long moved = BankManager.toAccount(serverPlayer, cashCents);
-            report(serverPlayer, moved > 0L, "message.athens_coins.atm_to_account",
-                    "message.athens_coins.atm_nothing_to_move", Money.format(moved, symbol));
-            refreshAndSync(serverPlayer, bank);
-            return true;
-        }
-
         if (id < 0 || id >= BUTTONS_PER_MODE * 2) {
             return false;
         }
+        String symbol = CurrencyConfig.get().currencySymbol;
         int mode = id / BUTTONS_PER_MODE;
         int rest = id % BUTTONS_PER_MODE;
         CoinType type = CoinType.ORDERED[rest / AMOUNTS.length];
@@ -173,67 +140,60 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
         return true;
     }
 
-    private void report(ServerPlayer player, boolean ok, String okKey, String failKey, String amount) {
-        player.displayClientMessage(ok
-                ? Component.translatable(okKey, amount).withStyle(ChatFormatting.GREEN)
-                : Component.translatable(failKey).withStyle(ChatFormatting.RED), true);
-    }
-
     // ------------------------------------------------------------------ state
 
     public void refreshFrom(ServerPlayer player, Bank bank) {
-        BankAccount account = BankManager.accountOf(player);
-        this.cashCents = WalletManager.accountOf(player).balance();
-        this.accountCents = account == null ? 0L : account.balance();
-        this.walletLimit = bank.walletLimit();
-        int[] counts = WalletManager.countAllCoins(player);
-        System.arraycopy(counts, 0, coinCounts, 0, counts.length);
-        for (CoinType type : CoinType.ORDERED) {
-            rates[type.ordinal()] = bank.rate(type);
-        }
-        this.bankName = bank.name();
-        this.themeColor = bank.themeColor();
+        this.state = AtmState.capture(player, bank, atmPos);
     }
 
     private void refreshAndSync(ServerPlayer player, Bank bank) {
         refreshFrom(player, bank);
-        ModNetwork.toPlayer(player, new S2CWalletSyncPacket(cashCents, coinCounts, true));
+        ModNetwork.toPlayer(player, new S2CAtmSyncPacket(state));
     }
 
+    /** Applies the lightweight wallet sync, which knows nothing about the bank-side figures. */
     @Override
     public void applyState(long newCash, int[] newCounts, boolean atmNearby) {
-        this.cashCents = newCash;
-        System.arraycopy(newCounts, 0, coinCounts, 0, coinCounts.length);
+        this.state = state.withCash(newCash, newCounts);
+    }
+
+    /** Applies a full push from {@link S2CAtmSyncPacket}. */
+    public void applyState(AtmState fresh) {
+        this.state = fresh;
     }
 
     // ------------------------------------------------------------------ accessors
 
+    public AtmState state() {
+        return state;
+    }
+
     public long cashCents() {
-        return cashCents;
+        return state.cash();
     }
 
     public long accountCents() {
-        return accountCents;
+        return state.accountBalance();
     }
 
     public long walletLimit() {
-        return walletLimit;
+        return state.walletLimit();
     }
 
     public int coinCount(CoinType type) {
-        return coinCounts[type.ordinal()];
+        return state.coinCount(type);
     }
 
     public long rate(CoinType type) {
-        return rates[type.ordinal()];
+        return state.rate(type);
     }
 
     public String bankName() {
-        return bankName;
+        return state.bankName();
     }
 
     public int themeColor() {
-        return themeColor;
+        return state.themeColor();
     }
 
     // ------------------------------------------------------------------ menu contract

@@ -88,6 +88,7 @@ public class AthensCoinsMod {
         // Pick up any edits made to the config file while the game was closed.
         CurrencyConfig.load();
         TransferManager.clear();
+        com.athensmc.athenscoins.bank.LoanNotices.reset();
         com.athensmc.athenscoins.bank.BankManager.migrateLegacyWallets(event.getServer());
         for (com.athensmc.athenscoins.bank.BankAccount account
                 : com.athensmc.athenscoins.bank.BankData.get(event.getServer()).allAccounts()) {
@@ -130,6 +131,8 @@ public class AthensCoinsMod {
                 : com.athensmc.athenscoins.bank.BankData.get(server).allAccounts()) {
             com.athensmc.athenscoins.bank.BankManager.collectCommission(server, account, now);
             com.athensmc.athenscoins.bank.BankManager.accrueInterest(server, account, now);
+            // Rate-limited inside: an overdue loan is overdue on every one of these ticks.
+            com.athensmc.athenscoins.bank.LoanNotices.remindIfOverdue(server, account, now);
         }
     }
 }

@@ -4,15 +4,16 @@ import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankRules;
 import com.athensmc.athenscoins.bank.LedgerEntry;
 import com.athensmc.athenscoins.bank.Loan;
+import com.athensmc.athenscoins.client.layout.PanelMetrics;
 import com.athensmc.athenscoins.client.layout.ScreenLayout;
 import com.athensmc.athenscoins.client.layout.ScreenText;
+import com.athensmc.athenscoins.client.widget.AmountField;
 import com.athensmc.athenscoins.network.C2STerminalActionPacket;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenAccountPacket;
 import com.athensmc.athenscoins.wallet.Money;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
@@ -25,8 +26,6 @@ import java.util.List;
 
 /** Responsive account summary and paginated ledger. */
 public class AccountDetailScreen extends Screen {
-    private static final int PANEL_W = 340;
-    private static final int PANEL_H = 232;
     private static final int ROW_H = 11;
     private static final DateTimeFormatter STAMP =
             DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.systemDefault());
@@ -45,8 +44,10 @@ public class AccountDetailScreen extends Screen {
 
     private ScreenLayout.Regions layout;
     private ScreenLayout.Columns columns;
+    private ScreenLayout.Rect messageRow;
     private int page;
-    private EditBox amountBox;
+    private AmountField amountBox;
+    private Component message;
     private Component hoverTooltip;
 
     public AccountDetailScreen(Screen parent, S2COpenAccountPacket packet) {
@@ -75,18 +76,16 @@ public class AccountDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
-        layout = ScreenLayout.regions(panel, 20, 0, 54);
+        // The footer carries three stacked rows: the action row, one line of feedback, and Back.
+        layout = PanelMetrics.account(width, height);
         columns = ScreenLayout.columns(layout.content().inset(8), 10);
         ScreenLayout.Rect footer = layout.footer().inset(6);
         int gap = 4;
         int cell = ScreenLayout.gridCellWidth(footer, 4, gap);
         int y = footer.y();
 
-        amountBox = new EditBox(font, footer.x(), y, cell, 16,
+        amountBox = new AmountField(font, footer.x(), y, cell, 16,
                 Component.translatable("gui.athens_coins.bank_value"));
-        amountBox.setValue("0");
-        amountBox.setMaxLength(12);
         addRenderableWidget(amountBox);
 
         addActionButton(footer.x() + cell + gap, y, cell, "gui.athens_coins.acct_lend",
@@ -97,37 +96,44 @@ public class AccountDetailScreen extends Screen {
         addActionButton(footer.x() + (cell + gap) * 2, y, cell, "gui.athens_coins.acct_repay",
                 C2STerminalActionPacket.Action.REPAY_LOAN,
                 Tooltip.create(Component.translatable("gui.athens_coins.acct_repay_tip")));
+        // Closing an account ignores the amount box on purpose: it liquidates the whole balance.
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.acct_close"),
                         ignored -> act(C2STerminalActionPacket.Action.WITHDRAW_ALL, 0L))
                 .bounds(footer.x() + (cell + gap) * 3, y, cell, 16)
                 .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.acct_close_tip")))
                 .build());
+
+        messageRow = new ScreenLayout.Rect(footer.x(), y + 19, footer.width(), 10);
         int backWidth = Math.min(82, footer.width());
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.back"),
                         ignored -> minecraft.setScreen(parent))
-                .bounds(footer.right() - backWidth, footer.y() + 24, backWidth, 18).build());
+                .bounds(footer.right() - backWidth, messageRow.bottom() + 3, backWidth, 18).build());
     }
 
     private void addActionButton(int x, int y, int width, String key,
                                  C2STerminalActionPacket.Action action, Tooltip tooltip) {
-        addRenderableWidget(Button.builder(Component.translatable(key), ignored -> act(action, amount()))
+        addRenderableWidget(Button.builder(Component.translatable(key), ignored -> submit(action))
                 .bounds(x, y, width, 16).tooltip(tooltip).build());
     }
 
-    private long amount() {
-        String raw = amountBox == null ? "0" : amountBox.getValue().trim();
-        if (raw.contains(".") || raw.contains(",")) {
-            try {
-                return Money.parse(raw);
-            } catch (Money.InvalidAmountException ignored) {
-                return 0L;
-            }
+    /**
+     * Sends only when the box holds a real amount.
+     *
+     * <p>This box used to interpret an entry without a separator as <em>cents</em> and one with a
+     * separator as <em>units</em>, so a banker lending "500" moved five dollars while "500.00" moved
+     * five hundred. Worse, anything unparseable became {@code 0} and was sent anyway: the server
+     * performed a zero-value action and nobody was told. Now the amount means what it reads, and a
+     * refusal is shown instead of transmitted.</p>
+     */
+    private void submit(C2STerminalActionPacket.Action action) {
+        long cents = amountBox.cents();
+        if (cents < 0L) {
+            message = amountBox.error();
+            return;
         }
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException ignored) {
-            return 0L;
-        }
+        act(action, cents);
+        amountBox.clear();
+        message = null;
     }
 
     private void act(C2STerminalActionPacket.Action action, long value) {
@@ -148,6 +154,10 @@ public class AccountDetailScreen extends Screen {
 
         renderSummary(graphics, mouseX, mouseY);
         renderLedger(graphics, mouseX, mouseY);
+        if (message != null) {
+            drawFitted(graphics, message.getString(), messageRow.x(), messageRow.y(),
+                    messageRow.width(), 0xFFE06B6B, mouseX, mouseY);
+        }
         super.render(graphics, mouseX, mouseY, partialTick);
         if (hoverTooltip != null) {
             graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
@@ -202,8 +212,7 @@ public class AccountDetailScreen extends Screen {
         drawFitted(graphics, Component.translatable("gui.athens_coins.acct_ledger").getString(),
                 area.x(), area.y() + 2, area.width(), 0xFFD8B48C, mouseX, mouseY);
         graphics.fill(area.x(), area.y() + 12, area.right(), area.y() + 13, 0x40FFFFFF);
-        ScreenLayout.Rect rowsArea = new ScreenLayout.Rect(area.x(), area.y() + 16,
-                area.width(), Math.max(0, area.height() - 30));
+        ScreenLayout.Rect rowsArea = ledgerRows();
         int rows = Math.max(1, ScreenLayout.visibleRows(rowsArea, ROW_H));
         int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
         page = Math.min(page, pages - 1);
@@ -219,12 +228,16 @@ public class AccountDetailScreen extends Screen {
             String stamp = STAMP.format(Instant.ofEpochMilli(entry.at()));
             String amountText = entry.amount() == 0L ? "" : (entry.amount() > 0 ? "+" : "")
                     + Money.format(entry.amount(), "$");
-            int amountWidth = Math.min(area.width() / 2, font.width(amountText));
+            // Budgets are carved from the row so they sum to its width. The old code floored the
+            // label at 8px, which let it run under the right-aligned amount on a narrow column.
             int stampWidth = Math.min(58, area.width() / 3);
+            int remaining = Math.max(0, area.width() - stampWidth - 6);
+            int amountWidth = Math.min(remaining / 2, font.width(amountText));
+            int labelWidth = Math.max(0, remaining - amountWidth);
             drawFitted(graphics, stamp, area.x(), y, stampWidth, 0xFF7A6A5A, mouseX, mouseY);
             String label = Component.translatable(entry.kind().translationKey()).getString();
             drawFitted(graphics, label, area.x() + stampWidth + 3, y,
-                    Math.max(8, area.width() - stampWidth - amountWidth - 8), 0xFFC0B0A0, mouseX, mouseY);
+                    labelWidth, 0xFFC0B0A0, mouseX, mouseY);
             if (!amountText.isEmpty()) {
                 String fittedAmount = ScreenText.fit(font, amountText, amountWidth);
                 graphics.drawString(font, fittedAmount, area.right() - font.width(fittedAmount), y,
@@ -255,11 +268,22 @@ public class AccountDetailScreen extends Screen {
         }
     }
 
+    /**
+     * The ledger's scrollable band.
+     *
+     * <p>Drawing and scrolling used to each rebuild this rectangle from the same two magic offsets,
+     * so a change to one silently disagreed with the other and the page count stopped matching what
+     * was on screen. One definition, two callers.</p>
+     */
+    private ScreenLayout.Rect ledgerRows() {
+        ScreenLayout.Rect area = columns.second();
+        return new ScreenLayout.Rect(area.x(), area.y() + 16, area.width(),
+                Math.max(0, area.height() - 30));
+    }
+
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        ScreenLayout.Rect area = columns.second();
-        int rows = Math.max(1, ScreenLayout.visibleRows(
-                new ScreenLayout.Rect(area.x(), area.y() + 16, area.width(), Math.max(0, area.height() - 30)), ROW_H));
+        int rows = Math.max(1, ScreenLayout.visibleRows(ledgerRows(), ROW_H));
         int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
         page = ScreenLayout.clamp(page - (int) Math.signum(delta), 0, pages - 1);
         return true;

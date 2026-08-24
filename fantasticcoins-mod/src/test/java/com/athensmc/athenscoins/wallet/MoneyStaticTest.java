@@ -1,7 +1,7 @@
-import com.athensmc.athenscoins.wallet.Money;
+package com.athensmc.athenscoins.wallet;
 
 /** Standalone checks on the Fantastic Cash arithmetic. Money has no Minecraft dependencies. */
-public class MoneyTest {
+public class MoneyStaticTest {
 
     static int failures = 0;
     static int checks = 0;

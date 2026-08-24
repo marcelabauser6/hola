@@ -314,11 +314,31 @@ public class C2STerminalActionPacket {
             return;
         }
         BankManager.LoanResult result = BankManager.grantLoan(player.server, target, value);
-        player.sendSystemMessage(Component.translatable(result.messageKey())
-                .withStyle(result.ok() ? ChatFormatting.GREEN : ChatFormatting.RED));
-        if (result.ok()) {
-            refreshAccount(player, bank, target.number());
+        if (!result.ok()) {
+            player.sendSystemMessage(Component.translatable(result.messageKey())
+                    .withStyle(ChatFormatting.RED));
+            return;
         }
+        // Say how much was lent. The bank clamps the request against its reserve, its policy and what
+        // the customer already owes, so "Loan granted" on its own left the banker unable to tell a
+        // full grant from a heavily reduced one.
+        String symbol = CurrencyConfig.get().currencySymbol;
+        player.sendSystemMessage(Component.translatable(
+                        "message.athens_coins.bank_loan_granted_amount",
+                        Money.format(result.amount(), symbol))
+                .withStyle(ChatFormatting.GREEN));
+        if (result.partial()) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.bank_loan_partial",
+                            Money.format(result.amount(), symbol))
+                    .withStyle(ChatFormatting.YELLOW));
+        }
+        // The borrower is the one who has to repay it, so tell them too.
+        com.athensmc.athenscoins.bank.Loan loan = target.loan();
+        if (loan != null) {
+            com.athensmc.athenscoins.bank.LoanNotices.granted(player.server, target,
+                    result.amount(), loan.dueAt());
+        }
+        refreshAccount(player, bank, target.number());
     }
 
     private void repayLoan(ServerPlayer player, BankData data, Bank bank) {

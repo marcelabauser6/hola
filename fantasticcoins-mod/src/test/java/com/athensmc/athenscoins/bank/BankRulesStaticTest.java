@@ -1,4 +1,4 @@
-import com.athensmc.athenscoins.bank.BankRules;
+package com.athensmc.athenscoins.bank;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -13,7 +13,7 @@ import java.util.Set;
  *   javac -d out src/main/java/com/athensmc/athenscoins/bank/BankRules.java tools/BankRulesTest.java
  *   java -cp out BankRulesTest
  */
-public class BankRulesTest {
+public class BankRulesStaticTest {
 
     static int checks = 0;
     static int failures = 0;

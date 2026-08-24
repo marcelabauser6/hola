@@ -1,7 +1,10 @@
 package com.athensmc.athenscoins.bank;
 
 import com.athensmc.athenscoins.config.CurrencyConfig;
-import com.athensmc.athenscoins.wallet.*;
+import com.athensmc.athenscoins.wallet.Money;
+import com.athensmc.athenscoins.wallet.Wallet;
+import com.athensmc.athenscoins.wallet.WalletData;
+import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -191,14 +194,48 @@ public final class BankManager {
     /** Debits the principal account, all-or-nothing. */
     public static boolean debitAccount(MinecraftServer server,UUID owner,long amount,LedgerEntry.Kind kind,String note,String source){migrateLegacyWallets(server);BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null)return false;if(amount<=0L)return true;boolean ok=account.debit(amount,kind,note,System.currentTimeMillis(),LedgerEntry.correlation(),owner.toString(),source);if(ok)data.setDirty();return ok;}}
 
-    /** Admin-only building block: replaces a principal balance with a fully ledgered delta. */
-    public static boolean setAccountBalance(MinecraftServer server,UUID owner,long balance,String source){if(balance<0L||balance>Money.MAX_CENTS)return false;BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null)return false;long current=account.balance();if(current==balance)return true;return balance>current?creditAccount(server,owner,balance-current,LedgerEntry.Kind.CENTRAL_INJECTION,"ajuste de saldo",source):debitAccount(server,owner,current-balance,LedgerEntry.Kind.CENTRAL_INJECTION,"ajuste de saldo",source);}}
+    /**
+     * Admin-only building block: replaces a principal balance with a fully ledgered delta.
+     *
+     * <p>This mints or destroys money, so it has to move {@code totalIssued} with it. It did not, and
+     * the omission silently broke the issued-versus-existing invariant that the economy statistics
+     * and the central bank dashboard both report - every admin balance edit made those figures
+     * disagree with reality, with no way to tell from the numbers that an edit was the cause.</p>
+     */
+    public static boolean setAccountBalance(MinecraftServer server,UUID owner,long balance,String source){
+        if(balance<0L||balance>Money.MAX_CENTS)return false;
+        BankData data=data(server);
+        synchronized(data){
+            BankAccount account=data.accountOf(owner);
+            if(account==null)return false;
+            long current=account.balance();
+            if(current==balance)return true;
+            boolean minting=balance>current;
+            long delta=minting?balance-current:current-balance;
+            if(minting&&!Money.canAdd(data.totalIssued(),delta))return false;
+            boolean ok=minting
+                    ?creditAccount(server,owner,delta,LedgerEntry.Kind.CENTRAL_INJECTION,"ajuste de saldo",source)
+                    :debitAccount(server,owner,delta,LedgerEntry.Kind.CENTRAL_INJECTION,"ajuste de saldo",source);
+            if(ok){data.addIssued(minting?delta:-delta);data.setDirty();}
+            return ok;
+        }
+    }
 
     /** Explicit wallet credit; rejects overflow and any amount beyond this bank's limit. */
     public static boolean creditWallet(MinecraftServer server,UUID owner,long amount,LedgerEntry.Kind kind,String note,String source){migrateLegacyWallets(server);BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null||amount<=0L)return false;Bank bank=data.bank(account.bankId());if(bank==null||BankRules.fitIntoWallet(amount,account.walletBalance(),bank.walletLimit())!=amount||!account.creditWallet(amount))return false;account.recordExternal(kind,amount,account.walletBalance()-amount,account.walletBalance(),note,System.currentTimeMillis(),LedgerEntry.correlation(),owner.toString(),source);data.setDirty();return true;}}
 
-    /** Shop-compatible wallet charge: account required, ceiling enforced, all-or-nothing. */
-    public static boolean chargeWallet(MinecraftServer server,UUID owner,long amount,LedgerEntry.Kind kind,String note,String source){migrateLegacyWallets(server);BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null)return false;if(amount<=0L)return true;Bank bank=data.bank(account.bankId());if(bank==null||account.walletBalance()>bank.walletLimit()&&bank.walletLimit()>0L||!account.debitWallet(amount))return false;long after=account.walletBalance();account.recordExternal(kind,-amount,after+amount,after,note,System.currentTimeMillis(),LedgerEntry.correlation(),owner.toString(),source);data.setDirty();return true;}}
+    /**
+     * Shop-compatible wallet charge: account required, all-or-nothing.
+     *
+     * <p>The guard used to include {@code walletBalance() > walletLimit()}, which read as "refuse if
+     * this wallet is over its ceiling". Combined with the surrounding {@code ||} it locked a player
+     * out of <em>spending</em> whenever their card sat above the limit - a state a lowered ceiling can
+     * produce - so having too much money on the card meant being unable to buy anything, with no
+     * message explaining it. A ceiling constrains what goes <em>into</em> a wallet; taking money out
+     * only ever moves it back inside the limit, so there is nothing to check here beyond having the
+     * funds.</p>
+     */
+    public static boolean chargeWallet(MinecraftServer server,UUID owner,long amount,LedgerEntry.Kind kind,String note,String source){migrateLegacyWallets(server);BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null)return false;if(amount<=0L)return true;Bank bank=data.bank(account.bankId());if(bank==null||!account.debitWallet(amount))return false;long after=account.walletBalance();account.recordExternal(kind,-amount,after+amount,after,note,System.currentTimeMillis(),LedgerEntry.correlation(),owner.toString(),source);data.setDirty();return true;}}
 
     public static boolean transferWallet(MinecraftServer server,UUID from,UUID to,long amount,String source){BankData data=data(server);synchronized(data){BankAccount a=data.accountOf(from),b=data.accountOf(to);if(a==null||b==null||amount<=0L||from.equals(to))return false;Bank dest=data.bank(b.bankId());if(dest==null||BankRules.fitIntoWallet(amount,b.walletBalance(),dest.walletLimit())!=amount||!b.canCreditWallet(amount)||a.walletBalance()<amount)return false;String c=LedgerEntry.correlation();long now=System.currentTimeMillis();long ab=a.walletBalance(),bb=b.walletBalance();a.debitWallet(amount);b.creditWallet(amount);a.recordExternal(LedgerEntry.Kind.TRANSFER_SENT,-amount,ab,a.walletBalance(),"transferencia",now,c,from.toString(),source);b.recordExternal(LedgerEntry.Kind.TRANSFER_RECEIVED,amount,bb,b.walletBalance(),"transferencia",now,c,from.toString(),source);data.setDirty();return true;}}
 
@@ -264,11 +301,141 @@ public final class BankManager {
 
     public static void resetCommissionPolicyClock(MinecraftServer server,Bank bank,long now){BankData data=data(server);for(BankAccount a:data.accountsOf(bank.id())){a.setLastChargeAt(now);a.resetCommissionSession();}data.setDirty();}
 
-    public static long accrueInterest(MinecraftServer server,BankAccount account,long now){BankData data=data(server);synchronized(data){Loan loan=account.loan();if(loan==null||loan.settled()||!loan.overdue(now))return 0L;Bank bank=data.bank(account.bankId());if(bank==null)return 0L;int days=BankRules.overdueBusinessDays(loan.lastInterestAt(),now);long interest=BankRules.overdueInterest(loan.owed(),days,bank.loanInterestBasisPoints());if(interest<=0L||!Money.canAdd(loan.owed(),interest))return 0L;long before=loan.owed();if(!loan.addInterest(interest))return 0L;loan.setLastInterestAt(BankRules.addBusinessDays(loan.lastInterestAt(),days));account.recordExternal(LedgerEntry.Kind.LOAN_INTEREST,interest,before,loan.owed(),days+" dias de mora",now,LedgerEntry.correlation(),"system","loan");data.setDirty();return interest;}}
+    /**
+     * Applies penalty interest for the business days that have gone by since the last charge.
+     *
+     * <p>Three things differ from the original. The base is the <em>principal</em>, not the running
+     * balance, so the penalty is simple as documented instead of compounding once per overdue day.
+     * The number of days is capped like commissions are, so a long outage cannot present one enormous
+     * charge. And the total is capped as a share of the principal, because nothing in the mod ever
+     * forces collection or writes a loan off - without a ceiling, an abandoned debt grows forever.</p>
+     *
+     * <p>The no-double-charge anchor is unchanged: {@code lastInterestAt} advances by exactly the
+     * days billed, so the next tick a second later measures zero.</p>
+     */
+    public static long accrueInterest(MinecraftServer server, BankAccount account, long now) {
+        BankData data = data(server);
+        synchronized (data) {
+            Loan loan = account.loan();
+            if (loan == null || loan.settled() || !loan.overdue(now)) return 0L;
+            Bank bank = data.bank(account.bankId());
+            if (bank == null) return 0L;
+            CurrencyConfig.Settings settings = CurrencyConfig.get();
+            int elapsed = BankRules.overdueBusinessDays(loan.lastInterestAt(), now);
+            int days = Math.min(elapsed, Math.max(1, settings.loanMaxCatchUp));
+            if (days <= 0) return 0L;
+            long interest = BankRules.overdueInterest(loan.principal(), days,
+                    bank.loanInterestBasisPoints());
+            interest = Math.min(interest, loan.interestHeadroom(settings.loanMaxInterestPercent));
+            if (interest <= 0L) {
+                // At the ceiling: still advance the anchor, or every tick recomputes the same
+                // uncollectable charge forever.
+                loan.setLastInterestAt(BankRules.addBusinessDays(loan.lastInterestAt(), days));
+                data.setDirty();
+                return 0L;
+            }
+            long before = loan.owed();
+            if (!loan.addInterest(interest)) return 0L;
+            loan.setLastInterestAt(BankRules.addBusinessDays(loan.lastInterestAt(), days));
+            account.recordExternal(LedgerEntry.Kind.LOAN_INTEREST, interest, before, loan.owed(),
+                    days + " dias de mora", now, LedgerEntry.correlation(), "system", "loan");
+            data.setDirty();
+            return interest;
+        }
+    }
 
-    public record LoanResult(boolean ok,String messageKey,long amount){static LoanResult fail(String key){return new LoanResult(false,key,0L);}}
-    public static LoanResult grantLoan(MinecraftServer server,BankAccount account,long requested){BankData data=data(server);synchronized(data){Bank bank=data.bank(account.bankId());if(bank==null||!bank.loansEnabled())return LoanResult.fail("message.athens_coins.bank_loans_disabled");if(account.loan()!=null&&!account.loan().settled())return LoanResult.fail("message.athens_coins.bank_loan_active");long amount=Math.min(requested,BankRules.maxLoan(bank.reserve(),bank.loanMaxAmount(),0L));if(amount<=0L||!account.canCredit(amount))return LoanResult.fail("message.athens_coins.bank_reserve_empty");long now=System.currentTimeMillis();String c=LedgerEntry.correlation();if(!bank.drawReserve(amount))return LoanResult.fail("message.athens_coins.bank_reserve_empty");Loan loan=new Loan(amount,now,BankRules.addBusinessDays(now,bank.loanDays()));account.setLoan(loan);if(!account.credit(amount,LedgerEntry.Kind.LOAN_GRANTED,bank.loanDays()+" dias habiles",now,c,"bank:"+bank.id(),"loan"))throw new IllegalStateException("prevalidated loan credit failed");data.setDirty();return new LoanResult(true,"message.athens_coins.bank_loan_granted",amount);}}
-    public static long repayLoan(MinecraftServer server,BankAccount account,long requested){BankData data=data(server);synchronized(data){Loan loan=account.loan();Bank bank=data.bank(account.bankId());if(loan==null||loan.settled()||bank==null)return 0L;long amount=Math.min(Math.min(requested,loan.owed()),account.balance());amount=Math.min(amount,Money.MAX_CENTS-bank.reserve());if(amount<=0L)return 0L;String c=LedgerEntry.correlation();long now=System.currentTimeMillis();if(!account.debit(amount,LedgerEntry.Kind.LOAN_REPAID,"pago de prestamo",now,c,account.owner().toString(),"loan"))return 0L;loan.repay(amount);bank.addReserve(amount);if(loan.settled())account.setLoan(null);data.setDirty();return amount;}}
+    /**
+     * The outcome of a loan request.
+     *
+     * @param amount    what was actually lent, which the caller must show: the bank clamps a request
+     *                  to its reserve and its policy, so this is often less than what was asked for
+     * @param requested what was asked for, so a caller can tell a partial grant from a full one
+     */
+    public record LoanResult(boolean ok, String messageKey, long amount, long requested) {
+        static LoanResult fail(String key) {
+            return new LoanResult(false, key, 0L, 0L);
+        }
+
+        /** True when the bank could only lend part of the request. */
+        public boolean partial() {
+            return ok && amount < requested;
+        }
+    }
+
+    public static LoanResult grantLoan(MinecraftServer server, BankAccount account, long requested) {
+        BankData data = data(server);
+        synchronized (data) {
+            Bank bank = data.bank(account.bankId());
+            if (bank == null || !bank.loansEnabled())
+                return LoanResult.fail("message.athens_coins.bank_loans_disabled");
+            if (account.loan() != null && !account.loan().settled())
+                return LoanResult.fail("message.athens_coins.bank_loan_active");
+            // Count what this customer already owes the bank. maxLoan has always taken an
+            // "already owed" argument and it was hard-coded to zero, so the headroom rule the rules
+            // engine tests was dead in production: someone ten fee periods behind could still borrow
+            // the full policy maximum.
+            long alreadyOwed = account.commissionDebt()
+                    + (account.loan() == null ? 0L : account.loan().owed());
+            long amount = Math.min(requested,
+                    BankRules.maxLoan(bank.reserve(), bank.loanMaxAmount(), alreadyOwed));
+            if (amount <= 0L || !account.canCredit(amount))
+                return LoanResult.fail("message.athens_coins.bank_reserve_empty");
+            long now = System.currentTimeMillis();
+            String c = LedgerEntry.correlation();
+            if (!bank.drawReserve(amount))
+                return LoanResult.fail("message.athens_coins.bank_reserve_empty");
+            Loan loan = new Loan(amount, now, BankRules.addBusinessDays(now, bank.loanDays()));
+            account.setLoan(loan);
+            if (!account.credit(amount, LedgerEntry.Kind.LOAN_GRANTED,
+                    bank.loanDays() + " dias habiles", now, c, "bank:" + bank.id(), "loan"))
+                throw new IllegalStateException("prevalidated loan credit failed");
+            data.setDirty();
+            return new LoanResult(true, "message.athens_coins.bank_loan_granted", amount, requested);
+        }
+    }
+
+    /**
+     * Pays down a loan, taking the money from the account and then from the wallet card.
+     *
+     * <p>Repayment used to come out of the principal balance only. A player who kept their money on
+     * the card - which is exactly what the ATM encourages - looked insolvent to the bank and could
+     * not clear a debt they had the funds for. The card is the same account's money, so it counts.</p>
+     */
+    public static long repayLoan(MinecraftServer server, BankAccount account, long requested) {
+        BankData data = data(server);
+        synchronized (data) {
+            Loan loan = account.loan();
+            Bank bank = data.bank(account.bankId());
+            if (loan == null || loan.settled() || bank == null) return 0L;
+            long available = account.balance() + account.walletBalance();
+            long amount = Math.min(Math.min(requested, loan.owed()), available);
+            amount = Math.min(amount, Money.MAX_CENTS - bank.reserve());
+            if (amount <= 0L) return 0L;
+            String c = LedgerEntry.correlation();
+            long now = System.currentTimeMillis();
+            long fromAccount = Math.min(amount, account.balance());
+            long fromWallet = amount - fromAccount;
+            if (fromAccount > 0L && !account.debit(fromAccount, LedgerEntry.Kind.LOAN_REPAID,
+                    "pago de prestamo", now, c, account.owner().toString(), "loan")) return 0L;
+            if (fromWallet > 0L) {
+                long walletBefore = account.walletBalance();
+                if (!account.debitWallet(fromWallet)) {
+                    // Put back the principal share rather than leaving a partial debit committed.
+                    if (fromAccount > 0L) account.credit(fromAccount, LedgerEntry.Kind.LOAN_REPAID,
+                            "reverso de pago", now, c, account.owner().toString(), "loan");
+                    return 0L;
+                }
+                account.recordExternal(LedgerEntry.Kind.LOAN_REPAID, -fromWallet, walletBefore,
+                        account.walletBalance(), "pago desde tarjeta", now, c,
+                        account.owner().toString(), "wallet");
+            }
+            loan.repay(amount);
+            bank.addReserve(amount);
+            if (loan.settled()) account.setLoan(null);
+            data.setDirty();
+            return amount;
+        }
+    }
 
     public static void inject(MinecraftServer server,Bank bank,long amount){BankData data=data(server);synchronized(data){if(amount<=0L||!Money.canAdd(bank.reserve(),amount)||!Money.canAdd(data.totalIssued(),amount))return;bank.addReserve(amount);data.addIssued(amount);data.setDirty();}}
     public static void realignAllRates(MinecraftServer server){List<Bank> banks=data(server).banks();for(Bank bank:banks)bank.realignRates();data(server).setDirty();}

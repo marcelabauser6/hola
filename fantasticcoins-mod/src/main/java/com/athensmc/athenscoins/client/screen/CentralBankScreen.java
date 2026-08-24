@@ -1,7 +1,9 @@
 package com.athensmc.athenscoins.client.screen;
 
+import com.athensmc.athenscoins.client.layout.PanelMetrics;
 import com.athensmc.athenscoins.client.layout.ScreenLayout;
 import com.athensmc.athenscoins.client.layout.ScreenText;
+import com.athensmc.athenscoins.client.widget.AmountField;
 import com.athensmc.athenscoins.network.C2SCentralActionPacket;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenCentralPacket;
@@ -9,7 +11,6 @@ import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
@@ -20,9 +21,13 @@ import java.util.UUID;
 
 /** Responsive central-bank dashboard with a bounded, scrollable commercial-bank list. */
 public class CentralBankScreen extends Screen {
-    private static final int PANEL_W = 340;
-    private static final int PANEL_H = 232;
     private static final int ROW_H = 14;
+
+    /** Summary geometry, shared by the layout in {@code init} and the drawing in {@code render}. */
+    private static final int SUMMARY_TOP = 13;
+    private static final int SUMMARY_LINE_H = 11;
+    private static final int LIST_TITLE_H = 14;
+    private static final int LIST_FOOTER_H = 12;
 
     private final BlockPos pos;
     private final List<S2COpenCentralPacket.BankRow> banks;
@@ -30,9 +35,11 @@ public class CentralBankScreen extends Screen {
 
     private ScreenLayout.Regions layout;
     private ScreenLayout.Rect listArea;
+    private ScreenLayout.Rect messageRow;
     private int scroll;
     private int selected;
-    private EditBox amountBox;
+    private AmountField amountBox;
+    private Component message;
     private Component hoverTooltip;
 
     public CentralBankScreen(S2COpenCentralPacket packet) {
@@ -49,11 +56,16 @@ public class CentralBankScreen extends Screen {
 
     @Override
     protected void init() {
-        ScreenLayout.Rect panel = ScreenLayout.centeredPanel(width, height, PANEL_W, PANEL_H);
-        layout = ScreenLayout.regions(panel, 20, 0, 70);
+        // 82, not 70: the footer holds four rows (amounts, rates, feedback, close) and the close
+        // button used to be positioned 2px past the band that was supposed to contain it.
+        layout = PanelMetrics.central(width, height);
         ScreenLayout.Rect content = layout.content().inset(8);
-        listArea = new ScreenLayout.Rect(content.x(), content.y() + 58,
-                content.width(), Math.max(0, content.height() - 72));
+        // The summary block is three rate lines plus its heading; derive the list top from that
+        // instead of a magic +58, which left the third line touching the list title.
+        int summaryHeight = SUMMARY_TOP + CoinType.ORDERED.length * SUMMARY_LINE_H + 6;
+        int listTop = content.y() + summaryHeight + LIST_TITLE_H;
+        listArea = new ScreenLayout.Rect(content.x(), Math.min(listTop, content.bottom()),
+                content.width(), Math.max(0, content.bottom() - listTop - LIST_FOOTER_H));
         if (selected >= banks.size()) {
             selected = 0;
         }
@@ -61,10 +73,8 @@ public class CentralBankScreen extends Screen {
         ScreenLayout.Rect footer = layout.footer().inset(6);
         int gap = 4;
         int firstRowCell = ScreenLayout.gridCellWidth(footer, 3, gap);
-        amountBox = new EditBox(font, footer.x(), footer.y(), firstRowCell, 16,
+        amountBox = new AmountField(font, footer.x(), footer.y(), firstRowCell, 16,
                 Component.translatable("gui.athens_coins.bank_value"));
-        amountBox.setValue("0");
-        amountBox.setMaxLength(12);
         addRenderableWidget(amountBox);
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.central_inject"),
                         ignored -> act(C2SCentralActionPacket.Action.INJECT))
@@ -90,30 +100,33 @@ public class CentralBankScreen extends Screen {
                             data.marginPercent()))).build());
             x += rateWidth + gap;
         }
+        messageRow = new ScreenLayout.Rect(footer.x(), footer.y() + 41, footer.width(), 10);
         int closeWidth = Math.min(82, footer.width());
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.close"), ignored -> onClose())
-                .bounds(footer.right() - closeWidth, footer.y() + 42, closeWidth, 18).build());
+                .bounds(footer.right() - closeWidth, messageRow.bottom() + 3, closeWidth, 18).build());
     }
 
-    private long amount() {
-        String raw = amountBox == null ? "0" : amountBox.getValue().trim();
-        if (raw.contains(".") || raw.contains(",")) {
-            try {
-                return Money.parse(raw);
-            } catch (Money.InvalidAmountException ignored) {
-                return 0L;
-            }
-        }
-        try {
-            return Long.parseLong(raw);
-        } catch (NumberFormatException ignored) {
-            return 0L;
-        }
-    }
-
+    /**
+     * Sends only on a real amount, and says so otherwise.
+     *
+     * <p>The old helper read an entry with no separator as cents and one with a separator as units,
+     * so injecting "1000" put ten dollars into a reserve while "1000.00" put a thousand. An invalid
+     * entry became {@code 0}, which the server silently ignored.</p>
+     */
     private void act(C2SCentralActionPacket.Action action) {
-        UUID target = banks.isEmpty() ? null : banks.get(selected).id();
-        ModNetwork.toServer(new C2SCentralActionPacket(pos, action, target, amount()));
+        long cents = amountBox.cents();
+        if (cents < 0L) {
+            message = amountBox.error();
+            return;
+        }
+        if (banks.isEmpty()) {
+            message = Component.translatable("gui.athens_coins.central_no_banks");
+            return;
+        }
+        UUID target = banks.get(selected).id();
+        ModNetwork.toServer(new C2SCentralActionPacket(pos, action, target, cents));
+        amountBox.clear();
+        message = null;
     }
 
     @Override
@@ -129,6 +142,10 @@ public class CentralBankScreen extends Screen {
 
         renderSummary(graphics, mouseX, mouseY);
         renderBanks(graphics, mouseX, mouseY);
+        if (message != null) {
+            drawFitted(graphics, message.getString(), messageRow.x(), messageRow.y(),
+                    messageRow.width(), 0xFFE06B6B, mouseX, mouseY);
+        }
         super.render(graphics, mouseX, mouseY, partialTick);
         if (hoverTooltip != null) {
             graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
@@ -139,28 +156,29 @@ public class CentralBankScreen extends Screen {
         ScreenLayout.Rect content = layout.content().inset(8);
         drawFitted(graphics, Component.translatable("gui.athens_coins.central_official").getString(),
                 content.x(), content.y() + 1, content.width(), 0xFF7FB2E5, mouseX, mouseY);
-        int leftWidth = Math.max(100, content.width() * 58 / 100);
-        int y = content.y() + 13;
+        // Split into two columns that sum to the content width, so neither can reach the other or
+        // run past the right edge. The old code floored the right block at 20px, which overflowed.
+        ScreenLayout.Columns split = ScreenLayout.columns(content, 6);
+        ScreenLayout.Rect left = split.first();
+        ScreenLayout.Rect right = split.second();
+        int y = content.y() + SUMMARY_TOP;
         for (CoinType type : CoinType.ORDERED) {
             String line = type.shortName().getString() + ": " + Money.format(data.official(type), "$")
                     + "  [" + Money.format(data.floor(type), "$") + "–"
                     + Money.format(data.ceiling(type), "$") + "]";
-            drawFitted(graphics, line, content.x() + 4, y, leftWidth - 4,
-                    0xFFB8C8DC, mouseX, mouseY);
-            y += 11;
+            drawFitted(graphics, line, left.x() + 4, y, left.width() - 4, 0xFFB8C8DC, mouseX, mouseY);
+            y += SUMMARY_LINE_H;
         }
-        int summaryX = content.x() + leftWidth + 6;
         drawFitted(graphics, Component.translatable("gui.athens_coins.central_issued",
                         Money.format(data.totalIssued(), "$")).getString(),
-                summaryX, content.y() + 15, Math.max(20, content.right() - summaryX),
-                0xFF8FE3FF, mouseX, mouseY);
+                right.x(), content.y() + SUMMARY_TOP, right.width(), 0xFF8FE3FF, mouseX, mouseY);
         drawFitted(graphics, Component.translatable("gui.athens_coins.central_banks", banks.size()).getString(),
-                summaryX, content.y() + 29, Math.max(20, content.right() - summaryX),
+                right.x(), content.y() + SUMMARY_TOP + SUMMARY_LINE_H * 2, right.width(),
                 0xFFB8C8DC, mouseX, mouseY);
     }
 
     private void renderBanks(GuiGraphics graphics, int mouseX, int mouseY) {
-        int titleY = listArea.y() - 14;
+        int titleY = listArea.y() - LIST_TITLE_H;
         drawFitted(graphics, Component.translatable("gui.athens_coins.central_list").getString(),
                 listArea.x(), titleY, listArea.width(), 0xFF7FB2E5, mouseX, mouseY);
         graphics.fill(listArea.x(), titleY + 10, listArea.right(), titleY + 11, 0x40FFFFFF);

@@ -11,3 +11,7 @@ run/
 .classpath
 .project
 bin/
+
+
+# ForgeGradle writes its decompile/setup logs here during a build
+logs/
