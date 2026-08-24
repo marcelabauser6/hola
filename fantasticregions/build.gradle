@@ -1,0 +1,117 @@
+plugins {
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_name
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Yet Another World Protector, compiled against but never bundled.
+    //
+    // compileOnly, not implementation: YAWP is AGPL v3 and is the user's own installed copy. Shipping
+    // it inside this jar would make this jar a redistribution of their work, which drags in the
+    // obligation to carry their source alongside it. Left external, their jar stays the untouched
+    // file they downloaded and this mod is just something that calls into it.
+    //
+    // Its class names are already the official Mojang ones (1.17+ only obfuscates members), so no
+    // fg.deobf is needed - javac reads the signatures and the member names never enter our bytecode.
+    compileOnly files(yawp_jar)
+
+    // Same jar at runtime, so runClient/runServer can actually load a world with regions in it.
+    runtimeOnly files(yawp_jar)
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            mod_id                    : mod_id,
+            mod_name                  : mod_name,
+            mod_display_name          : mod_display_name,
+            mod_version               : mod_version,
+            mod_authors               : mod_authors,
+            mod_license               : mod_license,
+            minecraft_version_range   : minecraft_version_range,
+            forge_version_range       : forge_version_range,
+            loader_version_range      : loader_version_range,
+            yawp_version_range        : yawp_version_range,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : mod_id,
+                'Implementation-Version'  : mod_version,
+                'Implementation-Vendor'   : mod_authors,
+        ])
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar.finalizedBy('reobfJar')
+
+// Pure-JVM layout guard: every screen's rectangles are checked for overlap and for text that would
+// not fit, at a spread of logical resolutions, without launching a client.
+tasks.register('verifyScreenLayouts', JavaExec) {
+    group = 'verification'
+    description = 'Checks the region screens for overlapping bands and over-long labels.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fantasticregions.client.layout.RegionLayoutStaticTest'
+}
+
+// Pure-JVM guard for the selection maths: corner ordering, area sizes and limits.
+tasks.register('verifySelection', JavaExec) {
+    group = 'verification'
+    description = 'Checks corner selection, bounds and area measurement.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fantasticregions.selection.SelectionStaticTest'
+}
+
+// Pure-JVM guard for the flag catalogue: every YAWP flag is present, named in Spanish and explained.
+tasks.register('verifyFlagCatalogue', JavaExec) {
+    group = 'verification'
+    description = 'Checks that every protection flag has a Spanish name and an explanation.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fantasticregions.flag.FlagCatalogueStaticTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyScreenLayouts')
+    dependsOn tasks.named('verifySelection')
+    dependsOn tasks.named('verifyFlagCatalogue')
+}

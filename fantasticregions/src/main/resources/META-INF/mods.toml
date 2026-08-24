@@ -1,0 +1,50 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+
+# AGPL v3, and it has to be: this mod is built against Yet Another World Protector, which is AGPL v3.
+# The full licence text ships in this jar as LICENSE. Source: see displayURL below.
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_display_name}"
+authors="${mod_authors}"
+credits="Built on Yet Another World Protector by Z0rdak (AGPL v3)"
+logoFile="fantasticregions_logo.png"
+description='''
+Fantastic Regions replaces every Yet Another World Protector command with a full-screen interface
+in Spanish.
+
+  /yawp              - open the region list
+  /yawp crear        - name a region, pick its shape, and mark it out with the blaze rod
+  /yawp borrar       - remove a region, with completion over the existing names
+
+Everything else - flags, members, groups, the perimeter, priority, teleport anchors - is edited in
+the interface, and every control explains what it does.
+
+Install on BOTH the client and the server: YAWP itself is server-side, but an interface is not.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Hard dependency, loaded first: this mod is an interface onto YAWP's region store and has nothing
+# to show without it. AFTER so YAWP has registered its commands by the time we strip them.
+[[dependencies.${mod_id}]]
+    modId="yawp"
+    mandatory=true
+    versionRange="${yawp_version_range}"
+    ordering="AFTER"
+    side="BOTH"
