@@ -17,7 +17,7 @@ public final class ModNetwork {
      * would read those extra bytes as garbage, so the mismatch has to be refused at handshake rather
      * than surface as nonsensical balances.
      */
-    private static final String PROTOCOL_VERSION = "6";
+    private static final String PROTOCOL_VERSION = "7";
 
     private static SimpleChannel channel;
 
@@ -96,6 +96,12 @@ public final class ModNetwork {
                 .encoder(S2CAtmSyncPacket::encode)
                 .decoder(S2CAtmSyncPacket::new)
                 .consumerMainThread(S2CAtmSyncPacket::handle)
+                .add();
+
+        channel.messageBuilder(C2SBankConfigPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SBankConfigPacket::encode)
+                .decoder(C2SBankConfigPacket::new)
+                .consumerMainThread(C2SBankConfigPacket::handle)
                 .add();
     }
 

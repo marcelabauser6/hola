@@ -74,6 +74,52 @@ public final class BankManager {
     public static long walletCeiling(ServerPlayer player) { Bank bank=bankOf(player); return bank==null?-1L:bank.walletLimit(); }
     public static boolean ownsBank(ServerPlayer player, Bank bank) { BankAccount a=accountOf(player); return a!=null && bank!=null && a.bankId().equals(bank.id()); }
 
+    /**
+     * Why a machine will or will not serve this player.
+     *
+     * <p>{@link #ownsBank} answers a single boolean, and the three ATM entry points all turned that
+     * false into the same message: "you need a bank account". For a customer who <em>has</em> an
+     * account, just not at the bank that issued this machine, that message is simply untrue - and it
+     * is the common case as soon as a server runs more than one bank. The two reasons are different
+     * problems with different fixes, so they are different answers.</p>
+     */
+    public enum Access {
+        OK,
+        /** The player holds no account anywhere; they need a banker to open one. */
+        NO_ACCOUNT,
+        /** The player banks elsewhere; this machine only serves its own issuer's customers. */
+        OTHER_BANK
+    }
+
+    public static Access accessFor(ServerPlayer player, Bank bank) {
+        BankAccount account = accountOf(player);
+        if (account == null) {
+            return Access.NO_ACCOUNT;
+        }
+        if (bank == null || !account.bankId().equals(bank.id())) {
+            return Access.OTHER_BANK;
+        }
+        return Access.OK;
+    }
+
+    /**
+     * Tells the player why the machine refused, naming the bank when the bank is the reason.
+     *
+     * <p>Sent to chat rather than the action bar: the wrong-bank line carries a bank name, and the
+     * action bar clips a long line without any indication that it did.</p>
+     */
+    public static void explainRefusal(ServerPlayer player, Bank bank, Access access) {
+        Component message = switch (access) {
+            case NO_ACCOUNT -> Component.translatable("message.athens_coins.atm_no_account");
+            case OTHER_BANK -> Component.translatable("message.athens_coins.atm_other_bank",
+                    bank == null ? "?" : bank.name());
+            case OK -> null;
+        };
+        if (message != null) {
+            player.sendSystemMessage(message.copy().withStyle(net.minecraft.ChatFormatting.RED));
+        }
+    }
+
     public record OpenResult(boolean ok,String messageKey,int number){static OpenResult fail(String key){return new OpenResult(false,key,0);}}
 
     public static OpenResult openAccount(MinecraftServer server, Bank bank, UUID owner, String ownerName, long carriedOver) {
@@ -145,7 +191,7 @@ public final class BankManager {
             long walletBefore=account.walletBalance();
             if(walletBefore>0L){ if(!account.credit(walletBefore,LedgerEntry.Kind.WALLET_IN,"barrido por cierre",now,correlation,who,"close"))return CloseResult.fail("message.athens_coins.amount_too_big"); account.clearWallet(); account.recordExternal(LedgerEntry.Kind.WALLET_IN,-walletBefore,walletBefore,0L,"wallet cerrada",now,correlation,who,"wallet"); }
             if(feeDebt>0L){account.debit(feeDebt,LedgerEntry.Kind.COMMISSION,"deuda liquidada",now,correlation,who,"close");account.setCommissionDebt(0L);bank.addReserve(feeDebt);}
-            if(loanOwed>0L){account.debit(loanOwed,LedgerEntry.Kind.LOAN_REPAID,"prestamo liquidado",now,correlation,who,"close");loan.repay(loanOwed);account.setLoan(null);bank.addReserve(loanOwed);}
+            if(loanOwed>0L){account.debit(loanOwed,LedgerEntry.Kind.LOAN_REPAID,"prestamo liquidado",now,correlation,who,"close");loan.repay(loanOwed);account.recordLoanSettled();account.setLoan(null);bank.addReserve(loanOwed);}
             if (account.balance() != payout) throw new IllegalStateException("close payout changed after prevalidation");
             if(payout>0L)account.debit(payout,LedgerEntry.Kind.CLOSED,"cierre",now,correlation,who,"close"); else account.recordExternal(LedgerEntry.Kind.CLOSED,0L,0L,0L,"cierre",now,correlation,who,"close");
             data.archiveAndUnregister(account);return new CloseResult(true,"message.athens_coins.bank_closed_account",payout,card);
@@ -335,8 +381,12 @@ public final class BankManager {
                 return 0L;
             }
             long before = loan.owed();
+            // Read before the charge: zero accrued means this is the loan's first late day, which is
+            // the one moment that counts as a new overdue episode on the customer's record.
+            boolean firstLateCharge = loan.interestAccrued() <= 0L;
             if (!loan.addInterest(interest)) return 0L;
             loan.setLastInterestAt(BankRules.addBusinessDays(loan.lastInterestAt(), days));
+            account.recordPenalty(interest, firstLateCharge);
             account.recordExternal(LedgerEntry.Kind.LOAN_INTEREST, interest, before, loan.owed(),
                     days + " dias de mora", now, LedgerEntry.correlation(), "system", "loan");
             data.setDirty();
@@ -386,6 +436,7 @@ public final class BankManager {
                 return LoanResult.fail("message.athens_coins.bank_reserve_empty");
             Loan loan = new Loan(amount, now, BankRules.addBusinessDays(now, bank.loanDays()));
             account.setLoan(loan);
+            account.recordLoanTaken(amount, now);
             if (!account.credit(amount, LedgerEntry.Kind.LOAN_GRANTED,
                     bank.loanDays() + " dias habiles", now, c, "bank:" + bank.id(), "loan"))
                 throw new IllegalStateException("prevalidated loan credit failed");
@@ -431,7 +482,10 @@ public final class BankManager {
             }
             loan.repay(amount);
             bank.addReserve(amount);
-            if (loan.settled()) account.setLoan(null);
+            if (loan.settled()) {
+                account.recordLoanSettled();
+                account.setLoan(null);
+            }
             data.setDirty();
             return amount;
         }

@@ -24,9 +24,33 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** Responsive account summary and paginated ledger. */
+/**
+ * One customer's file, as the bank sees it.
+ *
+ * <p>Three columns, each with a heading that says what it is: the account's own figures, the risk
+ * desk's view of the customer, and the movement history. The screen used to be two unlabelled columns
+ * of coloured numbers with no indication of what could be done with them, which is the complaint this
+ * layout answers - every column is titled, the footer has a one-line instruction, and the standing is
+ * shown with a word next to it rather than as a bare number.</p>
+ *
+ * <p>The risk figures are counters kept on the account, not sums over the ledger. The ledger is a ring
+ * buffer, so the evidence of an old default is the first thing it drops; a customer with a bad record
+ * would slowly look clean again.</p>
+ */
 public class AccountDetailScreen extends Screen {
     private static final int ROW_H = 11;
+    private static final int PAD = 8;
+    private static final int HINT_H = 12;
+
+    private static final int TEXT_TITLE = 0xFFFFD98F;
+    private static final int TEXT_HEADING = 0xFFE0C060;
+    private static final int TEXT_LABEL = 0xFF8A7A6A;
+    private static final int TEXT_VALUE = 0xFFD8C0A0;
+    private static final int TEXT_MUTED = 0xFF888888;
+    private static final int TEXT_GOOD = 0xFF6BE06B;
+    private static final int TEXT_BAD = 0xFFE06B6B;
+    private static final int TEXT_HINT = 0xFFB0A090;
+
     private static final DateTimeFormatter STAMP =
             DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(ZoneId.systemDefault());
 
@@ -36,14 +60,19 @@ public class AccountDetailScreen extends Screen {
     private final String bankName;
     private final long commissionFee;
     private final int commissionDays;
+    private final long walletLimit;
     private final long loanMax;
     private final int loanDays;
     private final int loanInterest;
     private final long reserve;
     private final List<LedgerEntry> ledger;
+    private final int score;
 
     private ScreenLayout.Regions layout;
-    private ScreenLayout.Columns columns;
+    private ScreenLayout.Rect hintRow;
+    private ScreenLayout.Rect dataColumn;
+    private ScreenLayout.Rect riskColumn;
+    private ScreenLayout.Rect ledgerColumn;
     private ScreenLayout.Rect messageRow;
     private int page;
     private AmountField amountBox;
@@ -58,11 +87,13 @@ public class AccountDetailScreen extends Screen {
         bankName = packet.bankName();
         commissionFee = packet.commissionFee();
         commissionDays = packet.commissionDays();
+        walletLimit = packet.walletLimit();
         loanMax = packet.loanMax();
         loanDays = packet.loanDays();
         loanInterest = packet.loanInterest();
         reserve = packet.reserve();
         ledger = account.ledger();
+        score = account.creditScore();
     }
 
     public Screen parentScreen() {
@@ -78,7 +109,14 @@ public class AccountDetailScreen extends Screen {
     protected void init() {
         // The footer carries three stacked rows: the action row, one line of feedback, and Back.
         layout = PanelMetrics.account(width, height);
-        columns = ScreenLayout.columns(layout.content().inset(8), 10);
+        ScreenLayout.Rect content = layout.content().inset(PAD);
+        hintRow = new ScreenLayout.Rect(content.x(), content.y(), content.width(), HINT_H);
+        ScreenLayout.Rect columnsArea = new ScreenLayout.Rect(content.x(), hintRow.bottom(),
+                content.width(), Math.max(0, content.height() - HINT_H));
+        dataColumn = ScreenLayout.column(columnsArea, 3, 10, 0);
+        riskColumn = ScreenLayout.column(columnsArea, 3, 10, 1);
+        ledgerColumn = ScreenLayout.column(columnsArea, 3, 10, 2);
+
         ScreenLayout.Rect footer = layout.footer().inset(6);
         int gap = 4;
         int cell = ScreenLayout.gridCellWidth(footer, 4, gap);
@@ -149,14 +187,17 @@ public class AccountDetailScreen extends Screen {
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF0140F0C);
         StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFFC9A227);
         graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, 0xFF3A2A1E);
-        drawFitted(graphics, title.getString(), panel.x() + 8, panel.y() + 6,
-                panel.width() - 16, 0xFFFFD98F, mouseX, mouseY);
+        renderHeader(graphics, mouseX, mouseY);
+
+        drawFitted(graphics, Component.translatable("gui.athens_coins.acct_hint").getString(),
+                hintRow.x(), hintRow.y() + 1, hintRow.width(), TEXT_HINT, mouseX, mouseY);
 
         renderSummary(graphics, mouseX, mouseY);
+        renderRisk(graphics, mouseX, mouseY);
         renderLedger(graphics, mouseX, mouseY);
         if (message != null) {
             drawFitted(graphics, message.getString(), messageRow.x(), messageRow.y(),
-                    messageRow.width(), 0xFFE06B6B, mouseX, mouseY);
+                    messageRow.width(), TEXT_BAD, mouseX, mouseY);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
         if (hoverTooltip != null) {
@@ -164,19 +205,38 @@ public class AccountDetailScreen extends Screen {
         }
     }
 
+    /**
+     * Title on the left, standing on the right.
+     *
+     * <p>Both get a budget carved from the same bar so a long player name cannot run into the badge.</p>
+     */
+    private void renderHeader(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect header = layout.header();
+        String badge = BankTerminalScreen.scoreLabel(score).getString() + " " + score;
+        int badgeBudget = Math.min(header.width() / 3, font.width(badge) + 2);
+        int titleBudget = Math.max(20, header.width() - badgeBudget - PAD * 3);
+        drawFitted(graphics, title.getString(), header.x() + PAD, header.y() + 6, titleBudget,
+                TEXT_TITLE, mouseX, mouseY);
+        drawRight(graphics, badge, header.right() - PAD, header.y() + 6, badgeBudget,
+                BankTerminalScreen.scoreColor(score), mouseX, mouseY);
+    }
+
     private void renderSummary(GuiGraphics graphics, int mouseX, int mouseY) {
-        ScreenLayout.Rect area = columns.first();
-        int y = area.y() + 2;
-        y = line(graphics, area, y, "gui.athens_coins.acct_bank", bankName, 0xFFD8C0A0, mouseX, mouseY);
+        ScreenLayout.Rect area = dataColumn;
+        int y = heading(graphics, area, area.y(), "gui.athens_coins.acct_section_data", mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_bank", bankName, TEXT_VALUE, mouseX, mouseY);
         y = line(graphics, area, y, "gui.athens_coins.acct_opened",
-                STAMP.format(Instant.ofEpochMilli(account.openedAt())), 0xFFB0A090, mouseX, mouseY);
+                STAMP.format(Instant.ofEpochMilli(account.openedAt())), TEXT_LABEL, mouseX, mouseY);
         y = line(graphics, area, y, "gui.athens_coins.acct_balance",
-                Money.format(account.balance(), "$"), 0xFF6BE06B, mouseX, mouseY);
+                Money.format(account.balance(), "$"), TEXT_GOOD, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_wallet",
+                Money.format(account.walletBalance(), "$") + " / " + Money.format(walletLimit, "$"),
+                0xFF9EC5D8, mouseX, mouseY);
         y = line(graphics, area, y, "gui.athens_coins.acct_fee",
-                Money.format(commissionFee, "$") + " / " + commissionDays + "d", 0xFFB0A090, mouseX, mouseY);
+                Money.format(commissionFee, "$") + " / " + commissionDays + "d", TEXT_LABEL, mouseX, mouseY);
         if (account.commissionDebt() > 0L) {
             y = line(graphics, area, y, "gui.athens_coins.acct_fee_debt",
-                    Money.format(account.commissionDebt(), "$"), 0xFFE06B6B, mouseX, mouseY);
+                    Money.format(account.commissionDebt(), "$"), TEXT_BAD, mouseX, mouseY);
         }
         Loan loan = account.loan();
         if (loan != null && !loan.settled()) {
@@ -187,31 +247,70 @@ public class AccountDetailScreen extends Screen {
                     ? Component.translatable("gui.athens_coins.acct_overdue", overdue).getString()
                     : STAMP.format(Instant.ofEpochMilli(loan.dueAt()));
             y = line(graphics, area, y, "gui.athens_coins.acct_loan_due", due,
-                    overdue > 0 ? 0xFFE06B6B : 0xFFB0A090, mouseX, mouseY);
+                    overdue > 0 ? TEXT_BAD : TEXT_LABEL, mouseX, mouseY);
         } else {
             y = line(graphics, area, y, "gui.athens_coins.acct_loan",
                     Component.translatable("gui.athens_coins.acct_no_loan").getString(),
-                    0xFF888888, mouseX, mouseY);
+                    TEXT_MUTED, mouseX, mouseY);
         }
         line(graphics, area, y, "gui.athens_coins.acct_reserve",
                 Money.format(reserve, "$"), 0xFF9EC5D8, mouseX, mouseY);
+    }
+
+    /**
+     * The bank's own risk desk.
+     *
+     * <p>Every figure here is a lifetime counter, so it keeps meaning something after the ledger has
+     * rolled over. The standing is repeated with its word so the column stands on its own.</p>
+     */
+    private void renderRisk(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect area = riskColumn;
+        int y = heading(graphics, area, area.y(), "gui.athens_coins.acct_section_risk", mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_score",
+                score + " · " + BankTerminalScreen.scoreLabel(score).getString(),
+                BankTerminalScreen.scoreColor(score), mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_loans",
+                String.valueOf(account.loansTaken()), TEXT_VALUE, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_settled",
+                String.valueOf(account.loansSettled()), TEXT_GOOD, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_overdue",
+                String.valueOf(account.loansOverdue()),
+                account.loansOverdue() > 0 ? TEXT_BAD : TEXT_MUTED, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_borrowed",
+                Money.format(account.borrowedTotal(), "$"), TEXT_VALUE, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.risk_penalty",
+                Money.format(account.penaltyCharged(), "$"),
+                account.penaltyCharged() > 0L ? TEXT_BAD : TEXT_MUTED, mouseX, mouseY);
+        String last = account.lastLoanAt() <= 0L
+                ? Component.translatable("gui.athens_coins.risk_never").getString()
+                : STAMP.format(Instant.ofEpochMilli(account.lastLoanAt()));
+        y = line(graphics, area, y, "gui.athens_coins.risk_last", last, TEXT_LABEL, mouseX, mouseY);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.risk_hint").getString(),
+                area.x(), y + 3, area.width(), TEXT_MUTED, mouseX, mouseY);
+    }
+
+    /** A column heading with its underline, returning the first content row. */
+    private int heading(GuiGraphics graphics, ScreenLayout.Rect area, int y, String key,
+                        int mouseX, int mouseY) {
+        drawFitted(graphics, Component.translatable(key).getString(), area.x(), y + 2, area.width(),
+                TEXT_HEADING, mouseX, mouseY);
+        graphics.fill(area.x(), y + 12, area.right(), y + 13, 0x40FFFFFF);
+        return y + 16;
     }
 
     private int line(GuiGraphics graphics, ScreenLayout.Rect area, int y, String labelKey,
                      String value, int color, int mouseX, int mouseY) {
         int labelWidth = Math.max(38, area.width() * 48 / 100);
         String label = Component.translatable(labelKey).getString();
-        drawFitted(graphics, label, area.x(), y, labelWidth - 3, 0xFF8A7A6A, mouseX, mouseY);
+        drawFitted(graphics, label, area.x(), y, labelWidth - 3, TEXT_LABEL, mouseX, mouseY);
         drawFitted(graphics, value, area.x() + labelWidth, y,
                 area.width() - labelWidth, color, mouseX, mouseY);
         return y + ROW_H;
     }
 
     private void renderLedger(GuiGraphics graphics, int mouseX, int mouseY) {
-        ScreenLayout.Rect area = columns.second();
-        drawFitted(graphics, Component.translatable("gui.athens_coins.acct_ledger").getString(),
-                area.x(), area.y() + 2, area.width(), 0xFFD8B48C, mouseX, mouseY);
-        graphics.fill(area.x(), area.y() + 12, area.right(), area.y() + 13, 0x40FFFFFF);
+        ScreenLayout.Rect area = ledgerColumn;
+        heading(graphics, area, area.y(), "gui.athens_coins.acct_ledger", mouseX, mouseY);
         ScreenLayout.Rect rowsArea = ledgerRows();
         int rows = Math.max(1, ScreenLayout.visibleRows(rowsArea, ROW_H));
         int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
@@ -220,7 +319,7 @@ public class AccountDetailScreen extends Screen {
         int y = rowsArea.y();
         if (ledger.isEmpty()) {
             drawFitted(graphics, Component.translatable("gui.athens_coins.acct_no_moves").getString(),
-                    area.x(), y, area.width(), 0xFF888888, mouseX, mouseY);
+                    area.x(), y, area.width(), TEXT_MUTED, mouseX, mouseY);
         }
         graphics.enableScissor(rowsArea.x(), rowsArea.y(), rowsArea.right(), rowsArea.bottom());
         for (int i = from; i < Math.min(ledger.size(), from + rows); i++) {
@@ -241,7 +340,7 @@ public class AccountDetailScreen extends Screen {
             if (!amountText.isEmpty()) {
                 String fittedAmount = ScreenText.fit(font, amountText, amountWidth);
                 graphics.drawString(font, fittedAmount, area.right() - font.width(fittedAmount), y,
-                        entry.amount() > 0 ? 0xFF6BE06B : 0xFFE0956B, false);
+                        entry.amount() > 0 ? TEXT_GOOD : 0xFFE0956B, false);
                 if (ScreenText.wasTruncated(font, amountText, amountWidth)
                         && rowsArea.contains(mouseX, mouseY)
                         && mouseX >= area.right() - amountWidth && mouseX < area.right()
@@ -255,7 +354,7 @@ public class AccountDetailScreen extends Screen {
         String pager = (page + 1) + " / " + pages + " · "
                 + Component.translatable("gui.athens_coins.acct_scroll").getString();
         drawFitted(graphics, pager, area.x(), area.bottom() - 10, area.width(),
-                0xFF8A7A6A, mouseX, mouseY);
+                TEXT_LABEL, mouseX, mouseY);
     }
 
     private void drawFitted(GuiGraphics graphics, String text, int x, int y, int maxWidth,
@@ -268,6 +367,16 @@ public class AccountDetailScreen extends Screen {
         }
     }
 
+    private void drawRight(GuiGraphics graphics, String text, int right, int y, int maxWidth,
+                           int color, int mouseX, int mouseY) {
+        String fitted = ScreenText.fit(font, text, maxWidth);
+        graphics.drawString(font, fitted, right - font.width(fitted), y, color, false);
+        if (ScreenText.wasTruncated(font, text, maxWidth)
+                && mouseX >= right - maxWidth && mouseX < right && mouseY >= y && mouseY < y + 10) {
+            hoverTooltip = Component.literal(text);
+        }
+    }
+
     /**
      * The ledger's scrollable band.
      *
@@ -276,7 +385,7 @@ public class AccountDetailScreen extends Screen {
      * was on screen. One definition, two callers.</p>
      */
     private ScreenLayout.Rect ledgerRows() {
-        ScreenLayout.Rect area = columns.second();
+        ScreenLayout.Rect area = ledgerColumn;
         return new ScreenLayout.Rect(area.x(), area.y() + 16, area.width(),
                 Math.max(0, area.height() - 30));
     }

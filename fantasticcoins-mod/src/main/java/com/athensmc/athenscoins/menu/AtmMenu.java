@@ -97,13 +97,12 @@ public class AtmMenu extends AbstractContainerMenu implements WalletStateHolder 
         if (bank == null) {
             return false;
         }
-        BankAccount account = BankManager.accountOf(serverPlayer);
-        if (account == null || !account.bankId().equals(bank.id())) {
-            serverPlayer.displayClientMessage(Component
-                    .translatable("message.athens_coins.atm_needs_account")
-                    .withStyle(ChatFormatting.RED), true);
+        BankManager.Access access = BankManager.accessFor(serverPlayer, bank);
+        if (access != BankManager.Access.OK) {
+            BankManager.explainRefusal(serverPlayer, bank, access);
             return false;
         }
+        BankAccount account = BankManager.accountOf(serverPlayer);
         if (id < 0 || id >= BUTTONS_PER_MODE * 2) {
             return false;
         }

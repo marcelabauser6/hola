@@ -45,6 +45,15 @@ public class Bank {
     private final Set<UUID> bankers = new HashSet<>();
     @Nullable
     private BlockPos terminalPos;
+    /**
+     * Whether an operator has been through the settings form.
+     *
+     * <p>A new bank starts unconfigured and its terminal opens on Settings with the other tabs
+     * locked. Configuring a bank last meant opening accounts against a default fee, a default wallet
+     * ceiling and default rates, and then changing the terms under customers who had already
+     * signed up.</p>
+     */
+    private boolean configured;
 
     public Bank(UUID id, String name, BlockPos terminalPos) {
         this.id = id;
@@ -159,6 +168,15 @@ public class Bank {
         }
     }
 
+    /** True once the settings form has been submitted; gates the other terminal tabs. */
+    public boolean configured() {
+        return configured;
+    }
+
+    public void markConfigured() {
+        this.configured = true;
+    }
+
     public boolean loansEnabled() {
         return loansEnabled;
     }
@@ -226,6 +244,7 @@ public class Bank {
         tag.putInt("feeDays", commissionPeriodDays);
         tag.putLongArray("rates", rates.clone());
         tag.putBoolean("loans", loansEnabled);
+        tag.putBoolean("configured", configured);
         tag.putLong("loanMax", loanMaxAmount);
         tag.putInt("loanDays", loanDays);
         tag.putInt("loanBp", loanInterestBasisPoints);
@@ -261,6 +280,10 @@ public class Bank {
         // getBoolean returns false for a missing key, so a bank saved before this flag existed came
         // back with lending switched off. Absent means "keep the default", which is on.
         bank.loansEnabled = !tag.contains("loans") || tag.getBoolean("loans");
+        // A bank saved before this flag existed is already running with settings its operator chose,
+        // so it counts as configured. Defaulting to false would lock every existing bank's terminal
+        // down to the settings tab on the first launch after an update.
+        bank.configured = !tag.contains("configured") || tag.getBoolean("configured");
         bank.loanMaxAmount = Money.clampBalance(tag.getLong("loanMax"));
         // Same bounds the setters enforce, so a save can never carry an out-of-policy value.
         bank.loanDays = Math.max(1, Math.min(60, tag.getInt("loanDays")));
@@ -294,6 +317,8 @@ public class Bank {
         buffer.writeVarLong(loanMaxAmount);
         buffer.writeVarInt(loanDays);
         buffer.writeVarInt(loanInterestBasisPoints);
+        // The terminal needs this to decide whether the other tabs are usable yet.
+        buffer.writeBoolean(configured);
         buffer.writeVarInt(bankers.size());
         for (UUID banker : bankers) {
             buffer.writeUUID(banker);
@@ -316,6 +341,7 @@ public class Bank {
         bank.loanMaxAmount = buffer.readVarLong();
         bank.loanDays = buffer.readVarInt();
         bank.loanInterestBasisPoints = buffer.readVarInt();
+        bank.configured = buffer.readBoolean();
         int count = buffer.readVarInt();
         for (int i = 0; i < count; i++) {
             bank.bankers.add(buffer.readUUID());

@@ -88,6 +88,15 @@ ADD = {
     "gui.athens_coins.atm_coin_silver": "Plata",
     "gui.athens_coins.atm_coin_gold": "Oro",
 
+    # --- why a machine refused -----------------------------------------------
+    # One message used to cover both reasons, and it was a lie in the second: a customer who banks
+    # somewhere else does have an account. The wrong-bank line names the bank so the player knows
+    # which one to go to.
+    "message.athens_coins.atm_no_account":
+        "No tienes cuenta bancaria. Pide a un banquero que te aperture una.",
+    "message.athens_coins.atm_other_bank":
+        "Necesitas una cuenta del banco %s para usar este cajero.",
+
     # --- borrower notifications ---------------------------------------------
     "message.athens_coins.loan_notice_holder": "Tu banco te concedió %s. Vence el %s.",
     "message.athens_coins.loan_notice_overdue":

@@ -38,6 +38,9 @@ public class BankData extends SavedData {
     /** Invalid/duplicate/missing-bank accounts are retained, never silently destroyed. */
     private final List<BankAccount> orphanAccounts = new ArrayList<>();
     private final Map<UUID, CardRecord> cards = new HashMap<>();
+    /** Loan applications waiting for a banker, keyed by request id. */
+    private final Map<Integer, LoanRequest> loanRequests = new LinkedHashMap<>();
+    private int nextLoanRequestId = 1;
     private long totalIssued;
 
     public static BankData get(MinecraftServer server) {
@@ -76,6 +79,50 @@ public class BankData extends SavedData {
         return false;
     }
 
+    // ---------------------------------------------------------------- loan applications
+
+    /**
+     * Files an application, replacing any earlier one from the same borrower at the same bank.
+     *
+     * <p>One open application per customer per bank: without that, a customer could queue twenty and
+     * a banker would have to refuse each one.</p>
+     */
+    public LoanRequest fileLoanRequest(Bank bank, BankAccount account, String borrowerName,
+                                       long amount, String note, long now) {
+        loanRequests.values().removeIf(request ->
+                request.bankId().equals(bank.id()) && request.borrower().equals(account.owner()));
+        LoanRequest request = LoanRequest.of(nextLoanRequestId++, bank.id(), account, borrowerName,
+                amount, note, now);
+        loanRequests.put(request.id(), request);
+        setDirty();
+        return request;
+    }
+
+    @Nullable public LoanRequest loanRequest(int id) { return loanRequests.get(id); }
+
+    public boolean removeLoanRequest(int id) {
+        boolean removed = loanRequests.remove(id) != null;
+        if (removed) setDirty();
+        return removed;
+    }
+
+    /** Oldest first, so a queue is served in the order it formed. */
+    public List<LoanRequest> loanRequestsOf(UUID bankId) {
+        List<LoanRequest> out = new ArrayList<>();
+        for (LoanRequest request : loanRequests.values()) {
+            if (request.bankId().equals(bankId)) out.add(request);
+        }
+        out.sort(Comparator.comparingLong(LoanRequest::requestedAt));
+        return out;
+    }
+
+    @Nullable public LoanRequest loanRequestOf(UUID bankId, UUID borrower) {
+        for (LoanRequest request : loanRequests.values()) {
+            if (request.bankId().equals(bankId) && request.borrower().equals(borrower)) return request;
+        }
+        return null;
+    }
+
     public long totalIssued() { return totalIssued; }
     public boolean addIssued(long amount) { if (amount <= 0L || !Money.canAdd(totalIssued, amount)) return false; totalIssued += amount; setDirty(); return true; }
 
@@ -104,6 +151,9 @@ public class BankData extends SavedData {
         ListTag closed = new ListTag(); for (BankAccount account : closedAccounts) closed.add(account.save()); tag.put("ClosedAccounts", closed);
         ListTag orphans = new ListTag(); for (BankAccount account : orphanAccounts) orphans.add(account.save()); tag.put("OrphanAccounts", orphans);
         ListTag cardList = new ListTag(); for (CardRecord card : cards.values()) cardList.add(card.save()); tag.put("Cards", cardList);
+        // Applications outlive a restart on purpose: they wait for whenever a banker next logs in.
+        ListTag requestList = new ListTag(); for (LoanRequest request : loanRequests.values()) requestList.add(request.save()); tag.put("LoanRequests", requestList);
+        tag.putInt("NextLoanRequest", nextLoanRequestId);
         tag.putLong("Issued", totalIssued); tag.putInt("DataVersion", CURRENT_VERSION); return tag;
     }
 
@@ -121,6 +171,18 @@ public class BankData extends SavedData {
         loadAccounts(tag.getList("OrphanAccounts", Tag.TAG_COMPOUND), data.orphanAccounts);
         ListTag cardList=tag.getList("Cards",Tag.TAG_COMPOUND);
         for(int i=0;i<cardList.size();i++){ CompoundTag c=cardList.getCompound(i); if(c.hasUUID("token")&&c.hasUUID("owner")){CardRecord r=CardRecord.load(c);data.cards.put(r.token(),r);} }
+        ListTag requestList=tag.getList("LoanRequests",Tag.TAG_COMPOUND);
+        for(int i=0;i<requestList.size();i++){
+            CompoundTag r=requestList.getCompound(i);
+            if(!r.hasUUID("bank")||!r.hasUUID("borrower"))continue;
+            LoanRequest request=LoanRequest.load(r);
+            // Drop applications whose bank is gone, and any whose account has since closed: approving
+            // one would credit an account that no longer exists.
+            if(!data.banks.containsKey(request.bankId()))continue;
+            data.loanRequests.put(request.id(),request);
+        }
+        data.nextLoanRequestId=Math.max(1,tag.getInt("NextLoanRequest"));
+        for(Integer id:data.loanRequests.keySet())data.nextLoanRequestId=Math.max(data.nextLoanRequestId,id+1);
         data.totalIssued=Money.clampBalance(tag.getLong("Issued")); return data;
     }
     private static void loadAccounts(ListTag list,List<BankAccount> target){for(int i=0;i<list.size();i++)target.add(BankAccount.load(list.getCompound(i)));}

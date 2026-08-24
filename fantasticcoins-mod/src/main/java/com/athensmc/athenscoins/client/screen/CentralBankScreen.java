@@ -19,21 +19,46 @@ import net.minecraft.network.chat.Component;
 import java.util.List;
 import java.util.UUID;
 
-/** Responsive central-bank dashboard with a bounded, scrollable commercial-bank list. */
+/**
+ * The central bank's dashboard.
+ *
+ * <p>The figures used to sit in a loose block at the top: three rate lines carrying their own bracketed
+ * floor and ceiling, with the issued total and the bank count dropped at unrelated vertical offsets
+ * beside them. Nothing lined up and nothing said what it was, which is the "numbers in a mess up
+ * there" this rewrite answers.</p>
+ *
+ * <p>Now it is two titled columns. On the left, the official rates as a real table with a header row -
+ * coin, official value, floor, ceiling - followed by the system totals, each labelled. On the right,
+ * the commercial banks as a table with its own header, a hover highlight, and a tooltip saying that a
+ * click selects the bank the footer buttons will act on. The selected bank is named under the list, so
+ * pressing Inject is never a guess about which reserve it lands in.</p>
+ */
 public class CentralBankScreen extends Screen {
     private static final int ROW_H = 14;
-
-    /** Summary geometry, shared by the layout in {@code init} and the drawing in {@code render}. */
-    private static final int SUMMARY_TOP = 13;
-    private static final int SUMMARY_LINE_H = 11;
-    private static final int LIST_TITLE_H = 14;
+    private static final int LINE_H = 11;
+    private static final int PAD = 8;
+    private static final int HINT_H = 12;
     private static final int LIST_FOOTER_H = 12;
+
+    private static final int TEXT_TITLE = 0xFFBFD8FF;
+    private static final int TEXT_HEADING = 0xFF7FB2E5;
+    private static final int TEXT_LABEL = 0xFF60708A;
+    private static final int TEXT_VALUE = 0xFFB8C8DC;
+    private static final int TEXT_MONEY = 0xFF8FE3FF;
+    private static final int TEXT_GOOD = 0xFF6BE06B;
+    private static final int TEXT_WARN = 0xFFE0956B;
+    private static final int TEXT_BAD = 0xFFE06B6B;
+    private static final int TEXT_MUTED = 0xFF888888;
+    private static final int TEXT_HINT = 0xFF9FB4CC;
 
     private final BlockPos pos;
     private final List<S2COpenCentralPacket.BankRow> banks;
     private final S2COpenCentralPacket data;
 
     private ScreenLayout.Regions layout;
+    private ScreenLayout.Rect hintRow;
+    private ScreenLayout.Rect leftColumn;
+    private ScreenLayout.Rect rightColumn;
     private ScreenLayout.Rect listArea;
     private ScreenLayout.Rect messageRow;
     private int scroll;
@@ -56,16 +81,22 @@ public class CentralBankScreen extends Screen {
 
     @Override
     protected void init() {
-        // 82, not 70: the footer holds four rows (amounts, rates, feedback, close) and the close
-        // button used to be positioned 2px past the band that was supposed to contain it.
+        // 86, not 70: the footer holds four rows (amounts, rates, feedback, close) and the close
+        // button used to be positioned past the band that was supposed to contain it.
         layout = PanelMetrics.central(width, height);
-        ScreenLayout.Rect content = layout.content().inset(8);
-        // The summary block is three rate lines plus its heading; derive the list top from that
-        // instead of a magic +58, which left the third line touching the list title.
-        int summaryHeight = SUMMARY_TOP + CoinType.ORDERED.length * SUMMARY_LINE_H + 6;
-        int listTop = content.y() + summaryHeight + LIST_TITLE_H;
-        listArea = new ScreenLayout.Rect(content.x(), Math.min(listTop, content.bottom()),
-                content.width(), Math.max(0, content.bottom() - listTop - LIST_FOOTER_H));
+        ScreenLayout.Rect content = layout.content().inset(PAD);
+        hintRow = new ScreenLayout.Rect(content.x(), content.y(), content.width(), HINT_H);
+        ScreenLayout.Rect columnsArea = new ScreenLayout.Rect(content.x(), hintRow.bottom(),
+                content.width(), Math.max(0, content.height() - HINT_H));
+        ScreenLayout.Columns split = ScreenLayout.columns(columnsArea, 12);
+        leftColumn = split.first();
+        rightColumn = split.second();
+        // The list starts below its own heading and its column header, and stops above the line that
+        // names the selection. Derived, not a magic offset, so a taller header cannot eat a row.
+        int listTop = rightColumn.y() + 16 + LINE_H;
+        listArea = new ScreenLayout.Rect(rightColumn.x(), Math.min(listTop, rightColumn.bottom()),
+                rightColumn.width(),
+                Math.max(0, rightColumn.bottom() - listTop - LIST_FOOTER_H));
         if (selected >= banks.size()) {
             selected = 0;
         }
@@ -137,14 +168,16 @@ public class CentralBankScreen extends Screen {
         graphics.fill(panel.x(), panel.y(), panel.right(), panel.bottom(), 0xF00E1018);
         StatsScreen.outline(graphics, panel.x(), panel.y(), panel.width(), panel.height(), 0xFF7FB2E5);
         graphics.fill(panel.x() + 1, panel.y() + 1, panel.right() - 1, layout.header().bottom() - 2, 0xFF1B2A44);
-        drawFitted(graphics, title.getString(), panel.x() + 8, panel.y() + 6,
-                panel.width() - 16, 0xFFBFD8FF, mouseX, mouseY);
+        renderHeader(graphics, mouseX, mouseY);
 
-        renderSummary(graphics, mouseX, mouseY);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.central_hint").getString(),
+                hintRow.x(), hintRow.y() + 1, hintRow.width(), TEXT_HINT, mouseX, mouseY);
+
+        renderRates(graphics, mouseX, mouseY);
         renderBanks(graphics, mouseX, mouseY);
         if (message != null) {
             drawFitted(graphics, message.getString(), messageRow.x(), messageRow.y(),
-                    messageRow.width(), 0xFFE06B6B, mouseX, mouseY);
+                    messageRow.width(), TEXT_BAD, mouseX, mouseY);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
         if (hoverTooltip != null) {
@@ -152,84 +185,151 @@ public class CentralBankScreen extends Screen {
         }
     }
 
-    private void renderSummary(GuiGraphics graphics, int mouseX, int mouseY) {
-        ScreenLayout.Rect content = layout.content().inset(8);
-        drawFitted(graphics, Component.translatable("gui.athens_coins.central_official").getString(),
-                content.x(), content.y() + 1, content.width(), 0xFF7FB2E5, mouseX, mouseY);
-        // Split into two columns that sum to the content width, so neither can reach the other or
-        // run past the right edge. The old code floored the right block at 20px, which overflowed.
-        ScreenLayout.Columns split = ScreenLayout.columns(content, 6);
-        ScreenLayout.Rect left = split.first();
-        ScreenLayout.Rect right = split.second();
-        int y = content.y() + SUMMARY_TOP;
+    /** Title on the left, the money supply on the right: the one number this screen exists to move. */
+    private void renderHeader(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect header = layout.header();
+        String issued = Component.translatable("gui.athens_coins.central_issued",
+                Money.format(data.totalIssued(), "$")).getString();
+        int issuedBudget = Math.min(header.width() / 2, font.width(issued) + 2);
+        int titleBudget = Math.max(20, header.width() - issuedBudget - PAD * 3);
+        drawFitted(graphics, title.getString(), header.x() + PAD, header.y() + 6, titleBudget,
+                TEXT_TITLE, mouseX, mouseY);
+        drawRight(graphics, issued, header.right() - PAD, header.y() + 6, issuedBudget,
+                TEXT_MONEY, mouseX, mouseY);
+    }
+
+    /** The official rate table, then the system totals, both in the left column. */
+    private void renderRates(GuiGraphics graphics, int mouseX, int mouseY) {
+        ScreenLayout.Rect area = leftColumn;
+        int y = heading(graphics, area, area.y(), "gui.athens_coins.central_official", mouseX, mouseY);
+
+        // Four cells that sum to the column: a name on the left and three right-aligned figures.
+        int nameWidth = Math.max(28, area.width() * 28 / 100);
+        int cell = Math.max(20, (area.width() - nameWidth) / 3);
+        drawFitted(graphics, Component.translatable("gui.athens_coins.central_col_coin").getString(),
+                area.x(), y, nameWidth, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_official").getString(),
+                area.x() + nameWidth + cell, y, cell, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_min").getString(),
+                area.x() + nameWidth + cell * 2, y, cell, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_max").getString(),
+                area.x() + nameWidth + cell * 3, y, cell, TEXT_LABEL, mouseX, mouseY);
+        y += LINE_H;
         for (CoinType type : CoinType.ORDERED) {
-            String line = type.shortName().getString() + ": " + Money.format(data.official(type), "$")
-                    + "  [" + Money.format(data.floor(type), "$") + "–"
-                    + Money.format(data.ceiling(type), "$") + "]";
-            drawFitted(graphics, line, left.x() + 4, y, left.width() - 4, 0xFFB8C8DC, mouseX, mouseY);
-            y += SUMMARY_LINE_H;
+            drawFitted(graphics, type.shortName().getString(), area.x(), y, nameWidth,
+                    TEXT_VALUE, mouseX, mouseY);
+            drawRight(graphics, Money.format(data.official(type), "$"),
+                    area.x() + nameWidth + cell, y, cell, TEXT_MONEY, mouseX, mouseY);
+            drawRight(graphics, Money.format(data.floor(type), "$"),
+                    area.x() + nameWidth + cell * 2, y, cell, TEXT_LABEL, mouseX, mouseY);
+            drawRight(graphics, Money.format(data.ceiling(type), "$"),
+                    area.x() + nameWidth + cell * 3, y, cell, TEXT_LABEL, mouseX, mouseY);
+            y += LINE_H;
         }
-        drawFitted(graphics, Component.translatable("gui.athens_coins.central_issued",
-                        Money.format(data.totalIssued(), "$")).getString(),
-                right.x(), content.y() + SUMMARY_TOP, right.width(), 0xFF8FE3FF, mouseX, mouseY);
-        drawFitted(graphics, Component.translatable("gui.athens_coins.central_banks", banks.size()).getString(),
-                right.x(), content.y() + SUMMARY_TOP + SUMMARY_LINE_H * 2, right.width(),
-                0xFFB8C8DC, mouseX, mouseY);
+
+        y = heading(graphics, area, y + 4, "gui.athens_coins.central_system", mouseX, mouseY);
+        long reserves = 0L;
+        long deposits = 0L;
+        long loans = 0L;
+        int accounts = 0;
+        for (S2COpenCentralPacket.BankRow row : banks) {
+            reserves += row.reserve();
+            deposits += row.deposits();
+            loans += row.loansOut();
+            accounts += row.accounts();
+        }
+        y = total(graphics, area, y, "gui.athens_coins.central_banks_count",
+                String.valueOf(banks.size()), TEXT_VALUE, mouseX, mouseY);
+        y = total(graphics, area, y, "gui.athens_coins.central_accounts_count",
+                String.valueOf(accounts), TEXT_VALUE, mouseX, mouseY);
+        y = total(graphics, area, y, "gui.athens_coins.central_reserve_total",
+                Money.format(reserves, "$"), TEXT_GOOD, mouseX, mouseY);
+        y = total(graphics, area, y, "gui.athens_coins.central_deposits_total",
+                Money.format(deposits, "$"), TEXT_MONEY, mouseX, mouseY);
+        y = total(graphics, area, y, "gui.athens_coins.central_loans_total",
+                Money.format(loans, "$"), loans > 0L ? TEXT_WARN : TEXT_MUTED, mouseX, mouseY);
+        total(graphics, area, y, "gui.athens_coins.central_margin",
+                data.marginPercent() + "%", TEXT_VALUE, mouseX, mouseY);
+    }
+
+    /** A label on the left and its figure right-aligned to the column edge. */
+    private int total(GuiGraphics graphics, ScreenLayout.Rect area, int y, String key,
+                      String value, int color, int mouseX, int mouseY) {
+        int valueWidth = Math.min(area.width() / 2, font.width(value) + 2);
+        drawFitted(graphics, Component.translatable(key).getString(), area.x(), y,
+                area.width() - valueWidth - 4, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, value, area.right(), y, valueWidth, color, mouseX, mouseY);
+        return y + LINE_H;
+    }
+
+    private int heading(GuiGraphics graphics, ScreenLayout.Rect area, int y, String key,
+                        int mouseX, int mouseY) {
+        drawFitted(graphics, Component.translatable(key).getString(), area.x(), y + 2, area.width(),
+                TEXT_HEADING, mouseX, mouseY);
+        graphics.fill(area.x(), y + 12, area.right(), y + 13, 0x40FFFFFF);
+        return y + 16;
     }
 
     private void renderBanks(GuiGraphics graphics, int mouseX, int mouseY) {
-        int titleY = listArea.y() - LIST_TITLE_H;
-        drawFitted(graphics, Component.translatable("gui.athens_coins.central_list").getString(),
-                listArea.x(), titleY, listArea.width(), 0xFF7FB2E5, mouseX, mouseY);
-        graphics.fill(listArea.x(), titleY + 10, listArea.right(), titleY + 11, 0x40FFFFFF);
-        drawFitted(graphics, Component.translatable("gui.athens_coins.central_columns").getString(),
-                listArea.x(), listArea.bottom() + 2, listArea.width(), 0xFF60708A, mouseX, mouseY);
+        ScreenLayout.Rect area = listArea;
+        heading(graphics, rightColumn, rightColumn.y(), "gui.athens_coins.central_list", mouseX, mouseY);
+
+        int nameWidth = Math.max(50, area.width() * 40 / 100);
+        int cell = Math.max(18, (area.width() - nameWidth - 14) / 3);
+        int accountsWidth = Math.max(16, area.width() - nameWidth - cell * 3 - 14);
+        int headerY = area.y() - LINE_H;
+        drawFitted(graphics, Component.translatable("gui.athens_coins.central_col_bank").getString(),
+                area.x() + 12, headerY, nameWidth, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_reserve").getString(),
+                area.right() - accountsWidth - cell * 2 - 6, headerY, cell, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_deposits").getString(),
+                area.right() - accountsWidth - cell - 3, headerY, cell, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_loans").getString(),
+                area.right() - accountsWidth, headerY, cell, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, Component.translatable("gui.athens_coins.central_col_accounts").getString(),
+                area.right(), headerY, accountsWidth, TEXT_LABEL, mouseX, mouseY);
+
         if (banks.isEmpty()) {
             drawFitted(graphics, Component.translatable("gui.athens_coins.central_no_banks").getString(),
-                    listArea.x(), listArea.y() + 2, listArea.width(), 0xFF888888, mouseX, mouseY);
+                    area.x(), area.y() + 2, area.width(), TEXT_MUTED, mouseX, mouseY);
             return;
         }
         int rows = visibleRows();
-        int y = listArea.y();
-        int nameWidth = Math.max(60, listArea.width() * 45 / 100);
-        int numericWidth = Math.max(72, listArea.width() - nameWidth - 14);
-        int accountsWidth = Math.min(30, Math.max(20, numericWidth / 5));
-        int moneyWidth = Math.max(24, (numericWidth - accountsWidth - 6) / 2);
-        graphics.enableScissor(listArea.x(), listArea.y(), listArea.right(), listArea.bottom());
+        int y = area.y();
+        graphics.enableScissor(area.x(), area.y(), area.right(), area.bottom());
         for (int i = scroll; i < Math.min(banks.size(), scroll + rows); i++) {
             S2COpenCentralPacket.BankRow row = banks.get(i);
+            boolean hovered = area.contains(mouseX, mouseY) && mouseY >= y && mouseY < y + ROW_H;
             if (i == selected) {
-                graphics.fill(listArea.x(), y, listArea.right(), y + ROW_H - 1, 0x400090FF);
+                graphics.fill(area.x(), y, area.right(), y + ROW_H - 1, 0x600090FF);
+            } else if (hovered) {
+                graphics.fill(area.x(), y, area.right(), y + ROW_H - 1, 0x30FFFFFF);
             }
-            graphics.fill(listArea.x() + 2, y + 3, listArea.x() + 8, y + 10, 0xFF000000 | row.color());
+            graphics.fill(area.x() + 2, y + 3, area.x() + 8, y + 10, 0xFF000000 | row.color());
             String name = row.seated() ? row.name() : row.name() + " · "
                     + Component.translatable("gui.athens_coins.central_seatless").getString();
-            drawFitted(graphics, name, listArea.x() + 12, y + 3, nameWidth,
-                    row.seated() ? 0xFFFFFFFF : 0xFFE0956B, mouseX, mouseY);
-
-            int right = listArea.right();
-            drawRightFitted(graphics, String.valueOf(row.accounts()), right, y + 3,
-                    accountsWidth, 0xFFB8C8DC, mouseX, mouseY);
-            right -= accountsWidth + 3;
-            drawRightFitted(graphics, Money.format(row.deposits(), "$"), right, y + 3,
-                    moneyWidth, 0xFF8FE3FF, mouseX, mouseY);
-            right -= moneyWidth + 3;
-            drawRightFitted(graphics, Money.format(row.reserve(), "$"), right, y + 3,
-                    moneyWidth, 0xFF6BE06B, mouseX, mouseY);
+            drawFitted(graphics, name, area.x() + 12, y + 3, nameWidth,
+                    row.seated() ? 0xFFFFFFFF : TEXT_WARN, mouseX, mouseY);
+            drawRight(graphics, Money.format(row.reserve(), "$"),
+                    area.right() - accountsWidth - cell * 2 - 6, y + 3, cell, TEXT_GOOD, mouseX, mouseY);
+            drawRight(graphics, Money.format(row.deposits(), "$"),
+                    area.right() - accountsWidth - cell - 3, y + 3, cell, TEXT_MONEY, mouseX, mouseY);
+            drawRight(graphics, Money.format(row.loansOut(), "$"), area.right() - accountsWidth,
+                    y + 3, cell, row.loansOut() > 0L ? TEXT_WARN : TEXT_MUTED, mouseX, mouseY);
+            drawRight(graphics, String.valueOf(row.accounts()), area.right(), y + 3,
+                    accountsWidth, TEXT_VALUE, mouseX, mouseY);
+            if (hovered) {
+                hoverTooltip = Component.translatable("gui.athens_coins.central_click_bank", row.name());
+            }
             y += ROW_H;
         }
         graphics.disableScissor();
-    }
 
-    private void drawRightFitted(GuiGraphics graphics, String text, int right, int y, int maxWidth,
-                                 int color, int mouseX, int mouseY) {
-        String fitted = ScreenText.fit(font, text, maxWidth);
-        graphics.drawString(font, fitted, right - font.width(fitted), y, color, false);
-        if (ScreenText.wasTruncated(font, text, maxWidth)
-                && listArea.contains(mouseX, mouseY)
-                && mouseX >= right - maxWidth && mouseX < right && mouseY >= y && mouseY < y + 10) {
-            hoverTooltip = Component.literal(text);
-        }
+        // Name the selection: the footer buttons act on it, and there is no other way to tell.
+        String selectedName = Component.translatable("gui.athens_coins.central_selected",
+                banks.get(selected).name()).getString();
+        drawFitted(graphics, selectedName, area.x(), area.bottom() + 2, area.width(),
+                TEXT_HEADING, mouseX, mouseY);
     }
 
     private int visibleRows() {
@@ -242,6 +342,16 @@ public class CentralBankScreen extends Screen {
         graphics.drawString(font, fitted, x, y, color, false);
         if (ScreenText.wasTruncated(font, text, maxWidth)
                 && mouseX >= x && mouseX < x + maxWidth && mouseY >= y && mouseY < y + 10) {
+            hoverTooltip = Component.literal(text);
+        }
+    }
+
+    private void drawRight(GuiGraphics graphics, String text, int right, int y, int maxWidth,
+                           int color, int mouseX, int mouseY) {
+        String fitted = ScreenText.fit(font, text, maxWidth);
+        graphics.drawString(font, fitted, right - font.width(fitted), y, color, false);
+        if (ScreenText.wasTruncated(font, text, maxWidth)
+                && mouseX >= right - maxWidth && mouseX < right && mouseY >= y && mouseY < y + 10) {
             hoverTooltip = Component.literal(text);
         }
     }

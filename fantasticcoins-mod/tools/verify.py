@@ -381,6 +381,39 @@ for locale in ("en_us", "es_es", "es_mx", "es_ar"):
         problems.append(f"{locale}.json text differs from en_us: {differing[:5]}")
 notes.append("all four locales carry identical Spanish text")
 
+# (d2) Text budgets for the strings that share a row with a value.
+#
+# "there are texts in every GUI that do not fit" was a real bug, and the fix is not one pass of
+# shortening - it is a budget, or the next label written will be too long again. Only the strings that
+# genuinely compete for space are capped: a field label sits beside its value, a column heading sits
+# above a number, a tab title sits inside a button. Notes, empty-state lines and hover tooltips are
+# free-form: they get a whole band or a wrapping tooltip, and the screens clip them with an ellipsis
+# and a tooltip anyway.
+#
+# Limits are in characters, which is a proxy for pixels - close enough at these lengths, and it does
+# not need a font metric to check.
+TEXT_BUDGETS = (
+    (r"^gui\.athens_coins\.central_col_", 10, "central-bank column heading"),
+    (r"^gui\.athens_coins\.risk_(?!hint)", 16, "risk-desk label"),
+    (r"^gui\.athens_coins\.tab_(?!locked)", 14, "tab title"),
+    (r"^gui\.athens_coins\.cfg_(?!hint|required|sent|bad_field|save|group|rate_of)", 20,
+     "settings field label"),
+    (r"^gui\.athens_coins\.acct_(?!hint|section|ledger|scroll|overdue|no_)", 18, "account label"),
+)
+budgeted = 0
+with open(os.path.join(lang_dir, "es_es.json"), encoding="utf-8") as fh:
+    lang_text = json.load(fh)
+for key, value in lang_text.items():
+    if key.endswith(("_tip", "_hint")):
+        continue
+    for pattern, limit, what in TEXT_BUDGETS:
+        if re.search(pattern, key):
+            budgeted += 1
+            if len(value) > limit:
+                problems.append(f"{what} too long for its row ({len(value)} > {limit}): "
+                                f"{key} = {value!r}")
+notes.append(f"{budgeted} space-constrained labels within their character budget")
+
 # ---------------------------------------------------------------- 6. responsive screen layout arithmetic
 # The ATM used to be a grid of constants pinned to a baked 248x198 texture, and this section
 # re-derived that grid to check the bands did not collide. The screen now computes its geometry from
@@ -486,7 +519,7 @@ required_financial_guards = {
     "card has signed owner UUID": ("card", "TAG_OWNER"),
     "card has unique token": ("card", "TAG_TOKEN"),
     "card redemption is persisted": ("bank_data", "redeemCard"),
-    "ATM checks issuing bank ownership": ("atm", "ownsBank"),
+    "ATM checks issuing bank ownership": ("atm", "accessFor"),
     "ledger stores before balance": ("ledger", 'putLong("before"'),
     "ledger stores correlation id": ("ledger", 'putString("correlation"'),
     "ledger stores actor": ("ledger", 'putString("actor"'),

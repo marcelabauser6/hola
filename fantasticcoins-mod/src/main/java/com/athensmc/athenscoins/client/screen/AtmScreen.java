@@ -271,8 +271,12 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
                     () -> field.setCents(state.loanOwed()));
             return;
         }
+        // An application already waiting: nothing to fill in, so no field either.
+        if (state.pendingRequest() > 0L) {
+            return;
+        }
         AmountField field = addAmountField(2);
-        addAction(2, 0, "gui.athens_coins.atm_borrow", "gui.athens_coins.atm_borrow_tip",
+        addAction(2, 0, "gui.athens_coins.atm_apply", "gui.athens_coins.atm_apply_tip",
                 () -> sendAmount(field, C2SAtmActionPacket.Action.LOAN_REQUEST));
         addAction(2, 1, "gui.athens_coins.atm_borrow_max", "gui.athens_coins.atm_borrow_max_tip",
                 () -> field.setCents(state.loanMax()));
@@ -555,6 +559,14 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
                     content.x(), y + 4, content.width(), TEXT_MUTED, mouseX, mouseY);
             return;
         }
+        // An application already filed: say so instead of offering to file another.
+        if (state.pendingRequest() > 0L) {
+            y = line(graphics, content, y, "gui.athens_coins.atm_request_pending",
+                    Money.format(state.pendingRequest(), symbol()), TEXT_WARN, mouseX, mouseY);
+            drawFitted(graphics, Component.translatable("gui.athens_coins.atm_request_wait").getString(),
+                    content.x(), y + 4, content.width(), TEXT_MUTED, mouseX, mouseY);
+            return;
+        }
         y = line(graphics, content, y, "gui.athens_coins.atm_loan_available",
                 Money.format(state.loanMax(), symbol()), TEXT_CASH, mouseX, mouseY);
         y = line(graphics, content, y, "gui.athens_coins.atm_loan_term",
@@ -563,7 +575,8 @@ public class AtmScreen extends AbstractContainerScreen<AtmMenu> {
         y = line(graphics, content, y, "gui.athens_coins.atm_loan_penalty",
                 String.format(java.util.Locale.ROOT, "%.2f%%", state.loanInterestBasisPoints() / 100.0D),
                 TEXT_MUTED, mouseX, mouseY);
-        drawFitted(graphics, Component.translatable("gui.athens_coins.atm_borrow_hint").getString(),
+        // Says the bank has to agree, so the button is not mistaken for instant money.
+        drawFitted(graphics, Component.translatable("gui.athens_coins.atm_apply_hint").getString(),
                 content.x(), y + 4, content.width(), TEXT_MUTED, mouseX, mouseY);
     }
 

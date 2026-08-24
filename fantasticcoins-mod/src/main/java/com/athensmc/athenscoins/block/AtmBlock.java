@@ -24,13 +24,9 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.storage.loot.LootParams;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.BlockHitResult;
@@ -47,7 +43,7 @@ import java.util.List;
  * <p>Machines are issued by a bank terminal and carry their issuer's identity, so an unbranded one
  * cannot be used: there is no bank behind it to hold the money.</p>
  */
-public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock {
+public class AtmBlock extends TallMachineBlock implements EntityBlock {
 
     /**
      * Collision reaches z=1, not z=2, because the canopy and the cash tray stick out that far.
@@ -60,33 +56,25 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
 
     public AtmBlock(Properties properties) {
         super(properties);
-        registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
+    protected VoxelShape shapeFor(DoubleBlockHalf half, Direction facing) {
+        // Both halves share a footprint: the machine is a column, and giving the head a narrower box
+        // than the body would let a player stand inside its shoulders.
+        return facing.getAxis() == Direction.Axis.X ? SHAPE_EW : SHAPE;
     }
 
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
-    }
-
-    @Override
-    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return state.getValue(FACING).getAxis() == Direction.Axis.X ? SHAPE_EW : SHAPE;
-    }
-
-    @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
-    }
-
+    /**
+     * Only the lower half carries the branding.
+     *
+     * <p>Returning {@code null} for the head is deliberate: two block entities would mean two answers
+     * to "which bank issued this", and the head is the one nobody writes to.</p>
+     */
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new AtmBlockEntity(pos, state);
+        return isMain(state) ? new AtmBlockEntity(pos, state) : null;
     }
 
     /** Carries the branding from the item onto the placed machine. */
@@ -99,11 +87,11 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
         }
     }
 
-    /** Middle-click pick block keeps the branding. */
+    /** Middle-click pick block keeps the branding, from either half. */
     @Override
     public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
         ItemStack stack = super.getCloneItemStack(level, pos, state);
-        if (level.getBlockEntity(pos) instanceof AtmBlockEntity atm) {
+        if (level.getBlockEntity(mainPos(state, pos)) instanceof AtmBlockEntity atm) {
             atm.applyTo(stack);
         }
         return stack;
@@ -138,7 +126,9 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.PASS;
         }
-        if (!(level.getBlockEntity(pos) instanceof AtmBlockEntity atm) || atm.unbranded()) {
+        // Whichever half was clicked, the machine is the lower one.
+        BlockPos base = mainPos(state, pos);
+        if (!(level.getBlockEntity(base) instanceof AtmBlockEntity atm) || atm.unbranded()) {
             serverPlayer.sendSystemMessage(Component
                     .translatable("message.athens_coins.atm_unbranded")
                     .withStyle(ChatFormatting.RED));
@@ -151,13 +141,14 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
                     .withStyle(ChatFormatting.RED));
             return InteractionResult.CONSUME;
         }
-        if (!BankManager.ownsBank(serverPlayer, bank)) {
-            serverPlayer.sendSystemMessage(Component
-                    .translatable("message.athens_coins.atm_needs_account")
-                    .withStyle(ChatFormatting.RED));
+        BankManager.Access access = BankManager.accessFor(serverPlayer, bank);
+        if (access != BankManager.Access.OK) {
+            // Names the bank when the problem is that the customer banks elsewhere, which the old
+            // single "you need an account" message got wrong for anybody who already had one.
+            BankManager.explainRefusal(serverPlayer, bank, access);
             return InteractionResult.CONSUME;
         }
-        open(serverPlayer, level, pos, bank);
+        open(serverPlayer, level, base, bank);
         return InteractionResult.CONSUME;
     }
 
@@ -174,15 +165,5 @@ public class AtmBlock extends HorizontalDirectionalBlock implements EntityBlock 
                                                     ContainerLevelAccess access, Bank bank,
                                                     BlockPos pos) {
         return new AtmMenu(containerId, inventory, access, bank, pos);
-    }
-
-    @Override
-    public BlockState rotate(BlockState state, Rotation rotation) {
-        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
-    }
-
-    @Override
-    public BlockState mirror(BlockState state, Mirror mirror) {
-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 }

@@ -48,9 +48,15 @@ def face_quad(f, t, face):
     raise ValueError(face)
 
 
-def rotate(p, rx_deg, ry_deg):
-    """Rotates about Y then X, matching the order vanilla builds its display quaternion in."""
-    x, y, z = p[0] - 8.0, p[1] - 8.0, p[2] - 8.0
+def rotate(p, rx_deg, ry_deg, origin_y=8.0):
+    """
+    Rotates about Y then X, matching the order vanilla builds its display quaternion in.
+
+    {@code origin_y} exists for the two-block machines: a stacked pair is 32 units tall and pivoting
+    it about y=8 swings the top half out of frame, which looks like a broken model rather than a
+    badly framed render.
+    """
+    x, y, z = p[0] - 8.0, p[1] - origin_y, p[2] - 8.0
     ry = math.radians(ry_deg)
     x, z = x * math.cos(ry) + z * math.sin(ry), -x * math.sin(ry) + z * math.cos(ry)
     rx = math.radians(rx_deg)
@@ -77,33 +83,40 @@ def load_texture(ref, cache):
     return img
 
 
-def render(model_name, size, scale_factor):
-    with open(os.path.join(ASSETS, "models/block", model_name + ".json"), encoding="utf-8") as fh:
-        model = json.load(fh)
-    textures = model.get("textures", {})
+def render(model_names, size, scale_factor):
+    """Renders one model, or a stack: the second name is drawn one block above the first."""
     cache = {}
+    height = 16 * len(model_names)
+    origin_y = height / 2.0
 
     # Collect every face as a screen-space quad with its depth, then paint back to front.
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     px = out.load()
     zbuf = [[-1e9] * size for _ in range(size)]
 
-    # Block units -> pixels. 16 units fills `size` before the GUI scale is applied.
-    unit = size / 16.0 * scale_factor
+    # Block units -> pixels. The whole stack fills `size` before the GUI scale is applied.
+    unit = size / height * scale_factor
     cx = cy = size / 2.0
 
     quads = []
-    for element in model.get("elements", []):
-        f = element["from"]
-        t = element["to"]
-        for face, spec in element.get("faces", {}).items():
-            tex = load_texture(resolve(textures, spec.get("texture", "")), cache)
-            if tex is None:
-                continue
-            uv = spec.get("uv", [0, 0, 16, 16])
-            corners = [rotate(p, 30, 225) for p in face_quad(f, t, face)]
-            depth = sum(c[2] for c in corners) / 4.0
-            quads.append((depth, corners, tex, uv, SHADE.get(face, 0.8)))
+    for level, model_name in enumerate(model_names):
+        with open(os.path.join(ASSETS, "models/block", model_name + ".json"), encoding="utf-8") as fh:
+            model = json.load(fh)
+        textures = model.get("textures", {})
+        lift = level * 16
+        for element in model.get("elements", []):
+            f = list(element["from"])
+            t = list(element["to"])
+            f[1] += lift
+            t[1] += lift
+            for face, spec in element.get("faces", {}).items():
+                tex = load_texture(resolve(textures, spec.get("texture", "")), cache)
+                if tex is None:
+                    continue
+                uv = spec.get("uv", [0, 0, 16, 16])
+                corners = [rotate(p, 30, 225, origin_y) for p in face_quad(f, t, face)]
+                depth = sum(c[2] for c in corners) / 4.0
+                quads.append((depth, corners, tex, uv, SHADE.get(face, 0.8)))
 
     # Painter's order plus a depth test: the depth test is what stops the tray from being swallowed
     # by the cabinet face it protrudes from.
@@ -160,7 +173,8 @@ def quad_uv(quad, x, y):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("model")
+    parser.add_argument("model", nargs="+",
+                        help="one model, or lower then upper for a two-block machine")
     parser.add_argument("--size", type=int, default=384)
     # 0.625 is the GUI scale from block/block; 1.0 renders the block filling the frame.
     parser.add_argument("--scale", type=float, default=0.625)
@@ -178,7 +192,7 @@ def main():
             if ((x // tile) + (y // tile)) % 2 == 0:
                 bgp[x, y] = (44, 44, 52, 255)
     bg.alpha_composite(img)
-    out = args.out or os.path.join(ARTIFACTS, args.model + "_preview.png")
+    out = args.out or os.path.join(ARTIFACTS, "_".join(args.model) + "_preview.png")
     bg.save(out)
     print("wrote", os.path.relpath(out, ROOT))
 

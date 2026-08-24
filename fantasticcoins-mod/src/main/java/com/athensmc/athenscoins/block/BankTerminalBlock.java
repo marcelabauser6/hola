@@ -19,14 +19,9 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -35,34 +30,26 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  * <p>Only operators may place it, and it has no recipe, so a bank cannot appear without staff
  * deciding it should.</p>
  */
-public class BankTerminalBlock extends HorizontalDirectionalBlock {
+public class BankTerminalBlock extends TallMachineBlock {
 
-    private static final VoxelShape SHAPE_NS = Block.box(1.0D, 0.0D, 3.0D, 15.0D, 16.0D, 13.0D);
-    private static final VoxelShape SHAPE_EW = Block.box(3.0D, 0.0D, 1.0D, 13.0D, 16.0D, 15.0D);
+    /** The counter: a full-depth desk. */
+    private static final VoxelShape DESK_NS = Block.box(0.0D, 0.0D, 2.0D, 16.0D, 16.0D, 14.0D);
+    private static final VoxelShape DESK_EW = Block.box(2.0D, 0.0D, 0.0D, 14.0D, 16.0D, 16.0D);
+    /** The head: a shallower back panel, so a teller can lean over the counter. */
+    private static final VoxelShape HEAD_NS = Block.box(0.0D, 0.0D, 5.0D, 16.0D, 16.0D, 14.0D);
+    private static final VoxelShape HEAD_EW = Block.box(2.0D, 0.0D, 0.0D, 11.0D, 16.0D, 16.0D);
 
     public BankTerminalBlock(Properties properties) {
         super(properties);
-        registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
-    }
-
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
-    }
-
-    @Override
-    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return state.getValue(FACING).getAxis() == Direction.Axis.X ? SHAPE_EW : SHAPE_NS;
-    }
-
-    @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
+    protected VoxelShape shapeFor(DoubleBlockHalf half, Direction facing) {
+        boolean acrossX = facing.getAxis() == Direction.Axis.X;
+        if (half == DoubleBlockHalf.UPPER) {
+            return acrossX ? HEAD_EW : HEAD_NS;
+        }
+        return acrossX ? DESK_EW : DESK_NS;
     }
 
     /** Seats a bank on the terminal the moment it is placed. */
@@ -77,10 +64,16 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
                 bank.name()).withStyle(ChatFormatting.GREEN));
     }
 
-    /** A broken terminal leaves the bank without a seat; the accounts survive. */
+    /**
+     * A broken terminal leaves the bank without a seat; the accounts survive.
+     *
+     * <p>Only the lower half is a seat. Clearing on the head too would unseat the bank when the head
+     * is destroyed as part of the pair coming apart, and then seat it again on nothing.</p>
+     */
     @Override
     public void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean moving) {
-        if (!level.isClientSide && !state.is(newState.getBlock()) && level.getServer() != null) {
+        if (!level.isClientSide && isMain(state) && !state.is(newState.getBlock())
+                && level.getServer() != null) {
             BankData.get(level.getServer()).clearSeat(pos);
         }
         super.onRemove(state, level, pos, newState, moving);
@@ -95,10 +88,12 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.PASS;
         }
+        // The seat is the lower half's position, whichever half the player reached for.
+        BlockPos base = mainPos(state, pos);
         BankData data = BankData.get(serverPlayer.server);
-        Bank bank = data.bankAt(pos);
+        Bank bank = data.bankAt(base);
         if (bank == null) {
-            bank = BankManager.seatTerminal(serverPlayer.server, pos, "Banco");
+            bank = BankManager.seatTerminal(serverPlayer.server, base, "Banco");
         }
 
         // A card in hand opens an account here and pours the money straight in.
@@ -117,7 +112,7 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
         }
 
         ModNetwork.toPlayer(serverPlayer,
-                S2COpenTerminalPacket.of(serverPlayer, bank, pos, operator));
+                S2COpenTerminalPacket.of(serverPlayer, bank, base, operator));
         return InteractionResult.CONSUME;
     }
 
@@ -155,15 +150,5 @@ public class BankTerminalBlock extends HorizontalDirectionalBlock {
                         bank.name(), result.number())
                 .withStyle(ChatFormatting.GREEN));
         com.athensmc.athenscoins.wallet.WalletManager.pushBalance(player);
-    }
-
-    @Override
-    public BlockState rotate(BlockState state, Rotation rotation) {
-        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
-    }
-
-    @Override
-    public BlockState mirror(BlockState state, Mirror mirror) {
-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 }

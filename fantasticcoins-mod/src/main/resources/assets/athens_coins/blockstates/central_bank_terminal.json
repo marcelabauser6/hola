@@ -1,8 +1,12 @@
 {
   "variants": {
-    "facing=north": { "model": "athens_coins:block/central_bank_terminal" },
-    "facing=east": { "model": "athens_coins:block/central_bank_terminal", "y": 90 },
-    "facing=south": { "model": "athens_coins:block/central_bank_terminal", "y": 180 },
-    "facing=west": { "model": "athens_coins:block/central_bank_terminal", "y": 270 }
+    "half=lower,facing=north": { "model": "athens_coins:block/central_bank_terminal_lower" },
+    "half=lower,facing=east": { "model": "athens_coins:block/central_bank_terminal_lower", "y": 90 },
+    "half=lower,facing=south": { "model": "athens_coins:block/central_bank_terminal_lower", "y": 180 },
+    "half=lower,facing=west": { "model": "athens_coins:block/central_bank_terminal_lower", "y": 270 },
+    "half=upper,facing=north": { "model": "athens_coins:block/central_bank_terminal_upper" },
+    "half=upper,facing=east": { "model": "athens_coins:block/central_bank_terminal_upper", "y": 90 },
+    "half=upper,facing=south": { "model": "athens_coins:block/central_bank_terminal_upper", "y": 180 },
+    "half=upper,facing=west": { "model": "athens_coins:block/central_bank_terminal_upper", "y": 270 }
   }
 }

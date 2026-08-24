@@ -88,6 +88,9 @@ public class AthensCoinsMod {
         // Pick up any edits made to the config file while the game was closed.
         CurrencyConfig.load();
         TransferManager.clear();
+        // A confirmation is a question asked of somebody standing at a terminal; one that survived a
+        // restart would be a click nobody remembers making.
+        com.athensmc.athenscoins.bank.BankConfirmations.clear();
         com.athensmc.athenscoins.bank.LoanNotices.reset();
         com.athensmc.athenscoins.bank.BankManager.migrateLegacyWallets(event.getServer());
         for (com.athensmc.athenscoins.bank.BankAccount account
@@ -100,6 +103,7 @@ public class AthensCoinsMod {
     public void onServerStopped(ServerStoppedEvent event) {
         // Pending requests are per-session; never leak them into the next world.
         TransferManager.clear();
+        com.athensmc.athenscoins.bank.BankConfirmations.clear();
     }
 
     @SubscribeEvent
@@ -114,6 +118,7 @@ public class AthensCoinsMod {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             TransferManager.tick(server);
+            com.athensmc.athenscoins.bank.BankConfirmations.tick(server);
             tickBanking(server);
         }
     }

@@ -45,6 +45,34 @@ public final class LoanNotices {
         LAST_REMINDER.clear();
     }
 
+    /**
+     * Tells the bank's staff that an application is waiting.
+     *
+     * <p>A queue nobody knows about is a queue nobody serves. Every online banker and operator who
+     * can act on it gets one line; the customer already got their own confirmation.</p>
+     */
+    public static void applicationFiled(MinecraftServer server, Bank bank, LoanRequest request) {
+        String symbol = CurrencyConfig.get().currencySymbol;
+        Component line = Component.translatable("message.athens_coins.loan_request_filed",
+                        request.borrowerName(), Money.format(request.amount(), symbol), bank.name())
+                .withStyle(ChatFormatting.YELLOW);
+        for (ServerPlayer staff : server.getPlayerList().getPlayers()) {
+            if (bank.isBanker(staff.getUUID()) || staff.hasPermissions(2)) {
+                staff.sendSystemMessage(line);
+            }
+        }
+    }
+
+    /** Tells the applicant their request was refused. */
+    public static void applicationRejected(MinecraftServer server, Bank bank, LoanRequest request) {
+        ServerPlayer borrower = server.getPlayerList().getPlayer(request.borrower());
+        if (borrower != null) {
+            borrower.sendSystemMessage(Component.translatable(
+                            "message.athens_coins.loan_request_rejected", bank.name())
+                    .withStyle(ChatFormatting.RED));
+        }
+    }
+
     /** Tells the holder they now owe money, how much, and when it is due. */
     public static void granted(MinecraftServer server, BankAccount account, long amount, long dueAt) {
         ServerPlayer holder = server.getPlayerList().getPlayer(account.owner());

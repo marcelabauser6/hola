@@ -10,18 +10,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.HorizontalDirectionalBlock;
-import net.minecraft.world.level.block.Mirror;
-import net.minecraft.world.level.block.RenderShape;
-import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 /**
@@ -30,34 +23,19 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *
  * <p>Operators only, at every step: placing it, opening it and acting through it.</p>
  */
-public class CentralBankTerminalBlock extends HorizontalDirectionalBlock {
+public class CentralBankTerminalBlock extends TallMachineBlock {
 
-    private static final VoxelShape SHAPE_NS = Block.box(0.0D, 0.0D, 2.0D, 16.0D, 16.0D, 14.0D);
-    private static final VoxelShape SHAPE_EW = Block.box(2.0D, 0.0D, 0.0D, 14.0D, 16.0D, 16.0D);
+    private static final VoxelShape SHAPE_NS = Block.box(0.0D, 0.0D, 1.0D, 16.0D, 16.0D, 15.0D);
+    private static final VoxelShape SHAPE_EW = Block.box(1.0D, 0.0D, 0.0D, 15.0D, 16.0D, 16.0D);
 
     public CentralBankTerminalBlock(Properties properties) {
         super(properties);
-        registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     @Override
-    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING);
-    }
-
-    @Override
-    public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
-    }
-
-    @Override
-    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        return state.getValue(FACING).getAxis() == Direction.Axis.X ? SHAPE_EW : SHAPE_NS;
-    }
-
-    @Override
-    public RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
+    protected VoxelShape shapeFor(DoubleBlockHalf half, Direction facing) {
+        // One box for both halves: the console is a slab of equipment from floor to top.
+        return facing.getAxis() == Direction.Axis.X ? SHAPE_EW : SHAPE_NS;
     }
 
     @Override
@@ -75,17 +53,7 @@ public class CentralBankTerminalBlock extends HorizontalDirectionalBlock {
                     .withStyle(ChatFormatting.RED));
             return InteractionResult.CONSUME;
         }
-        ModNetwork.toPlayer(serverPlayer, S2COpenCentralPacket.of(serverPlayer, pos));
+        ModNetwork.toPlayer(serverPlayer, S2COpenCentralPacket.of(serverPlayer, mainPos(state, pos)));
         return InteractionResult.CONSUME;
-    }
-
-    @Override
-    public BlockState rotate(BlockState state, Rotation rotation) {
-        return state.setValue(FACING, rotation.rotate(state.getValue(FACING)));
-    }
-
-    @Override
-    public BlockState mirror(BlockState state, Mirror mirror) {
-        return state.rotate(mirror.getRotation(state.getValue(FACING)));
     }
 }

@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.command;
 
+import com.athensmc.athenscoins.bank.BankConfirmations;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenStatsPacket;
@@ -77,6 +78,18 @@ public final class FsCurrencyCommand {
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
 
+                // Backs the chat buttons on the terminal's confirmation prompts. Gated on actually
+                // having something to answer, so it stays out of tab-completion otherwise.
+                .then(Commands.literal("bank")
+                        .then(Commands.literal("confirm")
+                                .requires(FsCurrencyCommand::hasPendingConfirmation)
+                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                        .executes(context -> answerBank(context, true))))
+                        .then(Commands.literal("cancel")
+                                .requires(FsCurrencyCommand::hasPendingConfirmation)
+                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                        .executes(context -> answerBank(context, false)))))
+
                 .then(Commands.literal("stats")
                         .requires(source -> source.hasPermission(2))
                         .executes(FsCurrencyCommand::openStats))
@@ -89,6 +102,43 @@ public final class FsCurrencyCommand {
     private static boolean hasPendingTransfer(CommandSourceStack source) {
         return source.getEntity() instanceof ServerPlayer player
                 && TransferManager.hasPendingFor(player.getUUID());
+    }
+
+    private static boolean hasPendingConfirmation(CommandSourceStack source) {
+        return source.getEntity() instanceof ServerPlayer player
+                && BankConfirmations.hasPendingFor(player.getUUID());
+    }
+
+    /**
+     * Answers a terminal confirmation.
+     *
+     * <p>Only the player the question was asked of may answer it, whatever id they type: the id is a
+     * small integer visible in a click event, so without the check anybody could confirm somebody
+     * else's pending closure.</p>
+     */
+    private static int answerBank(CommandContext<CommandSourceStack> context, boolean confirmed)
+            throws CommandSyntaxException {
+        ServerPlayer player = self(context);
+        int id = IntegerArgumentType.getInteger(context, "id");
+        BankConfirmations.Pending pending = BankConfirmations.get(id);
+        if (pending == null || !pending.actor().equals(player.getUUID())
+                || pending.isExpired(System.currentTimeMillis())) {
+            BankConfirmations.remove(id);
+            context.getSource().sendFailure(
+                    Component.translatable("message.athens_coins.ask_expired"));
+            return 0;
+        }
+        BankConfirmations.remove(id);
+        if (!confirmed) {
+            context.getSource().sendSuccess(() -> Component
+                    .translatable("message.athens_coins.ask_cancelled")
+                    .withStyle(ChatFormatting.GRAY), false);
+            player.server.getCommands().sendCommands(player);
+            return 1;
+        }
+        com.athensmc.athenscoins.network.C2STerminalActionPacket.performConfirmed(player, pending);
+        player.server.getCommands().sendCommands(player);
+        return 1;
     }
 
     private static ServerPlayer self(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {

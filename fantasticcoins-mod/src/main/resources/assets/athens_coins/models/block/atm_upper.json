@@ -1,0 +1,53 @@
+{
+  "credit": "FantasticCurrency ATM, upper half - the screen head and its canopy",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/atm_head_side",
+    "front": "athens_coins:block/atm_head_front",
+    "side": "athens_coins:block/atm_head_side",
+    "back": "athens_coins:block/atm_head_back",
+    "top": "athens_coins:block/atm_top",
+    "hood": "athens_coins:block/atm_hood",
+    "accent": "athens_coins:block/atm_accent"
+  },
+  "elements": [
+    {
+      "name": "head",
+      "__comment": "The screen housing, continuing the body's footprint so the two halves read as one machine.",
+      "from": [1.5, 0, 2],
+      "to": [14.5, 13, 13.5],
+      "faces": {
+        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "brand_band",
+      "__comment": "The one tinted surface on the machine. Drawn in greys and multiplied by the issuing bank's colour, which is why it is a separate element sitting a fraction proud of the body: an overlay in the same plane would z-fight, and tinting the whole body would turn a steel cabinet into a block of flat colour.",
+      "from": [1.45, 10, 1.95],
+      "to": [14.55, 12.5, 13.55],
+      "faces": {
+        "north": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
+        "south": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
+        "east": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
+        "west": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 }
+      }
+    },
+    {
+      "name": "canopy",
+      "__comment": "Three pixels tall and overhanging the front by one. This is what stops the column reading as two stacked cubes.",
+      "from": [1, 13, 1],
+      "to": [15, 16, 14],
+      "faces": {
+        "north": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#hood", "uv": [0, 0, 16, 16] },
+        "up": { "texture": "#top", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#hood", "uv": [0, 0, 16, 16] }
+      }
+    }
+  ]
+}

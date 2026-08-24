@@ -4,7 +4,9 @@ import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.bank.BankManager;
+import com.athensmc.athenscoins.bank.BankConfirmations;
 import com.athensmc.athenscoins.bank.BankRules;
+import com.athensmc.athenscoins.bank.LoanRequest;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.wallet.CoinType;
 import com.athensmc.athenscoins.wallet.Money;
@@ -47,7 +49,14 @@ public class C2STerminalActionPacket {
         ISSUE_ATM,
         WITHDRAW_ALL,
         GRANT_LOAN,
-        REPAY_LOAN;
+        REPAY_LOAN,
+        /**
+         * Approves a loan application. {@code account} carries the request id and {@code value} the
+         * amount actually granted, so a banker can approve less than was asked for.
+         */
+        APPROVE_LOAN,
+        /** Refuses an application; {@code account} carries the request id. */
+        REJECT_LOAN;
 
         private static final Action[] VALUES = values();
 
@@ -57,8 +66,24 @@ public class C2STerminalActionPacket {
 
         boolean operatorOnly() {
             return switch (this) {
-                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN, REPAY_LOAN -> false;
+                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN, REPAY_LOAN,
+                        APPROVE_LOAN, REJECT_LOAN -> false;
                 default -> true;
+            };
+        }
+
+        /**
+         * Whether this action asks before it acts.
+         *
+         * <p>The test is "can a stray click cause harm somebody else has to live with". Handing over
+         * banker access, opening an account in somebody's name, closing one, and deciding a loan all
+         * qualify; changing a rate or issuing an ATM to your own inventory does not.</p>
+         */
+        boolean needsConfirmation() {
+            return switch (this) {
+                case ADD_BANKER, REMOVE_BANKER, OPEN_ACCOUNT, WITHDRAW_ALL,
+                        APPROVE_LOAN, REJECT_LOAN -> true;
+                default -> false;
             };
         }
     }
@@ -115,6 +140,31 @@ public class C2STerminalActionPacket {
     }
 
     private void apply(ServerPlayer player) {
+        apply(player, false);
+    }
+
+    /**
+     * Runs a proposal the actor has confirmed.
+     *
+     * <p>Rebuilds the original request and takes the same path an unconfirmed action takes, so the
+     * confirmed and unconfirmed routes cannot drift apart - the permission and reach checks are
+     * re-run here too, because the actor may have walked away or lost access while the question sat
+     * in their chat.</p>
+     */
+    public static void performConfirmed(ServerPlayer player, BankConfirmations.Pending pending) {
+        Action action = switch (pending.kind()) {
+            case OPEN_ACCOUNT -> Action.OPEN_ACCOUNT;
+            case GRANT_BANKER -> Action.ADD_BANKER;
+            case REVOKE_BANKER -> Action.REMOVE_BANKER;
+            case CLOSE_ACCOUNT -> Action.WITHDRAW_ALL;
+            case APPROVE_LOAN -> Action.APPROVE_LOAN;
+            case REJECT_LOAN -> Action.REJECT_LOAN;
+        };
+        new C2STerminalActionPacket(pending.pos(), action, pending.target(), pending.account(),
+                pending.amount(), "").apply(player, true);
+    }
+
+    private void apply(ServerPlayer player, boolean confirmed) {
         // Must actually be at a terminal, and within reach of it.
         if (player.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D) > 64.0D) {
             return;
@@ -134,6 +184,18 @@ public class C2STerminalActionPacket {
                     .withStyle(ChatFormatting.RED));
             return;
         }
+        // Nothing outside the settings tab may run before the bank has terms; an account opened
+        // against defaults is an account opened on terms nobody chose.
+        if (!bank.configured() && action != Action.SET_NAME && action != Action.SET_COLOR) {
+            player.sendSystemMessage(Component.translatable("gui.athens_coins.cfg_required")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        // The irreversible ones ask first. A click on a row proposes; the chat buttons decide.
+        if (!confirmed && action.needsConfirmation()) {
+            proposeConfirmation(player, data, bank);
+            return;
+        }
 
         switch (action) {
             case ADD_BANKER -> {
@@ -151,6 +213,8 @@ public class C2STerminalActionPacket {
             case WITHDRAW_ALL -> withdrawAll(player, data, bank);
             case GRANT_LOAN -> grantLoan(player, data, bank);
             case REPAY_LOAN -> repayLoan(player, data, bank);
+            case APPROVE_LOAN -> approveLoan(player, data, bank);
+            case REJECT_LOAN -> rejectLoan(player, data, bank);
             case SET_NAME -> {
                 bank.setName(text);
                 data.setDirty();
@@ -282,8 +346,12 @@ public class C2STerminalActionPacket {
         String holder = target.ownerName();
         int number = target.number();
         java.util.UUID ownerId = target.owner();
+        // liquidate = false: a closure must not settle a live loan or unpaid fees out of the balance
+        // behind the customer's back. If there is debt, the close is refused and says why, and the
+        // banker collects it first. This used to pass true, which meant closing an account was also a
+        // way to make a loan disappear.
         BankManager.CloseResult closed = BankManager.closeAccount(
-                player.server, target, true, player.getUUID());
+                player.server, target, false, player.getUUID());
         if (!closed.ok()) {
             player.sendSystemMessage(Component.translatable(closed.messageKey())
                     .withStyle(ChatFormatting.RED));
@@ -304,6 +372,119 @@ public class C2STerminalActionPacket {
                     bank.name()).withStyle(ChatFormatting.YELLOW));
             com.athensmc.athenscoins.wallet.WalletManager.pushBalance(owner);
         }
+    }
+
+    /**
+     * Approves an application and lends the money.
+     *
+     * <p>{@code account} is the request id and {@code value} the amount to grant, which lets a banker
+     * approve less than was asked for. The request is only removed once the loan actually exists: if
+     * the reserve cannot cover it the application stays in the queue rather than vanishing.</p>
+     */
+    private void approveLoan(ServerPlayer player, BankData data, Bank bank) {
+        LoanRequest request = data.loanRequest(this.account);
+        if (request == null || !request.bankId().equals(bank.id())) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.loan_request_gone")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        BankAccount target = data.account(request.account());
+        if (target == null || !target.bankId().equals(bank.id())) {
+            // The applicant closed or moved their account while the request waited.
+            data.removeLoanRequest(request.id());
+            player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
+                    .withStyle(ChatFormatting.RED));
+            ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, player.hasPermissions(2)));
+            return;
+        }
+        long amount = value > 0L ? Math.min(value, request.amount()) : request.amount();
+        BankManager.LoanResult result = BankManager.grantLoan(player.server, target, amount);
+        if (!result.ok()) {
+            player.sendSystemMessage(Component.translatable(result.messageKey())
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        data.removeLoanRequest(request.id());
+        String symbol = CurrencyConfig.get().currencySymbol;
+        player.sendSystemMessage(Component.translatable("message.athens_coins.loan_request_approved",
+                        request.borrowerName(), Money.format(result.amount(), symbol))
+                .withStyle(ChatFormatting.GREEN));
+        com.athensmc.athenscoins.bank.Loan loan = target.loan();
+        if (loan != null) {
+            com.athensmc.athenscoins.bank.LoanNotices.granted(player.server, target,
+                    result.amount(), loan.dueAt());
+        }
+        refreshAccount(player, bank, target.number());
+    }
+
+    private void rejectLoan(ServerPlayer player, BankData data, Bank bank) {
+        LoanRequest request = data.loanRequest(this.account);
+        if (request == null || !request.bankId().equals(bank.id())) {
+            player.sendSystemMessage(Component.translatable("message.athens_coins.loan_request_gone")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        data.removeLoanRequest(request.id());
+        player.sendSystemMessage(Component.translatable("message.athens_coins.loan_request_refused",
+                        request.borrowerName()).withStyle(ChatFormatting.YELLOW));
+        com.athensmc.athenscoins.bank.LoanNotices.applicationRejected(player.server, bank, request);
+    }
+
+    /**
+     * Turns a click into a question, with the subject resolved to a name the actor will recognise.
+     *
+     * <p>Resolved here rather than in the confirmation store because this is the only place that has
+     * the bank data to hand; a proposal reading "confirm action on 7f3a-..." would be worse than no
+     * proposal at all.</p>
+     */
+    private void proposeConfirmation(ServerPlayer player, BankData data, Bank bank) {
+        String subject;
+        long amount = value;
+        switch (action) {
+            case ADD_BANKER, REMOVE_BANKER, OPEN_ACCOUNT -> {
+                ServerPlayer who = player.server.getPlayerList().getPlayer(target);
+                if (who == null) {
+                    player.sendSystemMessage(Component
+                            .translatable("message.athens_coins.bank_holder_offline")
+                            .withStyle(ChatFormatting.RED));
+                    return;
+                }
+                subject = who.getGameProfile().getName();
+            }
+            case WITHDRAW_ALL -> {
+                BankAccount account = data.account(this.account);
+                if (account == null || !account.bankId().equals(bank.id())) {
+                    player.sendSystemMessage(Component
+                            .translatable("message.athens_coins.bank_no_such_account")
+                            .withStyle(ChatFormatting.RED));
+                    return;
+                }
+                subject = "#" + account.number() + " " + account.ownerName();
+            }
+            case APPROVE_LOAN, REJECT_LOAN -> {
+                LoanRequest request = data.loanRequest(this.account);
+                if (request == null || !request.bankId().equals(bank.id())) {
+                    player.sendSystemMessage(Component
+                            .translatable("message.athens_coins.loan_request_gone")
+                            .withStyle(ChatFormatting.RED));
+                    return;
+                }
+                subject = request.borrowerName();
+                amount = request.amount();
+            }
+            default -> {
+                return;
+            }
+        }
+        BankConfirmations.Kind kind = switch (action) {
+            case ADD_BANKER -> BankConfirmations.Kind.GRANT_BANKER;
+            case REMOVE_BANKER -> BankConfirmations.Kind.REVOKE_BANKER;
+            case OPEN_ACCOUNT -> BankConfirmations.Kind.OPEN_ACCOUNT;
+            case WITHDRAW_ALL -> BankConfirmations.Kind.CLOSE_ACCOUNT;
+            case APPROVE_LOAN -> BankConfirmations.Kind.APPROVE_LOAN;
+            default -> BankConfirmations.Kind.REJECT_LOAN;
+        };
+        BankConfirmations.propose(player, kind, pos, target, this.account, amount, subject);
     }
 
     private void grantLoan(ServerPlayer player, BankData data, Bank bank) {

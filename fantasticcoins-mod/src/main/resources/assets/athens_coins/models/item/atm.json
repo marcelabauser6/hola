@@ -1,3 +1,12 @@
 {
-  "parent": "athens_coins:block/atm"
+  "__comment": "Parent supplies the shape; the display block only makes it bigger. Vanilla's block item scales (0.625 in the inventory, 0.375 in third person) are sized for a full cube, and these machines are slender - they came out looking like a small grey brick next to a chest. Every slot is scaled by the same factor so the item does not change size between the inventory, the hand and an item frame.",
+  "parent": "athens_coins:block/atm",
+  "display": {
+    "gui": { "rotation": [30, 225, 0], "translation": [0, 0, 0], "scale": [0.78, 0.78, 0.78] },
+    "ground": { "rotation": [0, 0, 0], "translation": [0, 3, 0], "scale": [0.31, 0.31, 0.31] },
+    "fixed": { "rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [0.62, 0.62, 0.62] },
+    "thirdperson_righthand": { "rotation": [75, 45, 0], "translation": [0, 2.5, 0], "scale": [0.47, 0.47, 0.47] },
+    "firstperson_righthand": { "rotation": [0, 45, 0], "translation": [0, 0, 0], "scale": [0.5, 0.5, 0.5] },
+    "firstperson_lefthand": { "rotation": [0, 225, 0], "translation": [0, 0, 0], "scale": [0.5, 0.5, 0.5] }
+  }
 }

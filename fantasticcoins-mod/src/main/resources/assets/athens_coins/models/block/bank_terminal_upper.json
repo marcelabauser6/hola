@@ -1,0 +1,57 @@
+{
+  "credit": "FantasticCurrency bank terminal, upper half - the teller's screen and its back panel",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/bank_terminal_head_side",
+    "front": "athens_coins:block/bank_terminal_head_front",
+    "side": "athens_coins:block/bank_terminal_head_side",
+    "back": "athens_coins:block/bank_terminal_head_back",
+    "top": "athens_coins:block/bank_terminal_top",
+    "cornice": "athens_coins:block/bank_terminal_cornice",
+    "screen": "athens_coins:block/bank_terminal_screen"
+  },
+  "elements": [
+    {
+      "name": "back_panel",
+      "__comment": "Set back from the counter's front edge, so the desk has a working surface in front of it rather than a wall rising straight off the customer's side.",
+      "from": [0, 0, 9],
+      "to": [16, 15, 13],
+      "faces": {
+        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 6, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 6, 16] },
+        "down": { "texture": "#side", "uv": [0, 0, 16, 6] }
+      }
+    },
+    {
+      "name": "monitor",
+      "__comment": "A screen on an arm, angled at the customer. Free-standing rather than painted on the panel: a flat display at this height read as a poster.",
+      "from": [3, 3, 6.5],
+      "to": [13, 12, 9],
+      "rotation": { "angle": -22.5, "axis": "x", "origin": [8, 7, 9] },
+      "faces": {
+        "north": { "texture": "#screen", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 4, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 4, 16] },
+        "up": { "texture": "#side", "uv": [0, 0, 16, 4] },
+        "down": { "texture": "#side", "uv": [0, 0, 16, 4] }
+      }
+    },
+    {
+      "name": "cornice",
+      "__comment": "A capping course, the same trick as the ATM's canopy: it gives the pair a top edge.",
+      "from": [0, 15, 8.5],
+      "to": [16, 16, 13.5],
+      "faces": {
+        "north": { "texture": "#cornice", "uv": [0, 0, 16, 2] },
+        "south": { "texture": "#cornice", "uv": [0, 0, 16, 2] },
+        "east": { "texture": "#cornice", "uv": [0, 0, 6, 2] },
+        "west": { "texture": "#cornice", "uv": [0, 0, 6, 2] },
+        "up": { "texture": "#cornice", "uv": [0, 0, 16, 6] },
+        "down": { "texture": "#cornice", "uv": [0, 0, 16, 6] }
+      }
+    }
+  ]
+}

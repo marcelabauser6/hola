@@ -3,9 +3,11 @@ package com.athensmc.athenscoins.network;
 import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankManager;
+import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.bank.BankRules;
 import com.athensmc.athenscoins.bank.Loan;
 import com.athensmc.athenscoins.bank.LoanNotices;
+import com.athensmc.athenscoins.bank.LoanRequest;
 import com.athensmc.athenscoins.block.AtmBlockEntity;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.menu.AtmMenu;
@@ -130,12 +132,14 @@ public class C2SAtmActionPacket {
                         ? "message.athens_coins.atm_unbranded" : "message.athens_coins.atm_bank_gone");
                 return;
             }
-            // The machine only serves its own bank's customers, same as the preset buttons.
-            BankAccount account = BankManager.accountOf(player);
-            if (account == null || !account.bankId().equals(bank.id())) {
-                deny(player, "message.athens_coins.atm_needs_account");
+            // The machine only serves its own bank's customers, same as the preset buttons. The
+            // refusal names the bank, so "you need an account" is never shown to somebody who has one.
+            BankManager.Access access = BankManager.accessFor(player, bank);
+            if (access != BankManager.Access.OK) {
+                BankManager.explainRefusal(player, bank, access);
                 return;
             }
+            BankAccount account = BankManager.accountOf(player);
             // A client can put any long here; refuse nonsense before the bank layer sees it.
             if (value <= 0L || value > Money.MAX_CENTS) {
                 deny(player, "message.athens_coins.amount_positive");
@@ -187,24 +191,30 @@ public class C2SAtmActionPacket {
                 }
             }
             case LOAN_REQUEST -> {
-                BankManager.LoanResult result = BankManager.grantLoan(player.server, account, value);
-                if (!result.ok()) {
-                    deny(player, result.messageKey());
+                // Files an application; it does not lend. Borrowing used to happen right here, which
+                // meant any customer could draw the bank's whole reserve at any hour with nobody at
+                // the bank agreeing to it. A banker approves this at the terminal.
+                if (!bank.loansEnabled()) {
+                    deny(player, "message.athens_coins.bank_loans_disabled");
                     return;
                 }
-                // Say the amount: the bank clamps the request to its reserve and its policy, so what
-                // was asked for and what was lent are often different numbers.
-                ok(player, "message.athens_coins.atm_loan_taken", Money.format(result.amount(), symbol));
-                if (result.partial()) {
+                Loan live = account.loan();
+                if (live != null && !live.settled()) {
+                    deny(player, "message.athens_coins.bank_loan_active");
+                    return;
+                }
+                if (value > bank.loanMaxAmount()) {
                     player.sendSystemMessage(Component.translatable(
-                                    "message.athens_coins.bank_loan_partial",
-                                    Money.format(result.amount(), symbol))
-                            .withStyle(ChatFormatting.YELLOW));
+                                    "message.athens_coins.loan_over_max",
+                                    Money.format(bank.loanMaxAmount(), symbol))
+                            .withStyle(ChatFormatting.RED));
+                    return;
                 }
-                Loan loan = account.loan();
-                if (loan != null) {
-                    LoanNotices.granted(player.server, account, result.amount(), loan.dueAt());
-                }
+                BankData data = BankManager.data(player.server);
+                LoanRequest request = data.fileLoanRequest(bank, account,
+                        player.getGameProfile().getName(), value, "", System.currentTimeMillis());
+                ok(player, "message.athens_coins.loan_requested", Money.format(request.amount(), symbol));
+                LoanNotices.applicationFiled(player.server, bank, request);
                 chime(player, 1.0F);
             }
             case LOAN_REPAY -> {

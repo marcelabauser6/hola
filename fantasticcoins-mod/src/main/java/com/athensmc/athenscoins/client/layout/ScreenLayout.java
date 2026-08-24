@@ -116,6 +116,25 @@ public final class ScreenLayout {
                         area.width() - safeGap - firstWidth, area.height()));
     }
 
+    /**
+     * One column of an evenly split area, with real gaps between the columns.
+     *
+     * <p>{@link #columns} only ever made two, and {@link #partition} leaves no gap at all. Three or
+     * more text columns need both: integer division carried through the same expression for the start
+     * and the end edge, so the columns tile the area exactly instead of drifting a pixel apart and
+     * letting the last one hang over the panel border.</p>
+     */
+    public static Rect column(Rect area, int count, int gap, int index) {
+        if (count <= 0 || index < 0 || index >= count) {
+            return new Rect(area.x(), area.y(), 0, area.height());
+        }
+        int safeGap = clamp(gap, 0, area.width() / Math.max(1, count));
+        int usable = Math.max(0, area.width() - safeGap * (count - 1));
+        int start = area.x() + index * usable / count + index * safeGap;
+        int end = area.x() + (index + 1) * usable / count + index * safeGap;
+        return new Rect(start, area.y(), Math.max(0, end - start), area.height());
+    }
+
     public static int visibleRows(Rect area, int rowHeight) {
         return rowHeight <= 0 ? 0 : Math.max(0, area.height() / rowHeight);
     }

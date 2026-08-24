@@ -47,6 +47,8 @@ public record AtmState(
         long loanDueAt,
         int overdueDays,
         long commissionDebt,
+        /** Amount of a loan application already waiting on the bank, or 0 when none. */
+        long pendingRequest,
         List<Peer> peers) {
 
     /** Someone online the player could transfer money to. */
@@ -61,7 +63,7 @@ public record AtmState(
         return new AtmState(BlockPos.ZERO, 0L, 0L, 0L,
                 new int[CoinType.ORDERED.length], new long[CoinType.ORDERED.length],
                 "", 0x2E4756, false, 0L, 0, 0,
-                false, 0L, 0L, 0L, 0, 0L, List.of());
+                false, 0L, 0L, 0L, 0, 0L, 0L, List.of());
     }
 
     /**
@@ -82,6 +84,10 @@ public record AtmState(
         for (CoinType type : CoinType.ORDERED) {
             rates[type.ordinal()] = bank.rate(type);
         }
+
+        com.athensmc.athenscoins.bank.LoanRequest waiting = account == null ? null
+                : BankManager.data(player.server).loanRequestOf(bank.id(), player.getUUID());
+        long pendingRequest = waiting == null ? 0L : waiting.amount();
 
         List<Peer> peers = new ArrayList<>();
         for (ServerPlayer candidate : player.server.getPlayerList().getPlayers()) {
@@ -114,6 +120,7 @@ public record AtmState(
                 live ? loan.dueAt() : 0L,
                 live ? BankRules.overdueBusinessDays(loan.dueAt(), now) : 0,
                 account == null ? 0L : account.commissionDebt(),
+                pendingRequest,
                 List.copyOf(peers));
     }
 
@@ -138,6 +145,7 @@ public record AtmState(
         buffer.writeLong(loanDueAt);
         buffer.writeVarInt(overdueDays);
         buffer.writeVarLong(commissionDebt);
+        buffer.writeVarLong(pendingRequest);
         buffer.writeVarInt(peers.size());
         for (Peer peer : peers) {
             buffer.writeUUID(peer.id());
@@ -168,6 +176,7 @@ public record AtmState(
         long loanDueAt = buffer.readLong();
         int overdueDays = buffer.readVarInt();
         long commissionDebt = buffer.readVarLong();
+        long pendingRequest = buffer.readVarLong();
         int peerCount = Math.min(MAX_PEERS, buffer.readVarInt());
         List<Peer> peers = new ArrayList<>(peerCount);
         for (int i = 0; i < peerCount; i++) {
@@ -175,7 +184,7 @@ public record AtmState(
         }
         return new AtmState(atmPos, cash, accountBalance, walletLimit, counts, rates, bankName,
                 themeColor, loansEnabled, loanMax, loanDays, loanInterest, hasLoan, loanPrincipal,
-                loanOwed, loanDueAt, overdueDays, commissionDebt, List.copyOf(peers));
+                loanOwed, loanDueAt, overdueDays, commissionDebt, pendingRequest, List.copyOf(peers));
     }
 
     public int coinCount(CoinType type) {
@@ -195,6 +204,7 @@ public record AtmState(
     public AtmState withCash(long newCash, int[] newCounts) {
         return new AtmState(atmPos, newCash, accountBalance, walletLimit, newCounts.clone(), rates,
                 bankName, themeColor, loansEnabled, loanMax, loanDays, loanInterestBasisPoints,
-                hasLoan, loanPrincipal, loanOwed, loanDueAt, overdueDays, commissionDebt, peers);
+                hasLoan, loanPrincipal, loanOwed, loanDueAt, overdueDays, commissionDebt,
+                pendingRequest, peers);
     }
 }
