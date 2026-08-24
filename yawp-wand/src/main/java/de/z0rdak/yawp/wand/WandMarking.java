@@ -1,15 +1,19 @@
 package de.z0rdak.yawp.wand;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.item.ItemStack;
 
+import net.minecraft.core.BlockPos;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Registers the corners clicked with the wand.
@@ -25,7 +29,38 @@ import java.util.List;
  */
 public final class WandMarking {
 
+    /**
+     * The last click handled per player, to swallow a repeat of the same one.
+     *
+     * <p>The click arrives by one of two routes - YAWP's marking handler when its interaction mixin is
+     * applied, and Forge's interact event when it is not - and in practice only one of them can happen for
+     * any given click, because the first swallows the method the second is fired from. This is here because
+     * "in practice" is not "always": a future YAWP could move its injection and both would fire, and the
+     * result would be every corner counted twice. Cheaper to make that impossible than to find out.</p>
+     */
+    private static final Map<UUID, long[]> LAST_CLICK = new HashMap<>();
+
+    /** Ticks within which the same player clicking the same block is treated as one click. */
+    private static final long DEDUP_TICKS = 4L;
+
     private WandMarking() {
+    }
+
+    /** True when this exact click was already handled a moment ago and should be ignored. */
+    private static boolean isRepeat(ServerPlayer player, BlockPos clicked) {
+        long packed = clicked.asLong();
+        long now = player.level().getGameTime();
+        long[] last = LAST_CLICK.get(player.getUUID());
+        if (last != null && last[0] == packed && now - last[1] < DEDUP_TICKS) {
+            return true;
+        }
+        LAST_CLICK.put(player.getUUID(), new long[]{packed, now});
+        return false;
+    }
+
+    /** Forgets a player's last click, so their next one always counts. */
+    public static void forget(ServerPlayer player) {
+        LAST_CLICK.remove(player.getUUID());
     }
 
     /**
@@ -40,6 +75,10 @@ public final class WandMarking {
             // A rod whose tag names a shape this mod does not know. Left alone rather than reset, in
             // case a newer YAWP wrote it and knows better.
             return false;
+        }
+        if (isRepeat(player, clicked)) {
+            // Already handled by the other route a moment ago. Consumed so the caller still cancels.
+            return true;
         }
 
         List<BlockPos> before = MarkerData.corners(wand);

@@ -46,6 +46,7 @@ public final class WandCommands {
                 .requires(source -> source.hasPermission(PERMISSION_LEVEL))
                 .executes(WandCommands::listShapes)
                 .then(Commands.literal("info").executes(WandCommands::showState))
+                .then(Commands.literal("diag").executes(WandCommands::diagnose))
                 .then(Commands.literal("deshacer").executes(WandCommands::undo))
                 .then(Commands.literal("reiniciar").executes(WandCommands::reset))
                 .then(Commands.argument("forma", StringArgumentType.word())
@@ -140,6 +141,62 @@ public final class WandCommands {
             }
         }
         return 1;
+    }
+
+    /**
+     * Reports what is actually hooked up, in game.
+     *
+     * <p>Here because the failure that mattered most was invisible from both sides: the rod was being
+     * marked by YAWP and nothing was reporting it, so the tool looked dead while working. This says which
+     * half is live, whether the held item is recognised, and what its tag holds - which turns "it does
+     * nothing" into a specific answer without needing the server log.</p>
+     */
+    private static int diagnose(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        source.sendSuccess(() -> Component.literal("Diagnóstico de la vara")
+                .withStyle(ChatFormatting.GOLD), false);
+        report(source, "Subcomando registrado", WandHook.commandRegistered());
+        report(source, "Escuchadores activos", WandHook.listenersRegistered());
+
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendSuccess(() -> Component.literal("  Sin jugador: el resto se comprueba en mano.")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 1;
+        }
+
+        ItemStack held = player.getMainHandItem();
+        report(source, "Vara en la mano", RegionWand.isWand(held));
+        if (!RegionWand.isWand(held)) {
+            source.sendSuccess(() -> Component.literal(
+                            "  Consigue una con /yawp wand <forma> y repite este comando.")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 1;
+        }
+
+        WandShape shape = MarkerData.shapeOf(held);
+        report(source, "Forma reconocida", shape != null);
+        source.sendSuccess(() -> Component.literal("  Etiqueta type: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(shape == null ? "(desconocida)" : shape.yawpTypeName())
+                        .withStyle(ChatFormatting.WHITE)), false);
+        source.sendSuccess(() -> Component.literal("  Dimensión: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(MarkerData.dimensionOf(held))
+                        .withStyle(ChatFormatting.WHITE)), false);
+        int marked = MarkerData.corners(held).size();
+        source.sendSuccess(() -> Component.literal("  Esquinas marcadas: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(marked)).withStyle(ChatFormatting.WHITE)),
+                false);
+        return 1;
+    }
+
+    private static void report(CommandSourceStack source, String label, boolean ok) {
+        source.sendSuccess(() -> Component.literal("  " + label + ": ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(ok ? "sí" : "NO")
+                        .withStyle(ok ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
     }
 
     private static int undo(CommandContext<CommandSourceStack> context) {
