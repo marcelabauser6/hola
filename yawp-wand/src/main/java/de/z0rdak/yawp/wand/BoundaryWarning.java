@@ -16,11 +16,20 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Shows a region's edge in red when a player walks up to it.
+ * Shows the edges of existing regions in red, while the wand is held.
  *
- * <p>A region's boundary is invisible, so the first sign of it is usually an action being refused. This
- * paints the part of the edge you are next to, and only that part: walking along a wall shows the wall, not
- * the whole perimeter, which would be both unreadable and a great deal of particles.</p>
+ * <p>A marking aid, not an ambient warning. Holding the rod, red is where the regions that already exist
+ * end and green is the selection being drawn - so the two colours together answer the question that matters
+ * while marking: is this new region going to land on top of one already there. Put the rod away and the red
+ * goes with it.</p>
+ *
+ * <p>It was the other way round at first, drawn whenever a player was near an edge and suppressed while
+ * marking. That is worse in both directions: as an ambient effect it is noise nobody asked for, following
+ * you around every time you walk near a claim, and it was hidden at exactly the moment the information is
+ * worth having.</p>
+ *
+ * <p>Only the part of the edge you are next to is painted, not the whole perimeter, which would be
+ * unreadable and a great many particles.</p>
  *
  * <p><strong>Found by asking the area, not by shape.</strong> A block is on the boundary when it is inside
  * the region and at least one of its six neighbours is not. That test is the only geometry here, and it
@@ -37,8 +46,15 @@ public final class BoundaryWarning {
     /** How often the warning is redrawn, in ticks. */
     public static final int REFRESH_TICKS = 5;
 
-    /** How near an edge a player has to be for it to light up. Also the scan radius. */
-    private static final int WARN_RADIUS = 3;
+    /**
+     * How near an edge lights it up, and the radius of the scan that finds it.
+     *
+     * <p>Four rather than the three it was as an ambient effect. Now that it only appears with the rod in
+     * hand, seeing a little further is the point - a neighbouring region's wall is worth noticing before
+     * the corner is placed, not after. Still a bounded 9x9x9, so the cost does not follow the size of the
+     * region or how many exist.</p>
+     */
+    private static final int WARN_RADIUS = 4;
 
     /** Most regions considered at once, so standing where several overlap stays cheap. */
     private static final int MAX_REGIONS = 4;
@@ -63,9 +79,9 @@ public final class BoundaryWarning {
         if (!(player.level() instanceof ServerLevel level)) {
             return;
         }
-        // The wand draws its own outline in green and yellow. Adding a red one on top of it while marking
-        // would turn two clear signals into one confusing one.
-        if (holdingWand(player)) {
+        // Only with the rod in hand. This is there to be read against the selection being marked, and as
+        // something that followed a player around whenever they passed a claim it was just noise.
+        if (!holdingWand(player)) {
             return;
         }
 

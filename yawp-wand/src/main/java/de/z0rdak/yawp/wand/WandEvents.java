@@ -130,8 +130,8 @@ public final class WandEvents {
         if (player.tickCount % WandOutline.REFRESH_TICKS == 0) {
             WandOutline.tick(player);
         }
-        // Offset from the outline's refresh so the two are never computed on the same tick, which keeps
-        // the per-tick cost even rather than spiking every twentieth.
+        // Offset from the outline's refresh so the two are never computed on the same tick, which keeps the
+        // per-tick cost even rather than spiking. Both only do work with the rod in hand.
         if ((player.tickCount + 2) % BoundaryWarning.REFRESH_TICKS == 0) {
             BoundaryWarning.tick(player);
         }
