@@ -5,6 +5,10 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 
+import de.z0rdak.yawp.api.core.RegionManager;
+import de.z0rdak.yawp.commands.WandRegionCreator;
+import de.z0rdak.yawp.core.region.IProtectedRegion;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -47,6 +51,9 @@ public final class WandCommands {
                 .executes(WandCommands::listShapes)
                 .then(Commands.literal("info").executes(WandCommands::showState))
                 .then(Commands.literal("diag").executes(WandCommands::diagnose))
+                .then(Commands.literal("crear")
+                        .then(Commands.argument("nombre", StringArgumentType.word())
+                                .executes(WandCommands::createFromWand)))
                 .then(Commands.literal("deshacer").executes(WandCommands::undo))
                 .then(Commands.literal("reiniciar").executes(WandCommands::reset))
                 .then(Commands.argument("forma", StringArgumentType.word())
@@ -144,6 +151,65 @@ public final class WandCommands {
     }
 
     /**
+     * Creates the region straight from the rod, with no coordinates typed at all.
+     *
+     * <p>Calls YAWP's own {@code DimensionCommands} rather than building the region here, so the name
+     * checks, the parent linkage, the default flags and the saving are all done exactly as they are for a
+     * region made by hand. This command supplies the two numbers and nothing else.</p>
+     *
+     * <p>Cuboid and sphere only, because those are the two whose creation YAWP exposes publicly. For the
+     * other three the completion on {@code /yawp create} is the route, and the message says so rather than
+     * failing silently.</p>
+     */
+    private static int createFromWand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerPlayer player = source.getPlayer();
+        ItemStack wand = heldWand(player);
+        if (wand == null) {
+            source.sendFailure(noWandHeld());
+            return 0;
+        }
+
+        WandShape shape = MarkerData.shapeOf(wand);
+        List<BlockPos> corners = MarkerData.corners(wand);
+        if (shape == null) {
+            source.sendFailure(Component.literal("Esa vara no tiene una forma que reconozca."));
+            return 0;
+        }
+        if (!MarkerData.isComplete(shape, corners.size())) {
+            source.sendFailure(Component.literal("Falta marcar la zona: "
+                    + RegionWand.progress(shape, corners.size())));
+            return 0;
+        }
+
+        String name = StringArgumentType.getString(context, "nombre");
+        IProtectedRegion parent = RegionManager.get()
+                .getDimensionalRegion(player.level().dimension()).orElse(null);
+        if (parent == null) {
+            source.sendFailure(Component.literal(
+                    "YAWP no tiene datos de esta dimensión, así que no puedo crear la zona aquí."));
+            return 0;
+        }
+
+        return switch (shape) {
+            case CUBOID -> WandRegionCreator.cuboid(context, name,
+                    corners.get(0), corners.get(1), parent);
+            case SPHERE -> WandRegionCreator.sphere(context, name, corners.get(0),
+                    Outlines.radius(coords(corners.get(0)), coords(corners.get(1)), true), parent);
+            case CYLINDER, POLYGON, PRISM -> {
+                source.sendFailure(Component.literal("YAWP solo deja crear cuboide y esfera por API. "
+                        + "Para " + shape.label().toLowerCase(java.util.Locale.ROOT)
+                        + " usa /yawp create y pulsa tabulador en las coordenadas."));
+                yield 0;
+            }
+        };
+    }
+
+    private static int[] coords(BlockPos pos) {
+        return new int[]{pos.getX(), pos.getY(), pos.getZ()};
+    }
+
+    /**
      * Reports what is actually hooked up, in game.
      *
      * <p>Here because the failure that mattered most was invisible from both sides: the rod was being
@@ -157,6 +223,8 @@ public final class WandCommands {
                 .withStyle(ChatFormatting.GOLD), false);
         report(source, "Subcomando registrado", WandHook.commandRegistered());
         report(source, "Escuchadores activos", WandHook.listenersRegistered());
+        int completions = WandHook.completions();
+        report(source, "Autocompletado en create (" + completions + ")", completions > 0);
 
         ServerPlayer player = source.getPlayer();
         if (player == null) {

@@ -22,6 +22,7 @@ public final class WandHook {
 
     private static boolean listenersRegistered;
     private static boolean commandRegistered;
+    private static int completions;
 
     private WandHook() {
     }
@@ -69,6 +70,12 @@ public final class WandHook {
             host.addChild(WandCommands.node());
             commandRegistered = true;
             WandLog.LOGGER.info("Wand subcommand registered: /yawp wand");
+
+            // Feed the rod's corners into YAWP's own create command, so its position arguments
+            // complete to what was marked instead of to `~ ~ ~`.
+            completions = WandSuggestions.install(host);
+            WandLog.LOGGER.info("Wand completion added to {} coordinate argument(s) of /yawp.",
+                    completions);
         } catch (Throwable failure) {
             WandLog.LOGGER.error("Could not install the wand subcommand", failure);
         }
@@ -82,5 +89,10 @@ public final class WandHook {
     /** For {@code /yawp wand diag}: whether the subcommand made it into the tree. */
     public static boolean commandRegistered() {
         return commandRegistered;
+    }
+
+    /** For {@code /yawp wand diag}: how many of YAWP's coordinate arguments complete from the rod. */
+    public static int completions() {
+        return completions;
     }
 }
