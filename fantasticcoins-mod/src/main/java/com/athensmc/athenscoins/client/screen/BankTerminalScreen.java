@@ -145,6 +145,34 @@ public class BankTerminalScreen extends Screen {
     }
 
     /**
+     * Carries the view across a refresh.
+     *
+     * <p>Every action on this screen ends with the server re-sending the whole terminal, which replaces
+     * the screen with a fresh one - and a fresh one opens on its first usable tab. So rejecting a loan
+     * threw you from Requests back to Users, and because the only feedback was a line in the action bar
+     * that the new screen did not carry, the button looked like it had either done nothing or navigated
+     * backwards. It had actually worked both times.</p>
+     *
+     * <p>The tab is only restored if it is still usable: a refresh can arrive with the bank newly
+     * unconfigured, and returning to a locked tab would show an empty panel.</p>
+     */
+    public BankTerminalScreen restoreFrom(BankTerminalScreen previous) {
+        if (!locked(previous.tab) && !(previous.tab.operatorOnly && !operator)) {
+            tab = previous.tab;
+        }
+        scroll = previous.scroll;
+        message = previous.message;
+        messageIsError = previous.messageIsError;
+        return this;
+    }
+
+    /** Shown in the panel, where the click was, rather than only in the action bar. */
+    private void notice(String key, Object... args) {
+        message = Component.translatable(key, args);
+        messageIsError = false;
+    }
+
+    /**
      * Where the terminal opens.
      *
      * <p>An unconfigured bank always opens on Settings, and only an operator can get there - a banker
@@ -444,7 +472,10 @@ public class BankTerminalScreen extends Screen {
         for (int count : new int[] {1, 4}) {
             int amount = count;
             addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.issue_atm", amount),
-                            ignored -> send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, ""))
+                            ignored -> {
+                                send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, "");
+                                notice("gui.athens_coins.done_atms", amount);
+                            })
                     .bounds(column.x(), y, buttonWidth, 20).build());
             y += 24;
         }
@@ -452,7 +483,10 @@ public class BankTerminalScreen extends Screen {
         // be decided by whoever handed it over, not by whoever stands it up.
         y += 6;
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.issue_board"),
-                        ignored -> send(C2STerminalActionPacket.Action.ISSUE_HOLOGRAM, 1L, ""))
+                        ignored -> {
+                            send(C2STerminalActionPacket.Action.ISSUE_HOLOGRAM, 1L, "");
+                            notice("gui.athens_coins.done_board");
+                        })
                 .bounds(column.x(), y, buttonWidth, 20)
                 .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.issue_board_tip")))
                 .build());
@@ -746,8 +780,12 @@ public class BankTerminalScreen extends Screen {
                             Component.translatable(revoke
                                     ? "gui.athens_coins.ask_revoke_detail"
                                     : "gui.athens_coins.ask_grant_detail"),
-                            () -> sendFor(revoke ? C2STerminalActionPacket.Action.REMOVE_BANKER
-                                    : C2STerminalActionPacket.Action.ADD_BANKER, row.id()));
+                            () -> {
+                                sendFor(revoke ? C2STerminalActionPacket.Action.REMOVE_BANKER
+                                        : C2STerminalActionPacket.Action.ADD_BANKER, row.id());
+                                notice(revoke ? "gui.athens_coins.done_revoked"
+                                        : "gui.athens_coins.done_granted", row.name());
+                            });
                 } else if (!row.hasAccount()) {
                     // Confirmed here like every other action. It was briefly an offer the customer
                     // accepted from chat, which needed a command to back the buttons - and a command
@@ -756,7 +794,10 @@ public class BankTerminalScreen extends Screen {
                     confirm.ask(Component.translatable("message.athens_coins.ask_open_account",
                                     row.name()),
                             Component.translatable("gui.athens_coins.ask_open_detail"),
-                            () -> sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id()));
+                            () -> {
+                                sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
+                                notice("gui.athens_coins.done_opened", row.name());
+                            });
                 } else {
                     message = Component.translatable("gui.athens_coins.click_already_has", row.name());
                     messageIsError = true;
@@ -776,11 +817,15 @@ public class BankTerminalScreen extends Screen {
                         Component.translatable(approve
                                 ? "gui.athens_coins.ask_approve_detail"
                                 : "gui.athens_coins.ask_reject_detail"),
-                        // Amount 0 means "the amount they asked for"; the server clamps against policy.
-                        () -> ModNetwork.toServer(new C2STerminalActionPacket(pos,
-                                approve ? C2STerminalActionPacket.Action.APPROVE_LOAN
-                                        : C2STerminalActionPacket.Action.REJECT_LOAN,
-                                null, request.id(), 0L, "")));
+                        () -> {
+                            // Amount 0 means "the amount they asked for"; the server clamps to policy.
+                            ModNetwork.toServer(new C2STerminalActionPacket(pos,
+                                    approve ? C2STerminalActionPacket.Action.APPROVE_LOAN
+                                            : C2STerminalActionPacket.Action.REJECT_LOAN,
+                                    null, request.id(), 0L, ""));
+                            notice(approve ? "gui.athens_coins.done_approved"
+                                    : "gui.athens_coins.done_rejected", request.borrowerName());
+                        });
                 return true;
             }
         } else if (tab == Tab.ACCOUNTS && (button == 0 || button == 1)) {
@@ -794,9 +839,12 @@ public class BankTerminalScreen extends Screen {
                     confirm.ask(Component.translatable("message.athens_coins.ask_close_account",
                                     "#" + row.number() + " " + row.owner()),
                             Component.translatable("gui.athens_coins.ask_close_detail"),
-                            () -> ModNetwork.toServer(new C2STerminalActionPacket(pos,
-                                    C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
-                                    row.number(), 0L, "")));
+                            () -> {
+                                ModNetwork.toServer(new C2STerminalActionPacket(pos,
+                                        C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
+                                        row.number(), 0L, ""));
+                                notice("gui.athens_coins.done_closed", row.number());
+                            });
                 }
                 return true;
             }

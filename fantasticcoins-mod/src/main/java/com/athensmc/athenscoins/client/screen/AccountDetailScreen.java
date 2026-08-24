@@ -104,6 +104,13 @@ public class AccountDetailScreen extends Screen {
         return parent;
     }
 
+    /** Keeps the ledger page and the feedback line across the refresh an action triggers. */
+    public AccountDetailScreen restoreFrom(AccountDetailScreen previous) {
+        page = previous.page;
+        message = previous.message;
+        return this;
+    }
+
     @Override
     public boolean isPauseScreen() {
         return false;
@@ -182,7 +189,7 @@ public class AccountDetailScreen extends Screen {
         }
         act(action, cents);
         amountBox.clear();
-        message = null;
+        message = Component.translatable("gui.athens_coins.done_sent");
     }
 
     private void act(C2STerminalActionPacket.Action action, long value) {

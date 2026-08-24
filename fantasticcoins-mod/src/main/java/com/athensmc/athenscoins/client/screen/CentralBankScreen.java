@@ -89,6 +89,22 @@ public class CentralBankScreen extends Screen {
         data = packet;
     }
 
+    /**
+     * Carries the view across a refresh.
+     *
+     * <p>Same trap as the bank terminal: every central-bank action ends with the server re-sending the
+     * screen, and a fresh one opens on Bancos with the first bank selected. Granting a licence therefore
+     * threw you off the Licencias tab, and losing the selection meant the next Inject would have gone to a
+     * different bank than the one you were looking at.</p>
+     */
+    public CentralBankScreen restoreFrom(CentralBankScreen previous) {
+        tab = previous.tab;
+        scroll = previous.scroll;
+        selected = Math.min(previous.selected, Math.max(0, banks.size() - 1));
+        message = previous.message;
+        return this;
+    }
+
     @Override
     public boolean isPauseScreen() {
         return false;
@@ -184,8 +200,11 @@ public class CentralBankScreen extends Screen {
             // for a server-wide one belongs.
             int cell = ScreenLayout.gridCellWidth(footer, 3, GAP);
             addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.central_issue_board"),
-                            ignored -> ModNetwork.toServer(new C2SCentralActionPacket(pos,
-                                    C2SCentralActionPacket.Action.ISSUE_HOLOGRAM, null, 1L)))
+                            ignored -> {
+                                ModNetwork.toServer(new C2SCentralActionPacket(pos,
+                                        C2SCentralActionPacket.Action.ISSUE_HOLOGRAM, null, 1L));
+                                message = Component.translatable("gui.athens_coins.done_board");
+                            })
                     .bounds(footer.x(), footer.y(), cell * 2 + GAP, buttonHeight)
                     .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.central_issue_board_tip")))
                     .build());
@@ -217,7 +236,7 @@ public class CentralBankScreen extends Screen {
         UUID target = banks.get(selected).id();
         ModNetwork.toServer(new C2SCentralActionPacket(pos, action, target, cents));
         amountBox.clear();
-        message = null;
+        message = Component.translatable("gui.athens_coins.done_sent");
     }
 
     @Override
@@ -496,6 +515,9 @@ public class CentralBankScreen extends Screen {
                     ModNetwork.toServer(new C2SCentralActionPacket(pos,
                             row.founder() ? C2SCentralActionPacket.Action.REMOVE_FOUNDER
                                     : C2SCentralActionPacket.Action.ADD_FOUNDER, row.id(), 0L));
+                    message = Component.translatable(row.founder()
+                            ? "gui.athens_coins.done_unlicensed"
+                            : "gui.athens_coins.done_licensed", row.name());
                     return true;
                 }
             }

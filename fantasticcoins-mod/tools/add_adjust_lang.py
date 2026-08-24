@@ -122,6 +122,22 @@ ADD = {
     "gui.athens_coins.acct_fee_debt": "Impagado",
     "gui.athens_coins.acct_overdue": "vencido %sd",
 
+    # --- what just happened, said in the panel -------------------------------
+    # The server's own feedback goes to the action bar, and the action bar is not carried across the screen
+    # refresh every terminal action triggers - so a button that worked looked like a button that did nothing.
+    # These are shown on the tab the click happened on.
+    "gui.athens_coins.done_granted": "%s ya es banquero",
+    "gui.athens_coins.done_revoked": "%s ya no es banquero",
+    "gui.athens_coins.done_opened": "Cuenta aperturada a %s",
+    "gui.athens_coins.done_approved": "Préstamo aprobado a %s",
+    "gui.athens_coins.done_rejected": "Solicitud de %s rechazada",
+    "gui.athens_coins.done_closed": "Cuenta #%s cerrada",
+    "gui.athens_coins.done_atms": "%s cajero(s) en tu inventario",
+    "gui.athens_coins.done_board": "Tablero en tu inventario",
+    "gui.athens_coins.done_licensed": "%s ya puede fundar bancos",
+    "gui.athens_coins.done_unlicensed": "%s ya no puede fundar bancos",
+    "gui.athens_coins.done_sent": "Hecho",
+
     # --- units, so a bare number says what it is ----------------------------
     "gui.athens_coins.unit_money": "($)",
     "gui.athens_coins.unit_days": "(días)",

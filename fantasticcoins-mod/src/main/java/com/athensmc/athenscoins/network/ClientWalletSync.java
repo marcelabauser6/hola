@@ -77,11 +77,24 @@ final class ClientWalletSync {
         }
     }
 
+    /**
+     * Opens the terminal, keeping the view if one is already open.
+     *
+     * <p>Every terminal action ends with the server re-sending the whole screen, which is how the lists stay
+     * current. Replacing it outright meant the new screen opened on its first tab, so acting on a row threw
+     * you off the tab you were working on and the confirmation you had just given looked like a navigation
+     * mistake. The refresh now inherits the tab, the scroll position and the feedback line.</p>
+     */
     static void openTerminal(S2COpenTerminalPacket packet) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null) {
-            minecraft.setScreen(new BankTerminalScreen(packet));
+        if (minecraft.player == null) {
+            return;
         }
+        BankTerminalScreen screen = new BankTerminalScreen(packet);
+        if (minecraft.screen instanceof BankTerminalScreen open) {
+            screen.restoreFrom(open);
+        }
+        minecraft.setScreen(screen);
     }
 
     static void openAccount(S2COpenAccountPacket packet) {
@@ -94,14 +107,25 @@ final class ClientWalletSync {
         if (current instanceof AccountDetailScreen detail) {
             current = detail.parentScreen();
         }
-        minecraft.setScreen(new AccountDetailScreen(current, packet));
+        AccountDetailScreen screen = new AccountDetailScreen(current, packet);
+        // Lending or collecting re-pushes this screen; without carrying the page, the ledger jumped back
+        // to the top every time, which on a long history looks like the button reset the account.
+        if (minecraft.screen instanceof AccountDetailScreen open) {
+            screen.restoreFrom(open);
+        }
+        minecraft.setScreen(screen);
     }
 
     static void openCentral(S2COpenCentralPacket packet) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player != null) {
-            minecraft.setScreen(new CentralBankScreen(packet));
+        if (minecraft.player == null) {
+            return;
         }
+        CentralBankScreen screen = new CentralBankScreen(packet);
+        if (minecraft.screen instanceof CentralBankScreen open) {
+            screen.restoreFrom(open);
+        }
+        minecraft.setScreen(screen);
     }
 
     static void openWallet(S2COpenWalletPacket packet) {
