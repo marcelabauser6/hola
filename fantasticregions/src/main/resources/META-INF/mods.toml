@@ -2,7 +2,7 @@ modLoader="javafml"
 loaderVersion="${loader_version_range}"
 
 # AGPL v3, and it has to be: this mod is built against Yet Another World Protector, which is AGPL v3.
-# The full licence text ships in this jar as LICENSE. Source: see displayURL below.
+# The full licence text ships in this jar as LICENSE.
 license="${mod_license}"
 
 [[mods]]
@@ -11,19 +11,25 @@ version="${mod_version}"
 displayName="${mod_display_name}"
 authors="${mod_authors}"
 credits="Built on Yet Another World Protector by Z0rdak (AGPL v3)"
-logoFile="fantasticregions_logo.png"
+
+# Server-side only, so a client without this mod can still connect. There is no custom item, no
+# packet and no rendering here - the outline is particles, which any vanilla client draws.
+displayTest="IGNORE_ALL_VERSION"
+
 description='''
-Fantastic Regions replaces every Yet Another World Protector command with a full-screen interface
-in Spanish.
+A blaze rod for preselecting the area of a Yet Another World Protector region.
 
-  /yawp              - open the region list
-  /yawp crear        - name a region, pick its shape, and mark it out with the blaze rod
-  /yawp borrar       - remove a region, with completion over the existing names
+  /yawp wand cuboide    a box, marking two opposite corners
+  /yawp wand esfera     a ball, marking the centre and a block on the edge
+  /yawp wand circulo    a vertical cylinder, marking the centre and the edge
+  /yawp wand poligono   a many-sided footprint, marking each vertex
+  /yawp wand prisma     a polygon with height
 
-Everything else - flags, members, groups, the perimeter, priority, teleport anchors - is edited in
-the interface, and every control explains what it does.
+The perimeter is drawn in the world while the rod is held, so the extent is visible before the
+region exists. The region is then created with YAWP's own create command, which picks the
+preselection straight off the rod.
 
-Install on BOTH the client and the server: YAWP itself is server-side, but an interface is not.
+Nothing of YAWP's is modified, replaced or removed. Install on the server only.
 '''
 
 [[dependencies.${mod_id}]]
@@ -40,11 +46,11 @@ Install on BOTH the client and the server: YAWP itself is server-side, but an in
     ordering="NONE"
     side="BOTH"
 
-# Hard dependency, loaded first: this mod is an interface onto YAWP's region store and has nothing
-# to show without it. AFTER so YAWP has registered its commands by the time we strip them.
+# Hard dependency, loaded first: the rod carries YAWP's marker data and there is nothing to preselect
+# for without it. AFTER so YAWP's command tree exists by the time /yawp wand is hung off it.
 [[dependencies.${mod_id}]]
     modId="yawp"
     mandatory=true
     versionRange="${yawp_version_range}"
     ordering="AFTER"
-    side="BOTH"
+    side="SERVER"

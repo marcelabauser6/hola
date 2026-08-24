@@ -5,21 +5,26 @@ import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
 
 /**
- * Fantastic Regions: the Yet Another World Protector command tree, replaced by an interface.
+ * A wand for preselecting the area of a Yet Another World Protector region.
  *
- * <p>YAWP already stores regions, evaluates flags and draws region outlines with display entities.
- * None of that is reimplemented here. What this mod does is remove the ~40 subcommands players had
- * to memorise and put the same operations behind screens, so marking out a region is done by
- * clicking two corners with a rod and watching the outline follow the selection.</p>
+ * <p>{@code /yawp wand <forma>} hands over a blaze rod set to one of YAWP's five area types. Clicking
+ * blocks with it collects the corners, and the perimeter is drawn in the world as they are collected,
+ * so the extent is visible before the region exists. The region is then created with YAWP's own create
+ * command, which picks the preselection straight off the rod.</p>
  *
- * <p><strong>Licence.</strong> This mod calls into YAWP, which is AGPL v3, so this mod is AGPL v3
- * as well. Anyone running it on a public server is on the hook for AGPL section 13: players who
- * interact with it over the network can ask for the source, and they have to be able to get it.</p>
+ * <p><strong>Nothing of YAWP's is modified, replaced or removed.</strong> The rod carries the marker
+ * data YAWP already defines, written with YAWP's own utility class, so its interaction mixin registers
+ * the clicks and its create command accepts the result. This mod adds one command to the tree and one
+ * outline to the world.</p>
  *
- * <p><strong>Sides.</strong> YAWP describes itself as server-side, and it is - it never needed a
- * client. An interface does, so this mod is installed on both sides and the two halves talk over a
- * private channel. The server stays the only authority on what a region actually is; the client is
- * shown a copy and asks for edits.</p>
+ * <p><strong>Server side only.</strong> There is no custom item, no custom packet and no rendering
+ * code - the outline is particles, addressed to the player holding the rod. Nothing needs to be
+ * installed on anyone's client.</p>
+ *
+ * <p><strong>Licence.</strong> This mod compiles against YAWP, which is AGPL v3, so it is AGPL v3 as
+ * well. Running it on a public server brings AGPL section 13 with it: players who interact with it over
+ * the network can ask for the source and have to be able to get it. YAWP's own jar is not bundled - it
+ * stays the untouched file it was downloaded as.</p>
  */
 @Mod(FantasticRegions.MOD_ID)
 public final class FantasticRegions {
