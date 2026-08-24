@@ -43,25 +43,9 @@ dependencies {
     runtimeOnly files(yawp_jar)
 }
 
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-            mod_id                    : mod_id,
-            mod_name                  : mod_name,
-            mod_display_name          : mod_display_name,
-            mod_version               : mod_version,
-            mod_authors               : mod_authors,
-            mod_license               : mod_license,
-            minecraft_version_range   : minecraft_version_range,
-            forge_version_range       : forge_version_range,
-            loader_version_range      : loader_version_range,
-            yawp_version_range        : yawp_version_range,
-    ]
-    inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties
-    }
-}
+// No processResources block: there is no mods.toml or pack.mcmeta to expand properties into. These
+// classes are injected into YAWP's own jar and are part of that mod rather than a second one beside it,
+// so the only resource is the mixin config, which is copied verbatim. See tools/inject.py.
 
 tasks.named('jar', Jar).configure {
     // The AGPL text travels with the binary, which is what mods.toml promises and what the licence
@@ -86,16 +70,15 @@ tasks.withType(JavaCompile).configureEach {
 
 jar.finalizedBy('reobfJar')
 
-// Pure-JVM guard for the shape names, the one thing that would break the command in a way that is
-// awkward to catch in game: an identifier the completion offers and Brigadier then refuses.
-tasks.register('verifyWandShapes', JavaExec) {
+// Pure-JVM guards: the shape table and the outline geometry, checked without starting Minecraft.
+tasks.register('verifyWand', JavaExec) {
     group = 'verification'
-    description = 'Checks that every shape name is offerable, parseable and covers a YAWP area type.'
+    description = 'Checks the shape names, point counts and outline geometry.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.athensmc.yawpwand.wand.WandShapeStaticTest'
+    mainClass = 'de.z0rdak.yawp.wand.WandStaticTest'
 }
 
 tasks.named('check') {
-    dependsOn tasks.named('verifyWandShapes')
+    dependsOn tasks.named('verifyWand')
 }
