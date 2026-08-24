@@ -502,5 +502,18 @@
   "tooltip.athens_coins.record_mobs": "Mobs eliminados: %s",
   "tooltip.athens_coins.record_players": "Jugadores eliminados: %s",
   "tooltip.athens_coins.record_deaths": "Muertes: %s",
-  "message.athens_coins.amount_negative": "La cantidad no puede ser negativa"
+  "message.athens_coins.amount_negative": "La cantidad no puede ser negativa",
+  "item.athens_coins.terminal_of": "Terminal de %s",
+  "message.athens_coins.bank_reseated": "%s vuelve a tener terminal",
+  "message.athens_coins.bank_bind_stale": "%s ya no existe o ya tiene terminal; se creó un banco nuevo",
+  "message.athens_coins.admin_no_banks": "No hay bancos creados",
+  "message.athens_coins.admin_list_header": "Bancos creados: %s",
+  "message.athens_coins.admin_list_line": "%s cuenta(s) · reserva %s",
+  "message.athens_coins.admin_no_seat": "sin terminal",
+  "message.athens_coins.admin_list_note": "/fscurrency bank give|purge|delete \"nombre\"",
+  "message.athens_coins.admin_no_bank": "No hay ningún banco llamado %s",
+  "message.athens_coins.admin_given": "Terminal de %s entregada",
+  "message.athens_coins.admin_given_seated": "Terminal de %s entregada, pero su terminal original sigue en pie: no podrás colocar esta hasta romper la otra",
+  "message.athens_coins.admin_purged": "%s cuenta(s) cerradas en %s",
+  "message.athens_coins.admin_deleted": "Banco %s eliminado junto con %s cuenta(s)"
 }

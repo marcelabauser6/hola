@@ -154,6 +154,28 @@ ADD = {
     "tooltip.athens_coins.record_players": "Jugadores eliminados: %s",
     "tooltip.athens_coins.record_deaths": "Muertes: %s",
 
+    # --- a terminal remembers its bank ---------------------------------------
+    # Breaking one used to hand back a blank terminal and leave the bank seatless, and placing a blank one
+    # adopted an arbitrary seatless bank - so one accident cost you access to your own bank.
+    "item.athens_coins.terminal_of": "Terminal de %s",
+    "message.athens_coins.bank_reseated": "%s vuelve a tener terminal",
+    "message.athens_coins.bank_bind_stale":
+        "%s ya no existe o ya tiene terminal; se creó un banco nuevo",
+
+    # --- operator bank administration ----------------------------------------
+    "message.athens_coins.admin_no_banks": "No hay bancos creados",
+    "message.athens_coins.admin_list_header": "Bancos creados: %s",
+    "message.athens_coins.admin_list_line": "%s cuenta(s) · reserva %s",
+    "message.athens_coins.admin_no_seat": "sin terminal",
+    "message.athens_coins.admin_list_note":
+        "/fscurrency bank give|purge|delete \"nombre\"",
+    "message.athens_coins.admin_no_bank": "No hay ningún banco llamado %s",
+    "message.athens_coins.admin_given": "Terminal de %s entregada",
+    "message.athens_coins.admin_given_seated":
+        "Terminal de %s entregada, pero su terminal original sigue en pie: no podrás colocar esta hasta romper la otra",
+    "message.athens_coins.admin_purged": "%s cuenta(s) cerradas en %s",
+    "message.athens_coins.admin_deleted": "Banco %s eliminado junto con %s cuenta(s)",
+
     # --- units, so a bare number says what it is ----------------------------
     "gui.athens_coins.unit_money": "($)",
     "gui.athens_coins.unit_days": "(días)",

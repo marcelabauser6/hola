@@ -502,5 +502,23 @@ public final class BankManager {
 
     public static void inject(MinecraftServer server,Bank bank,long amount){BankData data=data(server);synchronized(data){if(amount<=0L||!Money.canAdd(bank.reserve(),amount)||!Money.canAdd(data.totalIssued(),amount))return;bank.addReserve(amount);data.addIssued(amount);data.setDirty();}}
     public static void realignAllRates(MinecraftServer server){List<Bank> banks=data(server).banks();for(Bank bank:banks)bank.realignRates();data(server).setDirty();}
-    public static Bank seatTerminal(MinecraftServer server,BlockPos pos,String defaultName){BankData data=data(server);Bank existing=data.bankAt(pos);if(existing!=null)return existing;Bank adopted=data.adoptSeat(pos);return adopted!=null?adopted:data.createBank(defaultName+" "+(data.bankCount()+1),pos);}
+    /**
+     * The bank seated at a terminal, creating a new one if the position has none.
+     *
+     * <p>A terminal with no bank makes a <em>new</em> bank. It used to adopt the first seatless bank it
+     * could find, which meant breaking a terminal and putting one back gave you a bank at random - your own
+     * if you were lucky, somebody else's if you were not, and no way at all to reach the one you wanted
+     * when two were seatless. Re-seating a specific bank is now explicit: place the terminal that dropped
+     * from the old one, or have an operator hand you one.</p>
+     */
+    public static Bank seatTerminal(MinecraftServer server,BlockPos pos,String defaultName){BankData data=data(server);Bank existing=data.bankAt(pos);if(existing!=null)return existing;return data.createBank(defaultName+" "+(data.bankCount()+1),pos);}
+
+    /** Seats the bank an item was bound to, or null when the binding no longer resolves. */
+    @Nullable
+    public static Bank seatBoundTerminal(MinecraftServer server, BlockPos pos, UUID bankId) {
+        BankData data = data(server);
+        synchronized (data) {
+            return data.seatBankAt(bankId, pos) ? data.bank(bankId) : null;
+        }
+    }
 }

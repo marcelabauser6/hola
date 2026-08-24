@@ -22,6 +22,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+import net.minecraft.world.phys.Vec3;
+
+import java.util.List;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
@@ -53,6 +59,25 @@ public class BankTerminalBlock extends TallMachineBlock {
         return acrossX ? DESK_EW : DESK_NS;
     }
 
+    /** NBT key binding a terminal item to the bank it came from. */
+    public static final String TAG_BANK = "FcBank";
+    public static final String TAG_BANK_NAME = "FcBankName";
+
+    /**
+     * Stamps a terminal item with a bank, so placing it puts that bank back.
+     *
+     * <p>This is what makes a broken terminal recoverable. Breaking one used to hand back a blank terminal
+     * and leave the bank seatless, and placing a blank terminal then adopted an arbitrary seatless bank -
+     * so an accident cost you the ability to reach your own bank at all.</p>
+     */
+    public static ItemStack bind(ItemStack stack, Bank bank) {
+        CompoundTag tag = stack.getOrCreateTag();
+        tag.putUUID(TAG_BANK, bank.id());
+        tag.putString(TAG_BANK_NAME, bank.name());
+        stack.setHoverName(Component.translatable("item.athens_coins.terminal_of", bank.name()));
+        return stack;
+    }
+
     /** Seats a bank on the terminal the moment it is placed. */
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
@@ -60,9 +85,63 @@ public class BankTerminalBlock extends TallMachineBlock {
         if (level.isClientSide || !(placer instanceof ServerPlayer player)) {
             return;
         }
+        CompoundTag tag = stack.getTag();
+        if (tag != null && tag.hasUUID(TAG_BANK)) {
+            Bank bound = BankManager.seatBoundTerminal(player.server, pos, tag.getUUID(TAG_BANK));
+            if (bound != null) {
+                player.sendSystemMessage(Component.translatable(
+                                "message.athens_coins.bank_reseated", bound.name())
+                        .withStyle(ChatFormatting.GREEN));
+                return;
+            }
+            // The binding did not resolve: the bank was deleted, or it already has a terminal standing
+            // somewhere else. Say which, rather than silently founding a new bank under the old name.
+            player.sendSystemMessage(Component.translatable("message.athens_coins.bank_bind_stale",
+                    tag.getString(TAG_BANK_NAME)).withStyle(ChatFormatting.RED));
+        }
         Bank bank = BankManager.seatTerminal(player.server, pos, "Banco");
         player.sendSystemMessage(Component.translatable("message.athens_coins.bank_seated",
                 bank.name()).withStyle(ChatFormatting.GREEN));
+    }
+
+    /**
+     * A broken terminal drops one bound to the bank that was standing there.
+     *
+     * <p>There is no block entity here to read, so the bank comes from the seat registry via the loot
+     * context's origin - the same position {@code onRemove} is about to clear.</p>
+     */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        List<ItemStack> drops = super.getDrops(state, params);
+        Vec3 origin = params.getOptionalParameter(LootContextParams.ORIGIN);
+        if (origin == null || params.getLevel() == null || params.getLevel().getServer() == null) {
+            return drops;
+        }
+        Bank bank = BankData.get(params.getLevel().getServer())
+                .bankAt(mainPos(state, BlockPos.containing(origin)));
+        if (bank == null) {
+            return drops;
+        }
+        for (ItemStack stack : drops) {
+            if (stack.is(com.athensmc.athenscoins.item.ModItems.BANK_TERMINAL_ITEM.get())) {
+                bind(stack, bank);
+            }
+        }
+        return drops;
+    }
+
+    /** Middle-click pick block keeps the binding. */
+    @Override
+    public ItemStack getCloneItemStack(net.minecraft.world.level.BlockGetter level, BlockPos pos,
+                                       BlockState state) {
+        ItemStack stack = super.getCloneItemStack(level, pos, state);
+        if (level instanceof Level real && real.getServer() != null) {
+            Bank bank = BankData.get(real.getServer()).bankAt(mainPos(state, pos));
+            if (bank != null) {
+                bind(stack, bank);
+            }
+        }
+        return stack;
     }
 
     /**

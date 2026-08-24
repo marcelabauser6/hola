@@ -528,7 +528,11 @@ command_source = open(os.path.join(SRC, "com/athensmc/athenscoins/command/FsCurr
                       encoding="utf-8").read()
 tree_end = command_source.index("private static boolean hasPendingTransfer")
 literals = set(re.findall(r'Commands\.literal\("(\w+)"\)', command_source[:tree_end]))
-expected_literals = {"fscurrency", "wallet", "balance", "transfer", "accept", "deny", "reload"}
+# "bank" is operator-only administration: list what exists, hand out a replacement terminal for one whose
+# own drop was lost, clear a bank's accounts, delete a bank. It came back after the blind seat-adoption bug
+# left banks unreachable with no way to look at them or get back in.
+expected_literals = {"fscurrency", "wallet", "balance", "transfer", "accept", "deny", "reload",
+                     "bank", "list", "give", "purge", "delete"}
 if literals != expected_literals:
     problems.append("command tree changed: expected "
                     + ", ".join(sorted(expected_literals))

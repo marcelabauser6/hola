@@ -63,7 +63,61 @@ public class BankData extends SavedData {
     public List<Bank> banks() { return new ArrayList<>(banks.values()); }
     public int bankCount() { return banks.size(); }
     public void clearSeat(BlockPos pos) { Bank bank = bankAt(pos); if (bank != null) { bank.setTerminalPos(null); setDirty(); } }
-    @Nullable public Bank adoptSeat(BlockPos pos) { for (Bank bank : banks.values()) if (!bank.hasSeat()) { bank.setTerminalPos(pos); setDirty(); return bank; } return null; }
+    /**
+     * Seats a named bank at a position, if it is not already seated somewhere else.
+     *
+     * <p>Replaces {@code adoptSeat}, which took the <em>first</em> bank it found without a seat. That made a
+     * freshly placed terminal silently inherit whichever seatless bank happened to be first in a hash map:
+     * the new terminal came up with somebody else's name, fees and customers, and with two seatless banks
+     * there was no way to reach the other one at all. Which bank a terminal belongs to is now always stated,
+     * either by the item that was placed or by an operator naming it.</p>
+     *
+     * @return false when the bank is gone or already has a terminal elsewhere
+     */
+    public boolean seatBankAt(UUID bankId, BlockPos pos) {
+        Bank bank = bank(bankId);
+        if (bank == null || bank.hasSeat()) return false;
+        bank.setTerminalPos(pos);
+        setDirty();
+        return true;
+    }
+
+    @Nullable public Bank bankByName(String name) {
+        if (name == null || name.isBlank()) return null;
+        for (Bank bank : banks.values()) if (bank.name().equalsIgnoreCase(name.trim())) return bank;
+        return null;
+    }
+
+    /**
+     * Closes every account at a bank, archiving them.
+     *
+     * <p>Archived, not destroyed: the ledger of a closed account is the only record that the money ever
+     * existed, and an operator clearing out a test bank should not be able to erase the audit trail by
+     * accident. {@code closedAccounts} is where {@code closeAccount} already puts them.</p>
+     *
+     * @return how many were closed
+     */
+    public int purgeAccountsOf(UUID bankId) {
+        List<BankAccount> doomed = accountsOf(bankId);
+        for (BankAccount account : doomed) archiveAndUnregister(account);
+        loanRequests.values().removeIf(request -> request.bankId().equals(bankId));
+        if (!doomed.isEmpty()) setDirty();
+        return doomed.size();
+    }
+
+    /** Removes a bank and archives its accounts. Its reserve leaves circulation with it. */
+    public boolean deleteBank(UUID bankId) {
+        Bank bank = banks.get(bankId);
+        if (bank == null) return false;
+        purgeAccountsOf(bankId);
+        // The reserve was issued money; taking the bank away without withdrawing it would leave the
+        // central bank's "total issued" claiming currency that no longer has anywhere to be.
+        long reserve = bank.reserve();
+        if (reserve > 0L) { bank.drawReserve(reserve); addIssued(-reserve); }
+        banks.remove(bankId);
+        setDirty();
+        return true;
+    }
 
     public boolean numberTaken(int number) { return accounts.containsKey(number); }
     @Nullable public BankAccount account(int number) { return accounts.get(number); }

@@ -1,5 +1,9 @@
 package com.athensmc.athenscoins.command;
 
+import com.athensmc.athenscoins.bank.Bank;
+import com.athensmc.athenscoins.bank.BankData;
+import com.athensmc.athenscoins.block.BankTerminalBlock;
+import com.athensmc.athenscoins.item.ModItems;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenWalletPacket;
@@ -16,13 +20,21 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+
+import javax.annotation.Nullable;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * {@code /fscurrency} — the Fantastic Currency command. Command names stay in English on purpose;
@@ -74,6 +86,25 @@ public final class FsCurrencyCommand {
                         .then(Commands.argument("amount", StringArgumentType.word())
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
+
+                // Bank administration. Operator only, and deliberately not available to founders: a
+                // founder runs a bank, and deleting somebody else's is not part of running yours.
+                .then(Commands.literal("bank")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("list")
+                                .executes(FsCurrencyCommand::listBanks))
+                        .then(Commands.literal("give")
+                                .then(Commands.argument("bank", StringArgumentType.greedyString())
+                                        .suggests(FsCurrencyCommand::suggestBanks)
+                                        .executes(FsCurrencyCommand::giveTerminal)))
+                        .then(Commands.literal("purge")
+                                .then(Commands.argument("bank", StringArgumentType.greedyString())
+                                        .suggests(FsCurrencyCommand::suggestBanks)
+                                        .executes(FsCurrencyCommand::purgeBank)))
+                        .then(Commands.literal("delete")
+                                .then(Commands.argument("bank", StringArgumentType.greedyString())
+                                        .suggests(FsCurrencyCommand::suggestBanks)
+                                        .executes(FsCurrencyCommand::deleteBank))))
 
                 .then(Commands.literal("reload")
                         .requires(source -> source.hasPermission(2))
@@ -235,6 +266,138 @@ public final class FsCurrencyCommand {
     private static void finish(int id, ServerPlayer responder) {
         TransferManager.remove(id);
         TransferManager.refreshCommands(responder.server, responder.getUUID());
+    }
+
+
+    // ------------------------------------------------------------------ bank administration
+
+    private static CompletableFuture<Suggestions> suggestBanks(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        MinecraftServer server = context.getSource().getServer();
+        // Quoted, because bank names contain spaces and a bare suggestion would be unusable.
+        for (Bank bank : BankData.get(server).banks()) {
+            builder.suggest("\"" + bank.name() + "\"");
+        }
+        return builder.buildFuture();
+    }
+
+    /**
+     * Resolves the {@code bank} argument by name.
+     *
+     * <p>By name rather than by a generated id because the name is what the operator can see - on the
+     * terminal, in the central bank's list, in this command's own output. Surrounding quotes are stripped
+     * so the value the suggestion offers can be used verbatim.</p>
+     */
+    @Nullable
+    private static Bank resolveBank(CommandContext<CommandSourceStack> context) {
+        String raw = StringArgumentType.getString(context, "bank").trim();
+        if (raw.length() >= 2 && raw.startsWith("\"") && raw.endsWith("\"")) {
+            raw = raw.substring(1, raw.length() - 1);
+        }
+        Bank bank = BankData.get(context.getSource().getServer()).bankByName(raw);
+        if (bank == null) {
+            context.getSource().sendFailure(Component.translatable(
+                    "message.athens_coins.admin_no_bank", raw));
+        }
+        return bank;
+    }
+
+    private static int listBanks(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        BankData data = BankData.get(source.getServer());
+        List<Bank> banks = data.banks();
+        if (banks.isEmpty()) {
+            source.sendSuccess(() -> Component.translatable("message.athens_coins.admin_no_banks")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 0;
+        }
+        String symbol = CurrencyConfig.get().currencySymbol;
+        source.sendSuccess(() -> Component.translatable("message.athens_coins.admin_list_header",
+                banks.size()).withStyle(ChatFormatting.GOLD), false);
+        for (Bank bank : banks) {
+            int accounts = data.accountsOf(bank.id()).size();
+            // Where it stands, or that it stands nowhere - which is the state that used to be invisible and
+            // is exactly what an operator needs to see before handing out a replacement terminal.
+            Component seat = bank.hasSeat()
+                    ? Component.literal(bank.terminalPos().getX() + " " + bank.terminalPos().getY()
+                            + " " + bank.terminalPos().getZ()).withStyle(ChatFormatting.DARK_GRAY)
+                    : Component.translatable("message.athens_coins.admin_no_seat")
+                            .withStyle(ChatFormatting.RED);
+            source.sendSuccess(() -> Component.literal(" ")
+                    .append(Component.literal(bank.name())
+                            .withStyle(style -> style.withColor(bank.themeColor())))
+                    .append(Component.literal("  ").withStyle(ChatFormatting.DARK_GRAY))
+                    .append(Component.translatable("message.athens_coins.admin_list_line",
+                                    accounts, Money.format(bank.reserve(), symbol))
+                            .withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal("  "))
+                    .append(seat), false);
+        }
+        source.sendSuccess(() -> Component.translatable("message.athens_coins.admin_list_note")
+                .withStyle(ChatFormatting.DARK_GRAY), false);
+        return banks.size();
+    }
+
+    /**
+     * Hands over a terminal bound to a chosen bank.
+     *
+     * <p>The recovery path for a terminal destroyed without its drop being picked up. Breaking one normally
+     * returns a bound terminal already, so this is for accidents - lava, a creeper, a careless
+     * {@code /setblock} - rather than the everyday case.</p>
+     */
+    private static int giveTerminal(CommandContext<CommandSourceStack> context)
+            throws CommandSyntaxException {
+        ServerPlayer admin = self(context);
+        Bank bank = resolveBank(context);
+        if (bank == null) {
+            return 0;
+        }
+        ItemStack terminal = BankTerminalBlock.bind(
+                new ItemStack(ModItems.BANK_TERMINAL_ITEM.get()), bank);
+        if (!admin.getInventory().add(terminal)) {
+            admin.drop(terminal, false);
+        }
+        if (bank.hasSeat()) {
+            // Not an error: an operator may well want a spare. But placing it will be refused while the
+            // original is standing, and finding that out at placement time would be worse.
+            context.getSource().sendSuccess(() -> Component.translatable(
+                            "message.athens_coins.admin_given_seated", bank.name())
+                    .withStyle(ChatFormatting.YELLOW), false);
+        } else {
+            context.getSource().sendSuccess(() -> Component.translatable(
+                            "message.athens_coins.admin_given", bank.name())
+                    .withStyle(ChatFormatting.GREEN), true);
+        }
+        return 1;
+    }
+
+    private static int purgeBank(CommandContext<CommandSourceStack> context) {
+        Bank bank = resolveBank(context);
+        if (bank == null) {
+            return 0;
+        }
+        int closed = BankData.get(context.getSource().getServer()).purgeAccountsOf(bank.id());
+        context.getSource().sendSuccess(() -> Component.translatable(
+                        "message.athens_coins.admin_purged", closed, bank.name())
+                .withStyle(ChatFormatting.YELLOW), true);
+        return closed;
+    }
+
+    private static int deleteBank(CommandContext<CommandSourceStack> context) {
+        Bank bank = resolveBank(context);
+        if (bank == null) {
+            return 0;
+        }
+        BankData data = BankData.get(context.getSource().getServer());
+        int accounts = data.accountsOf(bank.id()).size();
+        String name = bank.name();
+        if (!data.deleteBank(bank.id())) {
+            return 0;
+        }
+        context.getSource().sendSuccess(() -> Component.translatable(
+                        "message.athens_coins.admin_deleted", name, accounts)
+                .withStyle(ChatFormatting.RED), true);
+        return 1;
     }
 
     // ------------------------------------------------------------------ reload
