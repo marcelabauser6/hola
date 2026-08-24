@@ -127,9 +127,13 @@ public final class WandEvents {
         if (!(event.player instanceof ServerPlayer player)) {
             return;
         }
-        if (player.tickCount % WandOutline.REFRESH_TICKS != 0) {
-            return;
+        if (player.tickCount % WandOutline.REFRESH_TICKS == 0) {
+            WandOutline.tick(player);
         }
-        WandOutline.tick(player);
+        // Offset from the outline's refresh so the two are never computed on the same tick, which keeps
+        // the per-tick cost even rather than spiking every twentieth.
+        if ((player.tickCount + 2) % BoundaryWarning.REFRESH_TICKS == 0) {
+            BoundaryWarning.tick(player);
+        }
     }
 }

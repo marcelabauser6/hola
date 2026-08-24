@@ -1,6 +1,8 @@
 package de.z0rdak.yawp.wand;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.tree.LiteralCommandNode;
@@ -20,6 +22,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * The {@code wand} subcommand of {@code /yawp}.
@@ -54,6 +57,10 @@ public final class WandCommands {
                 .then(Commands.literal("crear")
                         .then(Commands.argument("nombre", StringArgumentType.word())
                                 .executes(WandCommands::createFromWand)))
+                .then(Commands.literal("aplicar")
+                        .then(Commands.argument("zona", StringArgumentType.word())
+                                .suggests(WandCommands::suggestRegions)
+                                .executes(WandCommands::applyToRegion)))
                 .then(Commands.literal("deshacer").executes(WandCommands::undo))
                 .then(Commands.literal("reiniciar").executes(WandCommands::reset))
                 .then(Commands.argument("forma", StringArgumentType.word())
@@ -207,6 +214,61 @@ public final class WandCommands {
 
     private static int[] coords(BlockPos pos) {
         return new int[]{pos.getX(), pos.getY(), pos.getZ()};
+    }
+
+    /** Completion over the region names in the player's own dimension. */
+    private static CompletableFuture<Suggestions> suggestRegions(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            return builder.buildFuture();
+        }
+        return SharedSuggestionProvider.suggest(
+                WandAreaEdit.regionNames(player.level().dimension()), builder);
+    }
+
+    /**
+     * Moves an existing region's boundary to what the wand has marked.
+     *
+     * <p>The region survives: its flags, members, groups, priority, parent, children and anchors are all
+     * untouched and only the shape changes. That is the whole point of the command - resizing by deleting
+     * and recreating would silently discard every setting on a region that has been in use.</p>
+     */
+    private static int applyToRegion(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        ServerPlayer player = source.getPlayer();
+        ItemStack wand = heldWand(player);
+        if (wand == null) {
+            source.sendFailure(noWandHeld());
+            return 0;
+        }
+
+        String regionName = StringArgumentType.getString(context, "zona");
+        WandAreaEdit.Result result = WandAreaEdit.apply(context, player, wand, regionName);
+
+        if (result instanceof WandAreaEdit.Result.Failed failed) {
+            source.sendFailure(Component.literal(failed.reason()));
+            return 0;
+        }
+
+        WandAreaEdit.Result.Applied applied = (WandAreaEdit.Result.Applied) result;
+        WandShape shape = MarkerData.shapeOf(wand);
+        List<BlockPos> corners = MarkerData.corners(wand);
+        source.sendSuccess(() -> Component.literal("Zona '" + regionName + "' redimensionada: ")
+                .withStyle(ChatFormatting.GREEN)
+                .append(Component.literal(Outlines.measure(shape, RegionWand.asCoordinates(corners)))
+                        .withStyle(ChatFormatting.AQUA)), false);
+        source.sendSuccess(() -> Component.literal(
+                        "Se conservan las flags, los miembros y la prioridad.")
+                .withStyle(ChatFormatting.DARK_GRAY), false);
+        if (!applied.usedYawpPath()) {
+            // Told rather than hidden: without YAWP's own path the parent containment check and the
+            // priority adjustment did not run, and the admin should know which of the two they got.
+            source.sendSuccess(() -> Component.literal(
+                            "Aviso: se aplicó sin las validaciones de límite de YAWP.")
+                    .withStyle(ChatFormatting.YELLOW), false);
+        }
+        return 1;
     }
 
     /**
