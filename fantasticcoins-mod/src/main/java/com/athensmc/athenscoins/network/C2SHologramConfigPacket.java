@@ -55,18 +55,21 @@ public class C2SHologramConfigPacket {
             if (player == null) {
                 return;
             }
-            if (!player.hasPermissions(2)) {
-                player.sendSystemMessage(Component
-                        .translatable("message.athens_coins.hologram_op_only")
-                        .withStyle(ChatFormatting.RED));
-                return;
-            }
             if (player.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D)
                     > MAX_REACH_SQR) {
                 return;
             }
             BlockEntity entity = player.level().getBlockEntity(pos);
             if (!(entity instanceof StatsHologramBlockEntity projector)) {
+                return;
+            }
+            // The same verdict the block reaches when it decides whether to open the editor. Asking the
+            // block rather than repeating the rule is what stops the two from disagreeing - and a client
+            // that is refused the screen but accepted by the save packet can edit anything.
+            if (!com.athensmc.athenscoins.block.StatsHologramBlock.canEdit(player, player.level(), pos)) {
+                player.sendSystemMessage(Component
+                        .translatable("message.athens_coins.hologram_op_only")
+                        .withStyle(ChatFormatting.RED));
                 return;
             }
             projector.applyConfig(HologramConfig.load(config));

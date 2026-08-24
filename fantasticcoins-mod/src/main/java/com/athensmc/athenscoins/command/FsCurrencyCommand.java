@@ -1,10 +1,8 @@
 package com.athensmc.athenscoins.command;
 
-import com.athensmc.athenscoins.bank.BankConfirmations;
-import com.athensmc.athenscoins.block.ModBlocks;
+import com.athensmc.athenscoins.bank.AccountOffers;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
-import com.athensmc.athenscoins.network.S2COpenHologramPacket;
 import com.athensmc.athenscoins.network.S2COpenWalletPacket;
 import com.athensmc.athenscoins.transfer.PendingTransfer;
 import com.athensmc.athenscoins.transfer.TransferManager;
@@ -21,14 +19,11 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.core.BlockPos;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
-
-import javax.annotation.Nullable;
 
 /**
  * {@code /fscurrency} — the Fantastic Currency command. Command names stay in English on purpose;
@@ -81,21 +76,17 @@ public final class FsCurrencyCommand {
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
 
-                // Backs the chat buttons on the terminal's confirmation prompts. Gated on actually
-                // having something to answer, so it stays out of tab-completion otherwise.
-                .then(Commands.literal("bank")
-                        .then(Commands.literal("confirm")
-                                .requires(FsCurrencyCommand::hasPendingConfirmation)
+                // The account offer's chat buttons. A player command, not an operator one: the
+                // person answering is the prospective customer, and it is their own account.
+                .then(Commands.literal("account")
+                        .then(Commands.literal("accept")
+                                .requires(FsCurrencyCommand::hasPendingOffer)
                                 .then(Commands.argument("id", IntegerArgumentType.integer(1))
-                                        .executes(context -> answerBank(context, true))))
-                        .then(Commands.literal("cancel")
-                                .requires(FsCurrencyCommand::hasPendingConfirmation)
+                                        .executes(context -> answerOffer(context, true))))
+                        .then(Commands.literal("decline")
+                                .requires(FsCurrencyCommand::hasPendingOffer)
                                 .then(Commands.argument("id", IntegerArgumentType.integer(1))
-                                        .executes(context -> answerBank(context, false)))))
-
-                .then(Commands.literal("stats")
-                        .requires(source -> source.hasPermission(2))
-                        .executes(FsCurrencyCommand::openStats))
+                                        .executes(context -> answerOffer(context, false)))))
 
                 .then(Commands.literal("reload")
                         .requires(source -> source.hasPermission(2))
@@ -107,39 +98,46 @@ public final class FsCurrencyCommand {
                 && TransferManager.hasPendingFor(player.getUUID());
     }
 
-    private static boolean hasPendingConfirmation(CommandSourceStack source) {
+    private static boolean hasPendingOffer(CommandSourceStack source) {
         return source.getEntity() instanceof ServerPlayer player
-                && BankConfirmations.hasPendingFor(player.getUUID());
+                && AccountOffers.hasPendingFor(player.getUUID());
     }
 
     /**
-     * Answers a terminal confirmation.
+     * Answers an offer of a bank account.
      *
-     * <p>Only the player the question was asked of may answer it, whatever id they type: the id is a
-     * small integer visible in a click event, so without the check anybody could confirm somebody
-     * else's pending closure.</p>
+     * <p>Only the player the account was offered to may answer it, whatever id they type. The id is a
+     * small integer sitting in a click event, so without the ownership check anybody could accept - and
+     * therefore create - somebody else's account.</p>
      */
-    private static int answerBank(CommandContext<CommandSourceStack> context, boolean confirmed)
+    private static int answerOffer(CommandContext<CommandSourceStack> context, boolean accepted)
             throws CommandSyntaxException {
         ServerPlayer player = self(context);
         int id = IntegerArgumentType.getInteger(context, "id");
-        BankConfirmations.Pending pending = BankConfirmations.get(id);
-        if (pending == null || !pending.actor().equals(player.getUUID())
-                || pending.isExpired(System.currentTimeMillis())) {
-            BankConfirmations.remove(id);
+        AccountOffers.Offer offer = AccountOffers.get(id);
+        if (offer == null || !offer.holder().equals(player.getUUID())
+                || offer.isExpired(System.currentTimeMillis())) {
+            AccountOffers.remove(id);
             context.getSource().sendFailure(
-                    Component.translatable("message.athens_coins.ask_expired"));
+                    Component.translatable("message.athens_coins.offer_gone"));
             return 0;
         }
-        BankConfirmations.remove(id);
-        if (!confirmed) {
+        AccountOffers.remove(id);
+        if (!accepted) {
             context.getSource().sendSuccess(() -> Component
-                    .translatable("message.athens_coins.ask_cancelled")
+                    .translatable("message.athens_coins.offer_declined", offer.bankName())
                     .withStyle(ChatFormatting.GRAY), false);
+            ServerPlayer banker = player.server.getPlayerList().getPlayer(offer.banker());
+            if (banker != null) {
+                banker.sendSystemMessage(Component.translatable(
+                                "message.athens_coins.offer_refused",
+                                player.getGameProfile().getName())
+                        .withStyle(ChatFormatting.RED));
+            }
             player.server.getCommands().sendCommands(player);
             return 1;
         }
-        com.athensmc.athenscoins.network.C2STerminalActionPacket.performConfirmed(player, pending);
+        com.athensmc.athenscoins.network.C2STerminalActionPacket.completeOffer(player, offer);
         player.server.getCommands().sendCommands(player);
         return 1;
     }
@@ -294,51 +292,6 @@ public final class FsCurrencyCommand {
     private static void finish(int id, ServerPlayer responder) {
         TransferManager.remove(id);
         TransferManager.refreshCommands(responder.server, responder.getUUID());
-    }
-
-    // ------------------------------------------------------------------ stats
-
-    /** How far the command will look for a projector to edit. */
-    private static final int HOLOGRAM_SEARCH_RADIUS = 16;
-
-    /**
-     * Opens the hologram editor for the nearest projector.
-     *
-     * <p>The command used to open a read-only dashboard. The statistics are a hologram now, so there is
-     * nothing for a private window to be: {@code /fscurrency stats} edits the board you are standing
-     * next to. Finding nothing is a message telling you to place one, not an empty editor - an editor
-     * with no projector behind it would have nowhere to save to.</p>
-     */
-    private static int openStats(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ServerPlayer admin = self(context);
-        BlockPos found = nearestHologram(admin);
-        if (found == null) {
-            context.getSource().sendFailure(
-                    Component.translatable("message.athens_coins.hologram_none_near",
-                            HOLOGRAM_SEARCH_RADIUS));
-            return 0;
-        }
-        ModNetwork.toPlayer(admin, new S2COpenHologramPacket(found));
-        return 1;
-    }
-
-    @Nullable
-    private static BlockPos nearestHologram(ServerPlayer admin) {
-        BlockPos origin = admin.blockPosition();
-        BlockPos best = null;
-        double bestDistance = Double.MAX_VALUE;
-        int r = HOLOGRAM_SEARCH_RADIUS;
-        for (BlockPos pos : BlockPos.betweenClosed(origin.offset(-r, -r, -r), origin.offset(r, r, r))) {
-            if (!admin.level().getBlockState(pos).is(ModBlocks.STATS_HOLOGRAM.get())) {
-                continue;
-            }
-            double distance = pos.distSqr(origin);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = pos.immutable();
-            }
-        }
-        return best;
     }
 
     // ------------------------------------------------------------------ reload

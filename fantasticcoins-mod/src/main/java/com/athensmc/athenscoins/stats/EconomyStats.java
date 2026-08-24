@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.stats;
 
+import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.config.DisplaySettings;
@@ -9,22 +10,51 @@ import com.athensmc.athenscoins.wallet.WalletManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
-/** Builds economy statistics from canonical bank accounts and online physical inventories. */
+/**
+ * Builds economy statistics from canonical bank accounts and online physical inventories.
+ *
+ * <p>Two scopes, one body. {@link #compute} covers the whole server; {@link #computeForBank} covers one
+ * bank. They share {@link #build} because every figure is defined the same way in both - "average
+ * balance" must mean the same thing on a bank's own board as on the central bank's, or two boards in the
+ * same square would disagree about arithmetic. The only differences are which accounts are counted, whose
+ * exchange rates are quoted, and whether there is a reserve to report at all.</p>
+ */
 public final class EconomyStats {
     private static final int TOP_ROWS = 6;
     private EconomyStats() {}
 
+    /** The whole server: every account at every bank, and the official rates. */
     public static EconomySnapshot compute(MinecraftServer server) {
-        List<BankAccount> accounts = BankData.get(server).allAccounts();
+        return build(server, null, BankData.get(server).allAccounts());
+    }
+
+    /**
+     * One bank: its own customers, its own reserve, its own quoted rates.
+     *
+     * <p>What a bank's board can honestly show is narrower than the central bank's, and the difference is
+     * the point of branding a board at all. "Cash in circulation" on a bank board means the deposits it
+     * holds, not the money supply - no single bank knows the supply.</p>
+     */
+    public static EconomySnapshot computeForBank(MinecraftServer server, Bank bank) {
+        return build(server, bank, BankData.get(server).accountsOf(bank.id()));
+    }
+
+    private static EconomySnapshot build(MinecraftServer server, @Nullable Bank bank,
+                                         List<BankAccount> accounts) {
         List<long[]> balances = new ArrayList<>(accounts.size());
         long total = 0L;
+        long loansOut = 0L;
         for (BankAccount account : accounts) {
-            long cents = Money.canAdd(account.balance(), account.walletBalance())
-                    ? account.balance() + account.walletBalance() : Money.MAX_CENTS;
+            long cents = wealth(account);
             total = Money.canAdd(total, cents) ? total + cents : Money.MAX_CENTS;
             balances.add(new long[] { cents });
+            if (account.loan() != null && !account.loan().settled()) {
+                long owed = account.loan().owed();
+                loansOut = Money.canAdd(loansOut, owed) ? loansOut + owed : Money.MAX_CENTS;
+            }
         }
         balances.sort(Comparator.comparingLong(value -> -value[0]));
         int count = balances.size();
@@ -41,17 +71,32 @@ public final class EconomyStats {
         accounts.stream().sorted(Comparator.comparingLong(EconomyStats::wealth).reversed()).limit(TOP_ROWS)
                 .forEach(account -> top.add(new EconomySnapshot.Holder(nameOf(server, account.owner()), wealth(account))));
 
+        // Coins are physical items in inventories and belong to no bank, so a bank board counts the coins
+        // carried by its own customers rather than everybody's - otherwise every board in the world would
+        // quote the same figure and none of them would be about the bank whose name is on it.
+        Set<UUID> members = bank == null ? null : new HashSet<>();
+        if (members != null) {
+            for (BankAccount account : accounts) members.add(account.owner());
+        }
         long[] coinCounts = new long[CoinType.ORDERED.length]; long coinValue = 0L;
         List<ServerPlayer> online = server.getPlayerList().getPlayers();
-        for (ServerPlayer player : online) for (CoinType type : CoinType.ORDERED) {
-            int carried = WalletManager.countCoins(player, type); coinCounts[type.ordinal()] += carried;
-            long value = Money.multiply(type.cashValueCents(), carried);
-            coinValue = Money.canAdd(coinValue, value) ? coinValue + value : Money.MAX_CENTS;
+        int counted = 0;
+        for (ServerPlayer player : online) {
+            if (members != null && !members.contains(player.getUUID())) continue;
+            counted++;
+            for (CoinType type : CoinType.ORDERED) {
+                int carried = WalletManager.countCoins(player, type); coinCounts[type.ordinal()] += carried;
+                long value = Money.multiply(type.cashValueCents(), carried);
+                coinValue = Money.canAdd(coinValue, value) ? coinValue + value : Money.MAX_CENTS;
+            }
         }
         long[] rates = new long[CoinType.ORDERED.length];
-        for (CoinType type : CoinType.ORDERED) rates[type.ordinal()] = type.cashValueCents();
-        return new EconomySnapshot(count, online.size(), total, average, median, richest, share,
-                coinCounts, coinValue, rates, top, DisplaySettings.fromConfig());
+        for (CoinType type : CoinType.ORDERED) {
+            rates[type.ordinal()] = bank == null ? type.cashValueCents() : bank.rate(type);
+        }
+        long reserve = bank == null ? BankData.get(server).totalIssued() : bank.reserve();
+        return new EconomySnapshot(count, counted, total, reserve, loansOut, average, median, richest,
+                share, coinCounts, coinValue, rates, top, DisplaySettings.fromConfig());
     }
 
     private static long wealth(BankAccount account) {

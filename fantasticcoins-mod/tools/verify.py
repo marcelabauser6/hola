@@ -266,6 +266,8 @@ else:
             "com/athensmc/athenscoins/client/layout/ScreenText.class",
             "com/athensmc/athenscoins/client/widget/ColorPicker.class",
             "com/athensmc/athenscoins/client/ClientCashCache.class",
+            "com/athensmc/athenscoins/bank/BankAccess.class",
+            "com/athensmc/athenscoins/bank/AccountOffers.class",
             "com/athensmc/athenscoins/bank/BankRules.class",
             "com/athensmc/athenscoins/bank/Bank.class",
             "com/athensmc/athenscoins/bank/BankAccount.class",
@@ -458,11 +460,15 @@ notes.append("hologram rows and width come from one shared builder")
 # not need a font metric to check.
 TEXT_BUDGETS = (
     (r"^gui\.athens_coins\.central_col_", 10, "central-bank column heading"),
-    (r"^gui\.athens_coins\.risk_(?!hint)", 16, "risk-desk label"),
+    (r"^gui\.athens_coins\.risk_(?!hint)", 12, "risk-desk label"),
     (r"^gui\.athens_coins\.tab_(?!locked)", 14, "tab title"),
     (r"^gui\.athens_coins\.cfg_(?!hint|required|sent|bad_field|save|group|rate_of)", 20,
      "settings field label"),
-    (r"^gui\.athens_coins\.acct_(?!hint|section|ledger|scroll|overdue|no_)", 18, "account label"),
+    (r"^gui\.athens_coins\.acct_(?!hint|section|ledger|scroll|overdue|no_|close|lend|repay)", 12,
+     "account label"),
+    # The movement column holds a date, a name and an amount. The date and the amount are fixed-shape
+    # strings that cannot shrink, so the budget has to fall on the name.
+    (r"^ledger\.athens_coins\.", 18, "movement name"),
 )
 budgeted = 0
 for key, value in lang_text.items():
@@ -475,6 +481,47 @@ for key, value in lang_text.items():
                 problems.append(f"{what} too long for its row ({len(value)} > {limit}): "
                                 f"{key} = {value!r}")
 notes.append(f"{budgeted} space-constrained labels within their character budget")
+
+# (d4) Authority lives in one place.
+#
+# The mod used to answer every question of "may they?" with an inline hasPermissions(2), spread across three
+# blocks and six packet handlers. Each site spelled out its own version, which is how the bank terminal ended
+# up creating a bank for whoever right-clicked it before checking whether they were allowed to be there. The
+# tiers are defined once in BankAccess, and no other file outside it may test operator status directly.
+auth_offenders = []
+for base, _, files in os.walk(SRC):
+    for name in files:
+        if not name.endswith(".java"):
+            continue
+        path = os.path.join(base, name)
+        rel = os.path.relpath(path, SRC)
+        if rel.endswith(os.path.join("bank", "BankAccess.java")):
+            continue
+        source = open(path, encoding="utf-8").read()
+        for line in source.splitlines():
+            if "hasPermissions(" in line and not line.strip().startswith(("*", "//")):
+                auth_offenders.append(f"{rel}: {line.strip()}")
+if auth_offenders:
+    problems.append("permission checks outside BankAccess: " + "; ".join(auth_offenders[:4]))
+else:
+    notes.append("every permission check goes through BankAccess")
+
+# (d5) Confirmations are in the screens, not in chat.
+#
+# The chat prompts are gone; a click-event button that runs a command is what they were made of, so its
+# absence from the bank code is what proves they stayed gone. The account offer is the deliberate exception
+# and is allowed to build one, because its reader is a customer who is not standing at a screen.
+for base, _, files in os.walk(os.path.join(SRC, "com/athensmc/athenscoins")):
+    for name in files:
+        if not name.endswith(".java"):
+            continue
+        if name == "AccountOffers.java" or "transfer" in base:
+            continue
+        source = open(os.path.join(base, name), encoding="utf-8").read()
+        if "ClickEvent.Action.RUN_COMMAND" in source:
+            problems.append(f"{name} builds a chat command button; confirmations belong in the screen")
+notes.append("confirmations are in-screen; only the account offer and transfers use chat buttons")
+
 
 # ---------------------------------------------------------------- 6. responsive screen layout arithmetic
 # The ATM used to be a grid of constants pinned to a baked 248x198 texture, and this section

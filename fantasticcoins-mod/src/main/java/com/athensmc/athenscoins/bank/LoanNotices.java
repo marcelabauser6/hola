@@ -57,7 +57,7 @@ public final class LoanNotices {
                         request.borrowerName(), Money.format(request.amount(), symbol), bank.name())
                 .withStyle(ChatFormatting.YELLOW);
         for (ServerPlayer staff : server.getPlayerList().getPlayers()) {
-            if (bank.isBanker(staff.getUUID()) || staff.hasPermissions(2)) {
+            if (BankAccess.canOpenTerminal(staff, bank)) {
                 staff.sendSystemMessage(line);
             }
         }

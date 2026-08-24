@@ -4,6 +4,7 @@ import com.athensmc.athenscoins.AthensCoinsMod;
 import com.athensmc.athenscoins.block.AtmBlockEntity;
 import com.athensmc.athenscoins.block.ModBlockEntities;
 import com.athensmc.athenscoins.block.ModBlocks;
+import com.athensmc.athenscoins.block.StatsHologramBlockEntity;
 import com.athensmc.athenscoins.client.render.StatsHologramRenderer;
 import com.athensmc.athenscoins.client.screen.AtmScreen;
 import com.athensmc.athenscoins.item.ModItems;
@@ -70,6 +71,16 @@ public final class ClientSetup {
             }
             return DEFAULT_TINT;
         }, ModBlocks.ATM.get());
+
+        // The stats board wears its issuing bank's colour too, so a square with three boards tells you
+        // which is which before you have read a single figure. Single block, so no looking down.
+        event.register((state, level, pos, tintIndex) -> {
+            if (level != null && pos != null
+                    && level.getBlockEntity(pos) instanceof StatsHologramBlockEntity board) {
+                return board.themeColor();
+            }
+            return DEFAULT_TINT;
+        }, ModBlocks.STATS_HOLOGRAM.get());
     }
 
     /**
@@ -84,6 +95,6 @@ public final class ClientSetup {
             CompoundTag tag = stack.getTag();
             return tag != null && tag.contains(AtmBlockEntity.TAG_BANK_COLOR)
                     ? tag.getInt(AtmBlockEntity.TAG_BANK_COLOR) : DEFAULT_TINT;
-        }, ModItems.ATM_ITEM.get());
+        }, ModItems.ATM_ITEM.get(), ModItems.STATS_HOLOGRAM_ITEM.get());
     }
 }

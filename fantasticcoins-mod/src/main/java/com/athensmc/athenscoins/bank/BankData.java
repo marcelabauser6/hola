@@ -42,6 +42,16 @@ public class BankData extends SavedData {
     private final Map<Integer, LoanRequest> loanRequests = new LinkedHashMap<>();
     private int nextLoanRequestId = 1;
     private long totalIssued;
+    /**
+     * Players the central bank has licensed to found banks.
+     *
+     * <p>World-level rather than per-bank, because the permission is "may create a bank", which by
+     * definition is held before any bank exists. Operator status used to be the only way in, so on a
+     * server where staff are not operators there was no way to delegate running the economy without
+     * handing over the whole server. This is the delegation: the central bank licenses a founder, and a
+     * founder may place and open bank terminals.</p>
+     */
+    private final Set<UUID> founders = new HashSet<>();
 
     public static BankData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(BankData::load, BankData::new, DATA_NAME);
@@ -123,6 +133,24 @@ public class BankData extends SavedData {
         return null;
     }
 
+    // ---------------------------------------------------------------- founders
+
+    public boolean isFounder(UUID player) { return player != null && founders.contains(player); }
+
+    public boolean addFounder(UUID player) {
+        if (player == null || !founders.add(player)) return false;
+        setDirty();
+        return true;
+    }
+
+    public boolean removeFounder(UUID player) {
+        if (player == null || !founders.remove(player)) return false;
+        setDirty();
+        return true;
+    }
+
+    public Set<UUID> founders() { return Set.copyOf(founders); }
+
     public long totalIssued() { return totalIssued; }
     public boolean addIssued(long amount) { if (amount <= 0L || !Money.canAdd(totalIssued, amount)) return false; totalIssued += amount; setDirty(); return true; }
 
@@ -154,6 +182,10 @@ public class BankData extends SavedData {
         // Applications outlive a restart on purpose: they wait for whenever a banker next logs in.
         ListTag requestList = new ListTag(); for (LoanRequest request : loanRequests.values()) requestList.add(request.save()); tag.put("LoanRequests", requestList);
         tag.putInt("NextLoanRequest", nextLoanRequestId);
+        // Same shape as Bank's banker list, so there is one idiom for "a set of players" in this file.
+        ListTag founderList = new ListTag();
+        for (UUID founder : founders) { CompoundTag entry = new CompoundTag(); entry.putUUID("id", founder); founderList.add(entry); }
+        tag.put("Founders", founderList);
         tag.putLong("Issued", totalIssued); tag.putInt("DataVersion", CURRENT_VERSION); return tag;
     }
 
@@ -181,6 +213,8 @@ public class BankData extends SavedData {
             if(!data.banks.containsKey(request.bankId()))continue;
             data.loanRequests.put(request.id(),request);
         }
+        ListTag founderList=tag.getList("Founders",Tag.TAG_COMPOUND);
+        for(int i=0;i<founderList.size();i++){CompoundTag f=founderList.getCompound(i);if(f.hasUUID("id"))data.founders.add(f.getUUID("id"));}
         data.nextLoanRequestId=Math.max(1,tag.getInt("NextLoanRequest"));
         for(Integer id:data.loanRequests.keySet())data.nextLoanRequestId=Math.max(data.nextLoanRequestId,id+1);
         data.totalIssued=Money.clampBalance(tag.getLong("Issued")); return data;

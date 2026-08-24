@@ -26,6 +26,14 @@ public class S2COpenCentralPacket {
                           long loansOut, boolean seated, long[] rates, int color) {
     }
 
+    /**
+     * One online player on the licensing list.
+     *
+     * @param founder whether the central bank has licensed them to found and run banks
+     */
+    public record PlayerRow(UUID id, String name, boolean founder) {
+    }
+
     private final BlockPos pos;
     private final List<BankRow> banks;
     private final long[] officialRates;
@@ -33,9 +41,14 @@ public class S2COpenCentralPacket {
     private final long[] ceilings;
     private final int marginPercent;
     private final long totalIssued;
+    /** Online players, for the licensing tab. */
+    private final List<PlayerRow> players;
+    /** Whether the viewer may actually grant licences, as opposed to merely seeing who holds one. */
+    private final boolean operator;
 
     public S2COpenCentralPacket(BlockPos pos, List<BankRow> banks, long[] officialRates,
-                                long[] floors, long[] ceilings, int marginPercent, long totalIssued) {
+                                long[] floors, long[] ceilings, int marginPercent, long totalIssued,
+                                List<PlayerRow> players, boolean operator) {
         this.pos = pos;
         this.banks = banks;
         this.officialRates = officialRates;
@@ -43,6 +56,8 @@ public class S2COpenCentralPacket {
         this.ceilings = ceilings;
         this.marginPercent = marginPercent;
         this.totalIssued = totalIssued;
+        this.players = players;
+        this.operator = operator;
     }
 
     public static S2COpenCentralPacket of(ServerPlayer viewer, BlockPos pos) {
@@ -79,8 +94,14 @@ public class S2COpenCentralPacket {
             floors[type.ordinal()] = BankRules.rateFloor(value, margin);
             ceilings[type.ordinal()] = BankRules.rateCeiling(value, margin);
         }
+        List<PlayerRow> players = new ArrayList<>();
+        for (ServerPlayer online : viewer.server.getPlayerList().getPlayers()) {
+            players.add(new PlayerRow(online.getUUID(), online.getGameProfile().getName(),
+                    data.isFounder(online.getUUID())));
+        }
         return new S2COpenCentralPacket(pos, rows, official, floors, ceilings, margin,
-                data.totalIssued());
+                data.totalIssued(), players,
+                com.athensmc.athenscoins.bank.BankAccess.isOperator(viewer));
     }
 
     public S2COpenCentralPacket(FriendlyByteBuf buffer) {
@@ -107,6 +128,12 @@ public class S2COpenCentralPacket {
         this.ceilings = readRates(buffer);
         this.marginPercent = buffer.readVarInt();
         this.totalIssued = buffer.readVarLong();
+        int playerCount = buffer.readVarInt();
+        this.players = new ArrayList<>(playerCount);
+        for (int i = 0; i < playerCount; i++) {
+            players.add(new PlayerRow(buffer.readUUID(), buffer.readUtf(32), buffer.readBoolean()));
+        }
+        this.operator = buffer.readBoolean();
     }
 
     private static long[] readRates(FriendlyByteBuf buffer) {
@@ -142,6 +169,13 @@ public class S2COpenCentralPacket {
         writeRates(buffer, ceilings);
         buffer.writeVarInt(marginPercent);
         buffer.writeVarLong(totalIssued);
+        buffer.writeVarInt(players.size());
+        for (PlayerRow row : players) {
+            buffer.writeUUID(row.id());
+            buffer.writeUtf(row.name(), 32);
+            buffer.writeBoolean(row.founder());
+        }
+        buffer.writeBoolean(operator);
     }
 
     public BlockPos pos() {
@@ -170,6 +204,14 @@ public class S2COpenCentralPacket {
 
     public long totalIssued() {
         return totalIssued;
+    }
+
+    public List<PlayerRow> players() {
+        return players;
+    }
+
+    public boolean operator() {
+        return operator;
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {

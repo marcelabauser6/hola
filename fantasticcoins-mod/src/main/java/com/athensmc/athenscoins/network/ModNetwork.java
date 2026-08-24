@@ -21,7 +21,7 @@ public final class ModNetwork {
      * 8 adds the stats hologram's two packets, which also shift the ids of nothing before them but
      * would leave an older client with no decoder for the two at the end.</p>
      */
-    private static final String PROTOCOL_VERSION = "8";
+    private static final String PROTOCOL_VERSION = "9";
 
     private static SimpleChannel channel;
 

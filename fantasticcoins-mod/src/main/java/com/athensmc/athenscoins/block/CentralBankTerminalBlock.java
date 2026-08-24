@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.block;
 
+import com.athensmc.athenscoins.bank.BankAccess;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenCentralPacket;
 import net.minecraft.ChatFormatting;
@@ -47,7 +48,7 @@ public class CentralBankTerminalBlock extends TallMachineBlock {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.PASS;
         }
-        if (!serverPlayer.hasPermissions(2)) {
+        if (!BankAccess.canFoundBanks(serverPlayer)) {
             serverPlayer.sendSystemMessage(Component
                     .translatable("message.athens_coins.central_op_only")
                     .withStyle(ChatFormatting.RED));

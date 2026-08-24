@@ -4,7 +4,7 @@ import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.bank.BankManager;
-import com.athensmc.athenscoins.bank.BankConfirmations;
+import com.athensmc.athenscoins.bank.BankAccess;
 import com.athensmc.athenscoins.bank.BankRules;
 import com.athensmc.athenscoins.bank.LoanRequest;
 import com.athensmc.athenscoins.config.CurrencyConfig;
@@ -51,6 +51,14 @@ public class C2STerminalActionPacket {
         GRANT_LOAN,
         REPAY_LOAN,
         /**
+         * Hands over a stats board branded with this bank. {@code value} is the stack count.
+         *
+         * <p>Appended at the end, like every action before it: the ordinal is the wire value, so
+         * inserting one in the middle would renumber every action after it and an older client would
+         * send "approve loan" where the server read "issue board".</p>
+         */
+        ISSUE_HOLOGRAM,
+        /**
          * Approves a loan application. {@code account} carries the request id and {@code value} the
          * amount actually granted, so a banker can approve less than was asked for.
          */
@@ -64,26 +72,23 @@ public class C2STerminalActionPacket {
             return ordinal >= 0 && ordinal < VALUES.length ? VALUES[ordinal] : ADD_BANKER;
         }
 
-        boolean operatorOnly() {
+        /**
+         * Whether this action changes the bank's terms rather than serving a customer.
+         *
+         * <p>Was {@code operatorOnly}. The name was the problem as much as the check: the tier that may
+         * change a bank's terms is now "manager" - an operator <em>or</em> a founder licensed by the
+         * central bank - and a method called {@code operatorOnly} invites the next reader to add an
+         * {@code hasPermissions(2)} beside it.</p>
+         *
+         * <p>Bankers are excluded on purpose. A teller serves customers; the fee and the lending policy
+         * are the owner's decision, and a banker who could move the fee could change a contract the
+         * customers already signed up to.</p>
+         */
+        boolean managerOnly() {
             return switch (this) {
-                case OPEN_ACCOUNT, ISSUE_ATM, WITHDRAW_ALL, GRANT_LOAN, REPAY_LOAN,
+                case OPEN_ACCOUNT, ISSUE_ATM, ISSUE_HOLOGRAM, WITHDRAW_ALL, GRANT_LOAN, REPAY_LOAN,
                         APPROVE_LOAN, REJECT_LOAN -> false;
                 default -> true;
-            };
-        }
-
-        /**
-         * Whether this action asks before it acts.
-         *
-         * <p>The test is "can a stray click cause harm somebody else has to live with". Handing over
-         * banker access, opening an account in somebody's name, closing one, and deciding a loan all
-         * qualify; changing a rate or issuing an ATM to your own inventory does not.</p>
-         */
-        boolean needsConfirmation() {
-            return switch (this) {
-                case ADD_BANKER, REMOVE_BANKER, OPEN_ACCOUNT, WITHDRAW_ALL,
-                        APPROVE_LOAN, REJECT_LOAN -> true;
-                default -> false;
             };
         }
     }
@@ -140,31 +145,6 @@ public class C2STerminalActionPacket {
     }
 
     private void apply(ServerPlayer player) {
-        apply(player, false);
-    }
-
-    /**
-     * Runs a proposal the actor has confirmed.
-     *
-     * <p>Rebuilds the original request and takes the same path an unconfirmed action takes, so the
-     * confirmed and unconfirmed routes cannot drift apart - the permission and reach checks are
-     * re-run here too, because the actor may have walked away or lost access while the question sat
-     * in their chat.</p>
-     */
-    public static void performConfirmed(ServerPlayer player, BankConfirmations.Pending pending) {
-        Action action = switch (pending.kind()) {
-            case OPEN_ACCOUNT -> Action.OPEN_ACCOUNT;
-            case GRANT_BANKER -> Action.ADD_BANKER;
-            case REVOKE_BANKER -> Action.REMOVE_BANKER;
-            case CLOSE_ACCOUNT -> Action.WITHDRAW_ALL;
-            case APPROVE_LOAN -> Action.APPROVE_LOAN;
-            case REJECT_LOAN -> Action.REJECT_LOAN;
-        };
-        new C2STerminalActionPacket(pending.pos(), action, pending.target(), pending.account(),
-                pending.amount(), "").apply(player, true);
-    }
-
-    private void apply(ServerPlayer player, boolean confirmed) {
         // Must actually be at a terminal, and within reach of it.
         if (player.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D) > 64.0D) {
             return;
@@ -175,11 +155,11 @@ public class C2STerminalActionPacket {
             return;
         }
 
-        boolean operator = player.hasPermissions(2);
-        if (!operator && !bank.isBanker(player.getUUID())) {
+        boolean manager = BankAccess.canConfigure(player);
+        if (!BankAccess.canOpenTerminal(player, bank)) {
             return;
         }
-        if (action.operatorOnly() && !operator) {
+        if (action.managerOnly() && !manager) {
             player.sendSystemMessage(Component.translatable("message.athens_coins.bank_op_only")
                     .withStyle(ChatFormatting.RED));
             return;
@@ -191,12 +171,10 @@ public class C2STerminalActionPacket {
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        // The irreversible ones ask first. A click on a row proposes; the chat buttons decide.
-        if (!confirmed && action.needsConfirmation()) {
-            proposeConfirmation(player, data, bank);
-            return;
-        }
-
+        // No confirmation step here any more. The irreversible actions are confirmed in the screen, by a
+        // dialog drawn over the tab that started them, and the packet is only sent once the user has
+        // said yes - so by the time anything arrives here the decision has already been made. Asking
+        // again in chat put the question three rooms away from the click that caused it.
         switch (action) {
             case ADD_BANKER -> {
                 bank.bankers().add(target);
@@ -210,6 +188,7 @@ public class C2STerminalActionPacket {
             }
             case OPEN_ACCOUNT -> openAccount(player, data, bank);
             case ISSUE_ATM -> issueAtm(player, bank);
+            case ISSUE_HOLOGRAM -> issueHologram(player, bank);
             case WITHDRAW_ALL -> withdrawAll(player, data, bank);
             case GRANT_LOAN -> grantLoan(player, data, bank);
             case REPAY_LOAN -> repayLoan(player, data, bank);
@@ -271,7 +250,7 @@ public class C2STerminalActionPacket {
 
         // Refresh the terminal list. The loan actions additionally re-push the detail screen,
         // which arrives after this and therefore wins.
-        ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, operator));
+        ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, manager));
     }
 
     private void setRate(ServerPlayer player, BankData data, Bank bank, CoinType type) {
@@ -301,25 +280,62 @@ public class C2STerminalActionPacket {
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        BankManager.OpenResult result = BankManager.openAccount(player.server, bank,
+        // Refused early rather than after the customer has agreed: being told "you already have an
+        // account" is the banker's problem to see, not something to interrupt the customer with.
+        if (data.hasAccount(holder.getUUID())) {
+            player.sendSystemMessage(Component.translatable("gui.athens_coins.click_already_has",
+                    holder.getGameProfile().getName()).withStyle(ChatFormatting.RED));
+            return;
+        }
+        // The account is offered, not created. An account is an agreement, and the person who has to
+        // agree is the one who will be paying the fee - so the question, and the terms, go to them.
+        com.athensmc.athenscoins.bank.AccountOffers.offer(player, holder, bank);
+        feedback(player, "message.athens_coins.offer_sent");
+    }
+
+    /**
+     * Creates the account a customer has just accepted.
+     *
+     * <p>Lives here rather than in the offer store because this is where the rest of the opening lives:
+     * the tag the banker hands over, the wording of both messages. The bank is re-resolved by id, and the
+     * banker no longer has to be online - they made the offer, the customer accepted it, and whether the
+     * staff member is still logged in is not the customer's problem.</p>
+     */
+    public static void completeOffer(ServerPlayer holder,
+                                     com.athensmc.athenscoins.bank.AccountOffers.Offer offer) {
+        BankData data = BankData.get(holder.server);
+        Bank bank = data.bank(offer.bankId());
+        if (bank == null) {
+            holder.sendSystemMessage(Component
+                    .translatable("message.athens_coins.bank_no_such_account")
+                    .withStyle(ChatFormatting.RED));
+            return;
+        }
+        BankManager.OpenResult result = BankManager.openAccount(holder.server, bank,
                 holder.getUUID(), holder.getGameProfile().getName(), 0L);
         if (!result.ok()) {
-            player.sendSystemMessage(Component.translatable(result.messageKey())
+            holder.sendSystemMessage(Component.translatable(result.messageKey())
                     .withStyle(ChatFormatting.RED));
             return;
         }
         BankAccount account = data.account(result.number());
-        // The banker receives the tag and hands it to the customer.
+        ServerPlayer banker = holder.server.getPlayerList().getPlayer(offer.banker());
+        // The paperwork goes to the banker if they are still around, and to the customer otherwise, so
+        // the tag is never quietly lost.
+        ServerPlayer recipient = banker != null ? banker : holder;
         ItemStack tag = BankManager.accountTag(account, bank);
-        if (!player.getInventory().add(tag)) {
-            player.drop(tag, false);
+        if (!recipient.getInventory().add(tag)) {
+            recipient.drop(tag, false);
         }
-        player.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_opened",
-                        holder.getGameProfile().getName(), result.number())
-                .withStyle(ChatFormatting.GREEN));
+        if (banker != null) {
+            banker.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_opened",
+                            holder.getGameProfile().getName(), result.number())
+                    .withStyle(ChatFormatting.GREEN));
+        }
         holder.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_yours",
                         bank.name(), result.number())
                 .withStyle(ChatFormatting.GREEN));
+        com.athensmc.athenscoins.wallet.WalletManager.pushBalance(holder);
     }
 
     /** Hands the banker a machine branded with this bank. */
@@ -333,6 +349,25 @@ public class C2STerminalActionPacket {
             player.drop(atm, false);
         }
         feedback(player, "message.athens_coins.bank_atm_issued");
+    }
+
+    /**
+     * Hands the banker a stats board branded with this bank.
+     *
+     * <p>Branded exactly like an ATM, and for the same reason: a board shows figures, and "which
+     * figures" has to be decided by whoever issued it rather than by whoever placed it. A board issued
+     * here reports <em>this</em> bank - its reserve, its deposits, its own customers - so a market square
+     * can carry one per bank and each one tells the truth about a different institution.</p>
+     */
+    private void issueHologram(ServerPlayer player, Bank bank) {
+        ItemStack board = new ItemStack(
+                com.athensmc.athenscoins.item.ModItems.STATS_HOLOGRAM_ITEM.get(),
+                (int) Math.max(1L, Math.min(16L, value)));
+        com.athensmc.athenscoins.block.StatsHologramBlockEntity.brand(board, bank);
+        if (!player.getInventory().add(board)) {
+            player.drop(board, false);
+        }
+        feedback(player, "message.athens_coins.bank_board_issued");
     }
 
     /** Closes an account and puts everything it held onto a signed card. */
@@ -394,7 +429,7 @@ public class C2STerminalActionPacket {
             data.removeLoanRequest(request.id());
             player.sendSystemMessage(Component.translatable("message.athens_coins.bank_no_such_account")
                     .withStyle(ChatFormatting.RED));
-            ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, player.hasPermissions(2)));
+            ModNetwork.toPlayer(player, S2COpenTerminalPacket.of(player, bank, pos, BankAccess.canConfigure(player)));
             return;
         }
         long amount = value > 0L ? Math.min(value, request.amount()) : request.amount();
@@ -428,63 +463,6 @@ public class C2STerminalActionPacket {
         player.sendSystemMessage(Component.translatable("message.athens_coins.loan_request_refused",
                         request.borrowerName()).withStyle(ChatFormatting.YELLOW));
         com.athensmc.athenscoins.bank.LoanNotices.applicationRejected(player.server, bank, request);
-    }
-
-    /**
-     * Turns a click into a question, with the subject resolved to a name the actor will recognise.
-     *
-     * <p>Resolved here rather than in the confirmation store because this is the only place that has
-     * the bank data to hand; a proposal reading "confirm action on 7f3a-..." would be worse than no
-     * proposal at all.</p>
-     */
-    private void proposeConfirmation(ServerPlayer player, BankData data, Bank bank) {
-        String subject;
-        long amount = value;
-        switch (action) {
-            case ADD_BANKER, REMOVE_BANKER, OPEN_ACCOUNT -> {
-                ServerPlayer who = player.server.getPlayerList().getPlayer(target);
-                if (who == null) {
-                    player.sendSystemMessage(Component
-                            .translatable("message.athens_coins.bank_holder_offline")
-                            .withStyle(ChatFormatting.RED));
-                    return;
-                }
-                subject = who.getGameProfile().getName();
-            }
-            case WITHDRAW_ALL -> {
-                BankAccount account = data.account(this.account);
-                if (account == null || !account.bankId().equals(bank.id())) {
-                    player.sendSystemMessage(Component
-                            .translatable("message.athens_coins.bank_no_such_account")
-                            .withStyle(ChatFormatting.RED));
-                    return;
-                }
-                subject = "#" + account.number() + " " + account.ownerName();
-            }
-            case APPROVE_LOAN, REJECT_LOAN -> {
-                LoanRequest request = data.loanRequest(this.account);
-                if (request == null || !request.bankId().equals(bank.id())) {
-                    player.sendSystemMessage(Component
-                            .translatable("message.athens_coins.loan_request_gone")
-                            .withStyle(ChatFormatting.RED));
-                    return;
-                }
-                subject = request.borrowerName();
-                amount = request.amount();
-            }
-            default -> {
-                return;
-            }
-        }
-        BankConfirmations.Kind kind = switch (action) {
-            case ADD_BANKER -> BankConfirmations.Kind.GRANT_BANKER;
-            case REMOVE_BANKER -> BankConfirmations.Kind.REVOKE_BANKER;
-            case OPEN_ACCOUNT -> BankConfirmations.Kind.OPEN_ACCOUNT;
-            case WITHDRAW_ALL -> BankConfirmations.Kind.CLOSE_ACCOUNT;
-            case APPROVE_LOAN -> BankConfirmations.Kind.APPROVE_LOAN;
-            default -> BankConfirmations.Kind.REJECT_LOAN;
-        };
-        BankConfirmations.propose(player, kind, pos, target, this.account, amount, subject);
     }
 
     private void grantLoan(ServerPlayer player, BankData data, Bank bank) {

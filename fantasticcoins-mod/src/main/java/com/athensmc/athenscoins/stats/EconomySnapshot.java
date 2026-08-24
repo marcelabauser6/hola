@@ -21,6 +21,8 @@ import java.util.List;
 public record EconomySnapshot(int accounts,
                               int onlinePlayers,
                               long totalCashCents,
+                              long reserveCents,
+                              long loansOutCents,
                               long averageCents,
                               long medianCents,
                               long richestCents,
@@ -39,6 +41,8 @@ public record EconomySnapshot(int accounts,
         buffer.writeVarInt(accounts);
         buffer.writeVarInt(onlinePlayers);
         buffer.writeVarLong(totalCashCents);
+        buffer.writeVarLong(reserveCents);
+        buffer.writeVarLong(loansOutCents);
         buffer.writeVarLong(averageCents);
         buffer.writeVarLong(medianCents);
         buffer.writeVarLong(richestCents);
@@ -60,6 +64,8 @@ public record EconomySnapshot(int accounts,
         int accounts = buffer.readVarInt();
         int online = buffer.readVarInt();
         long total = buffer.readVarLong();
+        long reserve = buffer.readVarLong();
+        long loansOut = buffer.readVarLong();
         long average = buffer.readVarLong();
         long median = buffer.readVarLong();
         long richest = buffer.readVarLong();
@@ -76,8 +82,8 @@ public record EconomySnapshot(int accounts,
         for (int i = 0; i < topCount; i++) {
             top.add(new Holder(buffer.readUtf(32), buffer.readVarLong()));
         }
-        return new EconomySnapshot(accounts, online, total, average, median, richest, share,
-                counts, coinValue, rates, top, DisplaySettings.read(buffer));
+        return new EconomySnapshot(accounts, online, total, reserve, loansOut, average, median,
+                richest, share, counts, coinValue, rates, top, DisplaySettings.read(buffer));
     }
 
     /**
@@ -97,6 +103,8 @@ public record EconomySnapshot(int accounts,
         tag.putInt("accounts", accounts);
         tag.putInt("online", onlinePlayers);
         tag.putLong("cash", totalCashCents);
+        tag.putLong("reserve", reserveCents);
+        tag.putLong("loansOut", loansOutCents);
         tag.putLong("average", averageCents);
         tag.putLong("median", medianCents);
         tag.putLong("richest", richestCents);
@@ -132,14 +140,15 @@ public record EconomySnapshot(int accounts,
             top.add(new Holder(entry.getString("name"), entry.getLong("cents")));
         }
         return new EconomySnapshot(tag.getInt("accounts"), tag.getInt("online"),
-                tag.getLong("cash"), tag.getLong("average"), tag.getLong("median"),
+                tag.getLong("cash"), tag.getLong("reserve"), tag.getLong("loansOut"),
+                tag.getLong("average"), tag.getLong("median"),
                 tag.getLong("richest"), tag.getInt("share"), counts, tag.getLong("coinValue"),
                 rates, top, DisplaySettings.load(tag.getCompound("display")));
     }
 
     /** An all-zero snapshot, for a projector the server has not filled in yet. */
     public static EconomySnapshot empty() {
-        return new EconomySnapshot(0, 0, 0L, 0L, 0L, 0L, 0,
+        return new EconomySnapshot(0, 0, 0L, 0L, 0L, 0L, 0L, 0L, 0,
                 new long[CoinType.ORDERED.length], 0L, new long[CoinType.ORDERED.length],
                 List.of(), new DisplaySettings("Fantastic Cash", "$", 0x4CD964,
                 new int[CoinType.ORDERED.length], new long[CoinType.ORDERED.length], 1));
@@ -158,6 +167,8 @@ public record EconomySnapshot(int accounts,
                 && accounts == other.accounts
                 && onlinePlayers == other.onlinePlayers
                 && totalCashCents == other.totalCashCents
+                && reserveCents == other.reserveCents
+                && loansOutCents == other.loansOutCents
                 && averageCents == other.averageCents
                 && medianCents == other.medianCents
                 && richestCents == other.richestCents

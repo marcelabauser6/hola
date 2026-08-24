@@ -37,10 +37,17 @@ public final class PanelMetrics {
     public static final int ACCOUNT_TABS = 0;
     public static final int ACCOUNT_FOOTER = 70;
 
-    /** Central bank: title, no tabs, and a footer of four rows. */
+    /**
+     * Central bank: title, three tabs, and a footer of three rows.
+     *
+     * <p>It had no tabs and tried to show the rate table, the system totals, the bank list and the
+     * selection all at once in two columns. At anything below a very tall window the totals ran straight
+     * under the footer and the last two lines were drawn over the amount box. Splitting the content across
+     * tabs is what makes each part fit rather than shrinking all of them until none of them are readable.</p>
+     */
     public static final int CENTRAL_HEADER = 22;
-    public static final int CENTRAL_TABS = 0;
-    public static final int CENTRAL_FOOTER = 86;
+    public static final int CENTRAL_TABS = 24;
+    public static final int CENTRAL_FOOTER = 74;
 
     /** Hologram editor: title, two tabs plus the preset row, and a footer of two rows. */
     public static final int STATS_HEADER = 22;

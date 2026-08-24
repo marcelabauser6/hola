@@ -29,6 +29,16 @@ public enum StatsMetric {
     ACCOUNTS("accounts", Kind.COUNT),
     ONLINE_PLAYERS("online_players", Kind.COUNT),
 
+    /**
+     * The bank's reserve, or the total ever issued on a server-wide board.
+     *
+     * <p>Two readings of one field, because they are the same quantity seen from either end: what the
+     * central bank has put into the economy is the sum of what the banks hold.</p>
+     */
+    RESERVE("reserve", Kind.MONEY, true),
+    /** Money currently lent out and not yet repaid. */
+    LOANS_OUT("loans_out", Kind.MONEY),
+
     TOTAL_CASH("total_cash", Kind.MONEY, true),
     COIN_VALUE("coin_value", Kind.MONEY),
     TOTAL_SUPPLY("total_supply", Kind.MONEY, true),
@@ -120,6 +130,8 @@ public enum StatsMetric {
         return switch (this) {
             case ACCOUNTS -> String.valueOf(snapshot.accounts());
             case ONLINE_PLAYERS -> String.valueOf(snapshot.onlinePlayers());
+            case RESERVE -> Money.format(snapshot.reserveCents(), symbol);
+            case LOANS_OUT -> Money.format(snapshot.loansOutCents(), symbol);
             case TOTAL_CASH -> Money.format(snapshot.totalCashCents(), symbol);
             case COIN_VALUE -> Money.format(snapshot.onlineCoinValueCents(), symbol);
             case TOTAL_SUPPLY -> Money.format(snapshot.totalSupplyCents(), symbol);

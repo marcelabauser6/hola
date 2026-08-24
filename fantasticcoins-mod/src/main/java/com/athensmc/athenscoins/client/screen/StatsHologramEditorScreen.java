@@ -55,6 +55,8 @@ public class StatsHologramEditorScreen extends Screen {
     private static final int PAD = PanelMetrics.CONTENT_PAD;
     private static final int HINT_H = 12;
     private static final int GAP = 4;
+    /** Room for the label drawn above the title box. */
+    private static final int LABEL_H = 11;
 
     private static final int TEXT_TITLE = 0xFFBFD8FF;
     private static final int TEXT_HINT = 0xFF9FB4CC;
@@ -81,6 +83,8 @@ public class StatsHologramEditorScreen extends Screen {
     }
 
     private final BlockPos pos;
+    /** Whose figures this board reports; empty for a server-wide one. */
+    private final String bankName;
     private final EconomySnapshot snapshot;
     private final HologramConfig working;
     private final ColorPicker picker = new ColorPicker();
@@ -110,9 +114,11 @@ public class StatsHologramEditorScreen extends Screen {
     private Component message;
     private Component hoverTooltip;
 
-    public StatsHologramEditorScreen(BlockPos pos, HologramConfig config, EconomySnapshot snapshot) {
+    public StatsHologramEditorScreen(BlockPos pos, String bankName, HologramConfig config,
+                                     EconomySnapshot snapshot) {
         super(Component.translatable("gui.athens_coins.holo_title"));
         this.pos = pos;
+        this.bankName = bankName == null ? "" : bankName;
         // A copy: the projector keeps showing what it showed until Save is pressed.
         this.working = config.copy();
         this.snapshot = snapshot;
@@ -293,51 +299,65 @@ public class StatsHologramEditorScreen extends Screen {
         picker.setRgb(colorSlots.get(selectedColor).getter().getAsInt());
 
         ScreenLayout.Rect column = midColumn;
-        int y = column.y() + 14;
+        // The heading, then a labelled title box, then the sliders, then the toggles - each one only if it
+        // still fits. Everything below the heading is height-checked because this column is the tallest
+        // stack in the screen and the footer is directly under it.
+        int limit = column.bottom() - 18;
+        int y = column.y() + 14 + LABEL_H;
         titleBox = new EditBox(font, column.x(), y, column.width(), 18,
                 Component.translatable("gui.athens_coins.holo_heading"));
         titleBox.setMaxLength(HologramConfig.TITLE_LIMIT);
         titleBox.setValue(working.title());
         titleBox.setResponder(working::setTitle);
+        titleBox.setHint(Component.translatable("gui.athens_coins.holo_heading_hint"));
         titleBox.setTooltip(Tooltip.create(Component.translatable("gui.athens_coins.holo_heading_tip")));
         addRenderableWidget(titleBox);
         y += 22;
 
-        addRenderableWidget(new IntSlider(column.x(), y, column.width(), 16,
-                "gui.athens_coins.holo_scale", "%", HologramConfig.MIN_SCALE,
-                HologramConfig.MAX_SCALE, working.scalePercent(), working::setScalePercent));
-        y += 20;
-        addRenderableWidget(new IntSlider(column.x(), y, column.width(), 16,
-                "gui.athens_coins.holo_spacing", "", HologramConfig.MIN_SPACING,
-                HologramConfig.MAX_SPACING, working.lineSpacing(), working::setLineSpacing));
-        y += 20;
-        addRenderableWidget(new IntSlider(column.x(), y, column.width(), 16,
-                "gui.athens_coins.holo_height", "", HologramConfig.MIN_OFFSET,
-                HologramConfig.MAX_OFFSET, working.heightOffsetTenths(),
-                working::setHeightOffsetTenths));
-        y += 20;
-        addRenderableWidget(new IntSlider(column.x(), y, column.width(), 16,
-                "gui.athens_coins.holo_top_rows", "", HologramConfig.MIN_TOP_ROWS,
-                HologramConfig.MAX_TOP_ROWS, working.topRows(), working::setTopRows));
-        y += 24;
+        y = addSlider(column, y, limit, "gui.athens_coins.holo_scale", "%",
+                HologramConfig.MIN_SCALE, HologramConfig.MAX_SCALE, working.scalePercent(),
+                working::setScalePercent);
+        y = addSlider(column, y, limit, "gui.athens_coins.holo_spacing", "px",
+                HologramConfig.MIN_SPACING, HologramConfig.MAX_SPACING, working.lineSpacing(),
+                working::setLineSpacing);
+        y = addSlider(column, y, limit, "gui.athens_coins.holo_height", "",
+                HologramConfig.MIN_OFFSET, HologramConfig.MAX_OFFSET,
+                working.heightOffsetTenths(), working::setHeightOffsetTenths);
+        y = addSlider(column, y, limit, "gui.athens_coins.holo_top_rows", "",
+                HologramConfig.MIN_TOP_ROWS, HologramConfig.MAX_TOP_ROWS, working.topRows(),
+                working::setTopRows);
+        y += 4;
 
-        int toggleCell = ScreenLayout.gridCellWidth(
-                new ScreenLayout.Rect(column.x(), y, column.width(), 16), 2, GAP);
-        y = addToggle(column.x(), y, toggleCell, "gui.athens_coins.holo_background",
+        // One toggle per row, full column width. Two per row was the overlap in the screenshot: the labels
+        // are "Título en negrita" and "Mirar al jugador" plus their ": sí", which do not fit in half a
+        // column, and the pair that ran off the bottom landed on the Reset button in the footer.
+        // Height-checked as it goes, so a short window drops the last toggles instead of drawing them over
+        // the footer - and the ones that survive are the ones people change.
+        y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_background",
                 working::showBackground, working::setShowBackground, false);
-        addToggle(column.x() + toggleCell + GAP, y - 20, toggleCell,
-                "gui.athens_coins.holo_shadow", working::textShadow, working::setTextShadow, false);
-        y = addToggle(column.x(), y, toggleCell, "gui.athens_coins.holo_bold",
-                working::boldTitle, working::setBoldTitle, false);
-        addToggle(column.x() + toggleCell + GAP, y - 20, toggleCell,
-                "gui.athens_coins.holo_billboard", working::billboard, working::setBillboard, true);
-        addToggle(column.x(), y, toggleCell, "gui.athens_coins.holo_labels",
+        y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_labels",
                 working::showLabels, working::setShowLabels, false);
+        y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_billboard",
+                working::billboard, working::setBillboard, true);
+        y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_shadow",
+                working::textShadow, working::setTextShadow, false);
+        addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_bold",
+                working::boldTitle, working::setBoldTitle, false);
     }
 
-    private int addToggle(int x, int y, int width, String key,
+    /**
+     * Adds a toggle, unless there is no room left for it.
+     *
+     * <p>{@code limit} is the last y a 16px button may start at and still be inside the column. Skipping is
+     * the honest degradation: a button drawn past the column runs over the footer, and a footer button with
+     * something else on top of it is one that cannot be pressed.</p>
+     */
+    private int addToggle(int x, int y, int width, int limit, String key,
                           java.util.function.BooleanSupplier getter,
                           java.util.function.Consumer<Boolean> setter, boolean tip) {
+        if (y > limit) {
+            return y;
+        }
         Button button = Button.builder(toggleLabel(key, getter.getAsBoolean()), ignored -> {
             setter.accept(!getter.getAsBoolean());
             rebuild();
@@ -347,6 +367,16 @@ public class StatsHologramEditorScreen extends Screen {
                     Component.translatable("gui.athens_coins.holo_billboard_tip")));
         }
         addRenderableWidget(button);
+        return y + 20;
+    }
+
+    private int addSlider(ScreenLayout.Rect column, int y, int limit, String key, String suffix,
+                          int min, int max, int initial, java.util.function.IntConsumer onChange) {
+        if (y > limit) {
+            return y;
+        }
+        addRenderableWidget(new IntSlider(column.x(), y, column.width(), 16, key, suffix,
+                min, max, initial, onChange));
         return y + 20;
     }
 
@@ -454,13 +484,17 @@ public class StatsHologramEditorScreen extends Screen {
 
     private void renderHeader(GuiGraphics graphics, int mouseX, int mouseY) {
         ScreenLayout.Rect header = layout.header();
-        String coords = pos.getX() + " " + pos.getY() + " " + pos.getZ();
-        int coordsBudget = Math.min(header.width() / 3, font.width(coords) + 2);
-        int titleBudget = Math.max(20, header.width() - coordsBudget - PAD * 3);
+        // The scope, not the coordinates. Which bank a board reports on is the one thing you cannot see
+        // by looking at the board, and it decides what every figure in the preview means.
+        String scope = bankName.isEmpty()
+                ? Component.translatable("gui.athens_coins.holo_scope_server").getString()
+                : Component.translatable("gui.athens_coins.holo_scope_bank", bankName).getString();
+        int scopeBudget = Math.min(header.width() / 2, font.width(scope) + 2);
+        int titleBudget = Math.max(20, header.width() - scopeBudget - PAD * 3);
         drawFitted(graphics, title.getString(), header.x() + PAD, header.y() + 6, titleBudget,
                 TEXT_TITLE, mouseX, mouseY);
-        drawRight(graphics, coords, header.right() - PAD, header.y() + 6, coordsBudget,
-                TEXT_MUTED, mouseX, mouseY);
+        drawRight(graphics, scope, header.right() - PAD, header.y() + 6, scopeBudget,
+                bankName.isEmpty() ? TEXT_HEADING : TEXT_GOOD, mouseX, mouseY);
     }
 
     private void renderLineList(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -592,6 +626,9 @@ public class StatsHologramEditorScreen extends Screen {
 
     private void renderLookColumn(GuiGraphics graphics, int mouseX, int mouseY) {
         heading(graphics, midColumn, "gui.athens_coins.holo_layout", mouseX, mouseY);
+        // The title box had nothing above it, so it read as an unexplained black rectangle.
+        drawFitted(graphics, Component.translatable("gui.athens_coins.holo_heading").getString(),
+                midColumn.x(), midColumn.y() + 14, midColumn.width(), TEXT_LABEL, mouseX, mouseY);
     }
 
     /**
@@ -842,7 +879,7 @@ public class StatsHologramEditorScreen extends Screen {
      * something that no longer exists.</p>
      */
     public static StatsHologramEditorScreen forProjector(StatsHologramBlockEntity projector) {
-        return new StatsHologramEditorScreen(projector.getBlockPos(), projector.config(),
-                projector.snapshot());
+        return new StatsHologramEditorScreen(projector.getBlockPos(), projector.bankName(),
+                projector.config(), projector.snapshot());
     }
 }

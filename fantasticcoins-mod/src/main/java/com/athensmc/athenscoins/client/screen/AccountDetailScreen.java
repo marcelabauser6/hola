@@ -41,6 +41,8 @@ public class AccountDetailScreen extends Screen {
     private static final int ROW_H = 11;
     private static final int PAD = 8;
     private static final int HINT_H = 12;
+    /** Account figures, risk figures, movement history. The history is the one that needs the room. */
+    private static final int[] COLUMN_WEIGHTS = { 27, 27, 46 };
 
     private static final int TEXT_TITLE = 0xFFFFD98F;
     private static final int TEXT_HEADING = 0xFFE0C060;
@@ -75,6 +77,8 @@ public class AccountDetailScreen extends Screen {
     private ScreenLayout.Rect ledgerColumn;
     private ScreenLayout.Rect messageRow;
     private int page;
+    /** Closing an account is irreversible, so it asks here rather than in chat. */
+    private final ConfirmOverlay confirm = new ConfirmOverlay();
     private AmountField amountBox;
     private Component message;
     private Component hoverTooltip;
@@ -113,9 +117,12 @@ public class AccountDetailScreen extends Screen {
         hintRow = new ScreenLayout.Rect(content.x(), content.y(), content.width(), HINT_H);
         ScreenLayout.Rect columnsArea = new ScreenLayout.Rect(content.x(), hintRow.bottom(),
                 content.width(), Math.max(0, content.height() - HINT_H));
-        dataColumn = ScreenLayout.column(columnsArea, 3, 10, 0);
-        riskColumn = ScreenLayout.column(columnsArea, 3, 10, 1);
-        ledgerColumn = ScreenLayout.column(columnsArea, 3, 10, 2);
+        // Not three equal thirds. A label-and-figure column needs about half of what a movement history
+        // needs, and splitting evenly clipped every row of the history while the other two had room going
+        // spare - which is what all the trailing ellipses in this screen were.
+        dataColumn = ScreenLayout.weightedColumn(columnsArea, COLUMN_WEIGHTS, 10, 0);
+        riskColumn = ScreenLayout.weightedColumn(columnsArea, COLUMN_WEIGHTS, 10, 1);
+        ledgerColumn = ScreenLayout.weightedColumn(columnsArea, COLUMN_WEIGHTS, 10, 2);
 
         ScreenLayout.Rect footer = layout.footer().inset(6);
         int gap = 4;
@@ -136,7 +143,11 @@ public class AccountDetailScreen extends Screen {
                 Tooltip.create(Component.translatable("gui.athens_coins.acct_repay_tip")));
         // Closing an account ignores the amount box on purpose: it liquidates the whole balance.
         addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.acct_close"),
-                        ignored -> act(C2STerminalActionPacket.Action.WITHDRAW_ALL, 0L))
+                        ignored -> confirm.ask(
+                                Component.translatable("message.athens_coins.ask_close_account",
+                                        "#" + account.number() + " " + account.ownerName()),
+                                Component.translatable("gui.athens_coins.ask_close_detail"),
+                                () -> act(C2STerminalActionPacket.Action.WITHDRAW_ALL, 0L)))
                 .bounds(footer.x() + (cell + gap) * 3, y, cell, 16)
                 .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.acct_close_tip")))
                 .build());
@@ -200,9 +211,29 @@ public class AccountDetailScreen extends Screen {
                     messageRow.width(), TEXT_BAD, mouseX, mouseY);
         }
         super.render(graphics, mouseX, mouseY, partialTick);
-        if (hoverTooltip != null) {
+        if (hoverTooltip != null && !confirm.consumesInput()) {
             graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
         }
+        confirm.render(graphics, font, panel, mouseX, mouseY);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (confirm.consumesInput()) {
+            return confirm.mouseClicked(mouseX, mouseY);
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (confirm.consumesInput()) {
+            if (keyCode == 256) {
+                confirm.cancel();
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     /**
@@ -229,11 +260,17 @@ public class AccountDetailScreen extends Screen {
                 STAMP.format(Instant.ofEpochMilli(account.openedAt())), TEXT_LABEL, mouseX, mouseY);
         y = line(graphics, area, y, "gui.athens_coins.acct_balance",
                 Money.format(account.balance(), "$"), TEXT_GOOD, mouseX, mouseY);
+        // One magnitude per row. These used to be "$0.00 / $25,000.00" and "$0.50 / 1d", which are two
+        // figures sharing a row that has room for one - so both ended up truncated and neither was
+        // readable. Splitting them costs two rows and there is vertical space to spare.
         y = line(graphics, area, y, "gui.athens_coins.acct_wallet",
-                Money.format(account.walletBalance(), "$") + " / " + Money.format(walletLimit, "$"),
-                0xFF9EC5D8, mouseX, mouseY);
+                Money.format(account.walletBalance(), "$"), 0xFF9EC5D8, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_wallet_cap",
+                Money.format(walletLimit, "$"), TEXT_LABEL, mouseX, mouseY);
         y = line(graphics, area, y, "gui.athens_coins.acct_fee",
-                Money.format(commissionFee, "$") + " / " + commissionDays + "d", TEXT_LABEL, mouseX, mouseY);
+                Money.format(commissionFee, "$"), TEXT_LABEL, mouseX, mouseY);
+        y = line(graphics, area, y, "gui.athens_coins.acct_fee_every",
+                commissionDays + "d", TEXT_LABEL, mouseX, mouseY);
         if (account.commissionDebt() > 0L) {
             y = line(graphics, area, y, "gui.athens_coins.acct_fee_debt",
                     Money.format(account.commissionDebt(), "$"), TEXT_BAD, mouseX, mouseY);
@@ -298,13 +335,21 @@ public class AccountDetailScreen extends Screen {
         return y + 16;
     }
 
+    /**
+     * A label on the left and its figure right-aligned to the column edge.
+     *
+     * <p>The figure is measured and given what it needs, up to two thirds of the row; the label takes the
+     * rest. The old split handed the label a flat 48% whatever was in it, so a long figure was truncated
+     * to make room for whitespace after a short label - which is the wrong way round. A figure is the
+     * reason the row exists, and a clipped amount is unreadable in a way a clipped word is not.</p>
+     */
     private int line(GuiGraphics graphics, ScreenLayout.Rect area, int y, String labelKey,
                      String value, int color, int mouseX, int mouseY) {
-        int labelWidth = Math.max(38, area.width() * 48 / 100);
         String label = Component.translatable(labelKey).getString();
-        drawFitted(graphics, label, area.x(), y, labelWidth - 3, TEXT_LABEL, mouseX, mouseY);
-        drawFitted(graphics, value, area.x() + labelWidth, y,
-                area.width() - labelWidth, color, mouseX, mouseY);
+        int valueWidth = Math.min(area.width() * 2 / 3, font.width(value));
+        int labelWidth = Math.max(0, area.width() - valueWidth - 4);
+        drawFitted(graphics, label, area.x(), y, labelWidth, TEXT_LABEL, mouseX, mouseY);
+        drawRight(graphics, value, area.right(), y, valueWidth, color, mouseX, mouseY);
         return y + ROW_H;
     }
 
@@ -327,15 +372,16 @@ public class AccountDetailScreen extends Screen {
             String stamp = STAMP.format(Instant.ofEpochMilli(entry.at()));
             String amountText = entry.amount() == 0L ? "" : (entry.amount() > 0 ? "+" : "")
                     + Money.format(entry.amount(), "$");
-            // Budgets are carved from the row so they sum to its width. The old code floored the
-            // label at 8px, which let it run under the right-aligned amount on a narrow column.
-            int stampWidth = Math.min(58, area.width() / 3);
-            int remaining = Math.max(0, area.width() - stampWidth - 6);
-            int amountWidth = Math.min(remaining / 2, font.width(amountText));
-            int labelWidth = Math.max(0, remaining - amountWidth);
+            // The stamp and the amount are fixed-shape strings, so they are measured and given exactly
+            // what they need; the label absorbs whatever is left. Capping the stamp at a third of the row
+            // and the amount at half the remainder - which is what this used to do - clipped all three at
+            // once on a narrow column, and a date reading "24/08 0…" is worse than no date.
+            int stampWidth = font.width(stamp);
+            int amountWidth = amountText.isEmpty() ? 0 : font.width(amountText);
+            int labelWidth = Math.max(0, area.width() - stampWidth - amountWidth - 8);
             drawFitted(graphics, stamp, area.x(), y, stampWidth, 0xFF7A6A5A, mouseX, mouseY);
             String label = Component.translatable(entry.kind().translationKey()).getString();
-            drawFitted(graphics, label, area.x() + stampWidth + 3, y,
+            drawFitted(graphics, label, area.x() + stampWidth + 4, y,
                     labelWidth, 0xFFC0B0A0, mouseX, mouseY);
             if (!amountText.isEmpty()) {
                 String fittedAmount = ScreenText.fit(font, amountText, amountWidth);
@@ -392,6 +438,9 @@ public class AccountDetailScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (confirm.consumesInput()) {
+            return true;
+        }
         int rows = Math.max(1, ScreenLayout.visibleRows(ledgerRows(), ROW_H));
         int pages = Math.max(1, (ledger.size() + rows - 1) / rows);
         page = ScreenLayout.clamp(page - (int) Math.signum(delta), 0, pages - 1);

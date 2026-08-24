@@ -54,10 +54,9 @@
     },
     {
       "name": "brand_band",
-      "from": [1.45, 12.4, 1.95],
-      "to": [14.55, 13.5, 13.55],
+      "from": [1.4, 9.5, 1.9],
+      "to": [14.6, 13.5, 13.6],
       "faces": {
-        "north": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
         "south": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
         "east": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
         "west": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 }

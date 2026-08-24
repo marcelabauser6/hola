@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.bank.BankAccess;
 import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.bank.BankManager;
@@ -100,7 +101,7 @@ public class C2SBankConfigPacket {
         NetworkEvent.Context ctx = context.get();
         ctx.enqueueWork(() -> {
             ServerPlayer player = ctx.getSender();
-            if (player == null || !player.hasPermissions(2)) {
+            if (player == null || !BankAccess.canConfigure(player)) {
                 if (player != null) {
                     player.sendSystemMessage(Component
                             .translatable("message.athens_coins.bank_op_only")

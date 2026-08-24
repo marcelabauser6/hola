@@ -14,7 +14,10 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
+import net.minecraft.world.item.ItemStack;
+
 import javax.annotation.Nullable;
+import java.util.UUID;
 
 /**
  * The projector behind a stats hologram: what to show, and the figures to show.
@@ -30,8 +33,24 @@ public class StatsHologramBlockEntity extends BlockEntity {
     /** Five seconds. Economy figures do not move fast enough to justify anything tighter. */
     private static final int REFRESH_TICKS = 100;
 
+    public static final String TAG_BANK = "FcBank";
+    public static final String TAG_BANK_NAME = "FcBankName";
+    public static final String TAG_BANK_COLOR = "FcBankColor";
+    private static final int DEFAULT_COLOR = 0x2E4756;
+
     private HologramConfig config = HologramConfig.defaults();
     private EconomySnapshot snapshot = EconomySnapshot.empty();
+    /**
+     * The bank this board reports on, or null for one that reports the whole server.
+     *
+     * <p>Branded exactly like an ATM, and for the same reason: what a board says has to be decided by
+     * whoever issued it, not by whoever happened to place it. A board issued at a bank's terminal reports
+     * that bank; one issued at the central bank reports the economy.</p>
+     */
+    @Nullable
+    private UUID bankId;
+    private String bankName = "";
+    private int themeColor = DEFAULT_COLOR;
     /** Starts due, so a projector shows real numbers on the first tick after being placed. */
     private int ticksUntilRefresh;
 
@@ -54,7 +73,7 @@ public class StatsHologramBlockEntity extends BlockEntity {
         if (server == null) {
             return;
         }
-        EconomySnapshot fresh = StatsCache.snapshot(server);
+        EconomySnapshot fresh = StatsCache.snapshot(server, bankId);
         if (!fresh.sameValues(snapshot)) {
             pushSnapshot(fresh);
         }
@@ -62,6 +81,61 @@ public class StatsHologramBlockEntity extends BlockEntity {
 
     public HologramConfig config() {
         return config;
+    }
+
+    @Nullable
+    public UUID bankId() {
+        return bankId;
+    }
+
+    /** Empty for a server-wide board, which is what the editor shows in place of a bank name. */
+    public String bankName() {
+        return bankName;
+    }
+
+    public int themeColor() {
+        return themeColor;
+    }
+
+    /** True for a board that reports the whole economy rather than one institution. */
+    public boolean global() {
+        return bankId == null;
+    }
+
+    /** Copies the branding off the item that was placed. */
+    public void applyFrom(ItemStack stack) {
+        CompoundTag tag = stack.getTag();
+        if (tag == null || !tag.hasUUID(TAG_BANK)) {
+            return;
+        }
+        bankId = tag.getUUID(TAG_BANK);
+        bankName = tag.getString(TAG_BANK_NAME);
+        themeColor = tag.contains(TAG_BANK_COLOR) ? tag.getInt(TAG_BANK_COLOR) : DEFAULT_COLOR;
+        setChanged();
+        sync();
+    }
+
+    /** Stamps a board item with a bank's identity, ready to be placed. */
+    public static void brand(ItemStack stack, com.athensmc.athenscoins.bank.Bank bank) {
+        CompoundTag tag = stack.getOrCreateTag();
+        tag.putUUID(TAG_BANK, bank.id());
+        tag.putString(TAG_BANK_NAME, bank.name());
+        tag.putInt(TAG_BANK_COLOR, bank.themeColor());
+        stack.setHoverName(net.minecraft.network.chat.Component
+                .translatable("item.athens_coins.board_of", bank.name()));
+    }
+
+    /** Copies this board's branding onto an item, so breaking one does not erase its bank. */
+    public void applyTo(ItemStack stack) {
+        if (bankId == null) {
+            return;
+        }
+        CompoundTag tag = stack.getOrCreateTag();
+        tag.putUUID(TAG_BANK, bankId);
+        tag.putString(TAG_BANK_NAME, bankName);
+        tag.putInt(TAG_BANK_COLOR, themeColor);
+        stack.setHoverName(net.minecraft.network.chat.Component
+                .translatable("item.athens_coins.board_of", bankName));
     }
 
     public EconomySnapshot snapshot() {
@@ -99,6 +173,11 @@ public class StatsHologramBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag) {
         super.saveAdditional(tag);
         tag.put("hologram", config.save());
+        if (bankId != null) {
+            tag.putUUID(TAG_BANK, bankId);
+        }
+        tag.putString(TAG_BANK_NAME, bankName);
+        tag.putInt(TAG_BANK_COLOR, themeColor);
     }
 
     @Override
@@ -107,6 +186,9 @@ public class StatsHologramBlockEntity extends BlockEntity {
         if (tag.contains("hologram")) {
             config = HologramConfig.load(tag.getCompound("hologram"));
         }
+        bankId = tag.hasUUID(TAG_BANK) ? tag.getUUID(TAG_BANK) : null;
+        bankName = tag.getString(TAG_BANK_NAME);
+        themeColor = tag.contains(TAG_BANK_COLOR) ? tag.getInt(TAG_BANK_COLOR) : DEFAULT_COLOR;
         // Only present in the sync tag, never on disk. Forge routes handleUpdateTag through load, so
         // this one method covers both the chunk read and the client update.
         if (tag.contains("stats")) {

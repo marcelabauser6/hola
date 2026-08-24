@@ -135,6 +135,40 @@ public final class ScreenLayout {
         return new Rect(start, area.y(), Math.max(0, end - start), area.height());
     }
 
+    /**
+     * One column of an unevenly split area.
+     *
+     * <p>{@link #column} splits evenly, which is wrong whenever the columns hold different kinds of thing.
+     * The account file is the case that forced this: a label-and-figure column needs about half the width
+     * of a movement history, and giving all three an equal third meant the history clipped every row while
+     * the other two had space to spare. Weights are relative, so {@code {28, 28, 44}} and {@code {7, 7, 11}}
+     * lay out identically.</p>
+     *
+     * <p>Edges are computed by carrying the running weight through the same expression for the start and
+     * the end, so the columns tile the area exactly rather than drifting a pixel apart.</p>
+     */
+    public static Rect weightedColumn(Rect area, int[] weights, int gap, int index) {
+        if (weights == null || weights.length == 0 || index < 0 || index >= weights.length) {
+            return new Rect(area.x(), area.y(), 0, area.height());
+        }
+        int total = 0;
+        for (int weight : weights) {
+            total += Math.max(0, weight);
+        }
+        if (total <= 0) {
+            return column(area, weights.length, gap, index);
+        }
+        int safeGap = clamp(gap, 0, area.width() / Math.max(1, weights.length));
+        int usable = Math.max(0, area.width() - safeGap * (weights.length - 1));
+        int before = 0;
+        for (int i = 0; i < index; i++) {
+            before += Math.max(0, weights[i]);
+        }
+        int start = area.x() + before * usable / total + index * safeGap;
+        int end = area.x() + (before + Math.max(0, weights[index])) * usable / total + index * safeGap;
+        return new Rect(start, area.y(), Math.max(0, end - start), area.height());
+    }
+
     public static int visibleRows(Rect area, int rowHeight) {
         return rowHeight <= 0 ? 0 : Math.max(0, area.height() / rowHeight);
     }

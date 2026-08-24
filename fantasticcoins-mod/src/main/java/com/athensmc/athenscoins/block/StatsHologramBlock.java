@@ -1,7 +1,16 @@
 package com.athensmc.athenscoins.block;
 
+import com.athensmc.athenscoins.bank.Bank;
+import com.athensmc.athenscoins.bank.BankAccess;
+import com.athensmc.athenscoins.bank.BankData;
+import com.athensmc.athenscoins.item.ModItems;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenHologramPacket;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.storage.loot.LootParams;
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
+
+import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -120,7 +129,9 @@ public class StatsHologramBlock extends HorizontalDirectionalBlock implements En
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.PASS;
         }
-        if (!serverPlayer.hasPermissions(2)) {
+        // Who may edit a board follows who it belongs to. A bank's own staff may rearrange their bank's
+        // board; a server-wide board is the central bank's, so it takes the licence that opens that.
+        if (!canEdit(serverPlayer, level, pos)) {
             serverPlayer.sendSystemMessage(Component
                     .translatable("message.athens_coins.hologram_op_only")
                     .withStyle(ChatFormatting.RED));
@@ -128,6 +139,67 @@ public class StatsHologramBlock extends HorizontalDirectionalBlock implements En
         }
         ModNetwork.toPlayer(serverPlayer, new S2COpenHologramPacket(pos));
         return InteractionResult.CONSUME;
+    }
+
+    /**
+     * Whether this player may edit the board at this position.
+     *
+     * <p>Shared with the save packet, which has to reach the same verdict: a client that can be told "no"
+     * by the block and "yes" by the packet is a client that can edit anything by sending the packet
+     * directly.</p>
+     */
+    public static boolean canEdit(ServerPlayer player, BlockGetter level, BlockPos pos) {
+        if (!(level.getBlockEntity(pos) instanceof StatsHologramBlockEntity board)) {
+            return BankAccess.isOperator(player);
+        }
+        if (board.global()) {
+            return BankAccess.canFoundBanks(player);
+        }
+        Bank bank = BankData.get(player.server).bank(board.bankId());
+        return bank == null ? BankAccess.canFoundBanks(player)
+                : BankAccess.canOpenTerminal(player, bank);
+    }
+
+    /** Carries the branding from the item onto the placed board. */
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state,
+                            @Nullable net.minecraft.world.entity.LivingEntity placer,
+                            ItemStack stack) {
+        super.setPlacedBy(level, pos, state, placer, stack);
+        if (level.getBlockEntity(pos) instanceof StatsHologramBlockEntity board) {
+            board.applyFrom(stack);
+        }
+    }
+
+    /** Middle-click pick block keeps the branding. */
+    @Override
+    public ItemStack getCloneItemStack(BlockGetter level, BlockPos pos, BlockState state) {
+        ItemStack stack = super.getCloneItemStack(level, pos, state);
+        if (level.getBlockEntity(pos) instanceof StatsHologramBlockEntity board) {
+            board.applyTo(stack);
+        }
+        return stack;
+    }
+
+    /**
+     * Breaking a board returns it still branded.
+     *
+     * <p>Without this the loot table hands back a blank one, so moving a bank's board two blocks along
+     * would quietly turn it into a server-wide board - the same figures, a different meaning, and nothing
+     * on screen to say it had happened.</p>
+     */
+    @Override
+    public List<ItemStack> getDrops(BlockState state, LootParams.Builder params) {
+        List<ItemStack> drops = super.getDrops(state, params);
+        if (params.getOptionalParameter(LootContextParams.BLOCK_ENTITY)
+                instanceof StatsHologramBlockEntity board && !board.global()) {
+            for (ItemStack stack : drops) {
+                if (stack.is(ModItems.STATS_HOLOGRAM_ITEM.get())) {
+                    board.applyTo(stack);
+                }
+            }
+        }
+        return drops;
     }
 
     @Override

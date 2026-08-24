@@ -1,5 +1,6 @@
 package com.athensmc.athenscoins.network;
 
+import com.athensmc.athenscoins.bank.BankAccess;
 import com.athensmc.athenscoins.bank.Bank;
 import com.athensmc.athenscoins.bank.BankAccount;
 import com.athensmc.athenscoins.bank.BankData;
@@ -46,7 +47,7 @@ public class C2SRequestAccountPacket {
             if (bank == null) {
                 return;
             }
-            if (!player.hasPermissions(2) && !bank.isBanker(player.getUUID())) {
+            if (!BankAccess.canOpenTerminal(player, bank)) {
                 return;
             }
             BankAccount account = data.account(number);

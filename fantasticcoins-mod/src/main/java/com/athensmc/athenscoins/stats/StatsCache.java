@@ -1,53 +1,83 @@
 package com.athensmc.athenscoins.stats;
 
+import com.athensmc.athenscoins.bank.Bank;
+import com.athensmc.athenscoins.bank.BankData;
 import net.minecraft.server.MinecraftServer;
 
 import javax.annotation.Nullable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * One economy snapshot, shared by every hologram that asks for it within a few seconds.
+ * Economy snapshots, shared by every board that asks for the same one within a few seconds.
  *
- * <p>{@link EconomyStats#compute} walks every account in the world and every online player's
- * inventory. That is fine for an admin pressing a command; it is not fine once holograms exist,
- * because each projector refreshes on its own ticker and a market square with six boards would run the
- * same full sweep six times a second apart for identical results.</p>
+ * <p>{@link EconomyStats} walks accounts and online inventories. That is fine for a command; it is not
+ * fine once boards exist, because each projector refreshes on its own ticker and a market square with six
+ * boards would run the same sweep six times a second apart for identical results.</p>
  *
- * <p>Keyed on the server instance, so a single-player client that quits one world and opens another
- * cannot be handed the previous world's figures - the same reason the transfer and confirmation
- * registries are cleared on shutdown.</p>
+ * <p><b>Keyed by bank, not just by server.</b> Boards are branded now: one may report the whole economy
+ * while its neighbour reports one bank. A single cached snapshot would have handed both of them whichever
+ * scope happened to compute first, so a bank's board would silently show the server's figures - a bug that
+ * looks like working software, because the numbers are real, just not about the bank named above them.</p>
  */
 public final class StatsCache {
 
     /** Slightly under the projectors' refresh interval, so a refresh never reuses a stale entry. */
     private static final long TTL_MS = 4_000L;
+    /** The key for the server-wide snapshot, which has no bank of its own. */
+    private static final UUID GLOBAL = new UUID(0L, 0L);
+
+    private record Entry(EconomySnapshot snapshot, long computedAt) {
+    }
 
     @Nullable
     private static MinecraftServer owner;
-    @Nullable
-    private static EconomySnapshot cached;
-    private static long computedAt;
+    private static final Map<UUID, Entry> ENTRIES = new HashMap<>();
 
     private StatsCache() {
     }
 
-    public static synchronized EconomySnapshot snapshot(MinecraftServer server) {
-        long now = System.currentTimeMillis();
-        if (cached == null || owner != server || now - computedAt >= TTL_MS) {
-            cached = EconomyStats.compute(server);
-            computedAt = now;
+    /**
+     * @param bankId the bank to report on, or {@code null} for the whole server
+     */
+    public static synchronized EconomySnapshot snapshot(MinecraftServer server, @Nullable UUID bankId) {
+        if (owner != server) {
+            ENTRIES.clear();
             owner = server;
         }
-        return cached;
+        UUID key = bankId == null ? GLOBAL : bankId;
+        long now = System.currentTimeMillis();
+        Entry cached = ENTRIES.get(key);
+        if (cached != null && now - cached.computedAt() < TTL_MS) {
+            return cached.snapshot();
+        }
+        EconomySnapshot fresh = compute(server, bankId);
+        ENTRIES.put(key, new Entry(fresh, now));
+        return fresh;
+    }
+
+    /**
+     * A board whose bank has been deleted falls back to the server-wide figures rather than to zeros.
+     *
+     * <p>Zeros would read as "this economy is empty", which is a statement about the world rather than
+     * about a missing binding. The whole-server view is at least true.</p>
+     */
+    private static EconomySnapshot compute(MinecraftServer server, @Nullable UUID bankId) {
+        if (bankId == null) {
+            return EconomyStats.compute(server);
+        }
+        Bank bank = BankData.get(server).bank(bankId);
+        return bank == null ? EconomyStats.compute(server) : EconomyStats.computeForBank(server, bank);
     }
 
     /** Forces the next request to recompute; used when an admin has just changed the money supply. */
     public static synchronized void invalidate() {
-        computedAt = 0L;
+        ENTRIES.clear();
     }
 
     public static synchronized void clear() {
         owner = null;
-        cached = null;
-        computedAt = 0L;
+        ENTRIES.clear();
     }
 }

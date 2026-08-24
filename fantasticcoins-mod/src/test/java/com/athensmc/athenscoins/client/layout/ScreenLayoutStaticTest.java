@@ -96,12 +96,32 @@ public final class ScreenLayoutStaticTest {
         verifyRegions("central" + at, central);
         verifyFooterGrid("central" + at, central.footer().inset(6), 3, 4, 16);
         // The close button is the last of four footer rows; it used to sit past the band's floor.
+        // The central bank's footer is two rows now - controls, then the feedback line with Close on its
+        // right - because the content moved into tabs and the fourth row of buttons went with it.
         ScreenLayout.Rect centralFooter = central.footer().inset(6);
-        ScreenLayout.Rect centralClose = new ScreenLayout.Rect(centralFooter.x(),
-                centralFooter.y() + 41 + 10 + 3, centralFooter.width(), 18);
+        ScreenLayout.Rect centralMessage = new ScreenLayout.Rect(centralFooter.x(),
+                centralFooter.y() + 22, centralFooter.width(), 10);
+        int centralButton = Math.min(18, centralFooter.height());
+        ScreenLayout.Rect centralClose = new ScreenLayout.Rect(
+                centralFooter.right() - Math.min(82, centralFooter.width()),
+                centralMessage.bottom() + 2, Math.min(82, centralFooter.width()), centralButton);
+        ScreenLayout.Rect centralControls = new ScreenLayout.Rect(centralFooter.x(),
+                centralFooter.y(), centralFooter.width(), centralButton);
+        require(!centralControls.intersects(centralClose),
+                "central controls overlap the close button" + at);
         if (usable) {
             require(central.footer().contains(centralClose),
                     "central close button escapes the footer band" + at);
+            // Three tabs across the strip, and the content band has to hold a list worth reading.
+            ScreenLayout.Rect centralTabs = central.tabs().inset(4);
+            int centralTabCell = ScreenLayout.gridCellWidth(centralTabs, 3, 4);
+            ScreenLayout.Rect lastCentralTab = new ScreenLayout.Rect(
+                    centralTabs.x() + (centralTabCell + 4) * 2, centralTabs.y(),
+                    centralTabCell, Math.min(18, centralTabs.height()));
+            require(centralTabs.contains(lastCentralTab), "central tab strip overflows" + at);
+            require(ScreenLayout.visibleRows(
+                            central.content().inset(PanelMetrics.CONTENT_PAD), 14) >= 5,
+                    "central content too short for a bank list" + at);
         }
 
         // The hologram editor. Save, Reset and Close are three cells of one grid, and the feedback line
@@ -333,13 +353,25 @@ public final class ScreenLayoutStaticTest {
         require(!regions.content().intersects(regions.footer()), name + " content overlaps footer");
     }
 
+    /**
+     * The footer controls a screen actually draws stay inside the band and clear of each other.
+     *
+     * <p>The height is clamped the way every screen clamps it - {@code Math.min(height, band)} - rather
+     * than asserted at a fixed 16. Asserting the unclamped height tested a control none of the screens
+     * would draw: on a band too short for it they all shrink the button, so the fixed number turned a
+     * graceful degradation into a failure the moment a tab strip took a few pixels off the footer.</p>
+     */
     private static void verifyFooterGrid(String name, ScreenLayout.Rect footer,
                                          int columns, int gap, int height) {
+        if (footer.isEmpty()) {
+            return;
+        }
+        int drawn = Math.min(height, footer.height());
         int width = ScreenLayout.gridCellWidth(footer, columns, gap);
         ScreenLayout.Rect previous = null;
         for (int i = 0; i < columns; i++) {
             ScreenLayout.Rect control = new ScreenLayout.Rect(
-                    footer.x() + i * (width + gap), footer.y(), width, height);
+                    footer.x() + i * (width + gap), footer.y(), width, drawn);
             require(footer.contains(control), name + " footer control " + i + " outside footer");
             if (previous != null) {
                 require(!previous.intersects(control), name + " footer controls overlap");

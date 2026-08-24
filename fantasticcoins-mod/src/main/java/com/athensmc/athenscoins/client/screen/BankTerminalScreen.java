@@ -115,6 +115,9 @@ public class BankTerminalScreen extends Screen {
     private boolean messageIsError;
     private Component hoverTooltip;
 
+    /** Raised by the destructive row actions; modal while it is up. */
+    private final ConfirmOverlay confirm = new ConfirmOverlay();
+
     // ---- settings form
     private final FormList form = new FormList();
     private EditBox nameBox;
@@ -268,8 +271,22 @@ public class BankTerminalScreen extends Screen {
         CountField field = new CountField(font, 0, 0, 100, 16,
                 Component.translatable("gui.athens_coins.bank_days"));
         field.setValue(Integer.toString(Math.max(1, value)));
+        field.setHint(Component.translatable("gui.athens_coins.unit_days_hint"));
         addRenderableWidget(field);
         return field;
+    }
+
+    /**
+     * A field label with its unit after it.
+     *
+     * <p>Eight boxes in a column, all accepting bare numbers, and nothing on screen saying which of them
+     * wanted money, which wanted days and which wanted a percentage. The unit goes in the label rather than
+     * only in the hint below it, because the hint disappears the moment there is a value in the box - which
+     * is exactly when somebody is checking whether they typed the right kind of number.</p>
+     */
+    private static Component withUnit(Component label, String unitKey) {
+        return label.copy().append(Component.literal(" "))
+                .append(Component.translatable(unitKey));
     }
 
     /**
@@ -321,27 +338,27 @@ public class BankTerminalScreen extends Screen {
                 () -> BankPalette.at(colorIndex).rgb()));
 
         form.add(FormList.Row.heading(Component.translatable("gui.athens_coins.cfg_group_wallet")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_wallet_limit"), walletLimitBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_wallet_limit"), "gui.athens_coins.unit_money"), walletLimitBox,
                 Component.translatable("gui.athens_coins.cfg_wallet_limit_hint")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_fee"), feeBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_fee"), "gui.athens_coins.unit_money"), feeBox,
                 Component.translatable("gui.athens_coins.cfg_fee_hint")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_fee_days"), feeDaysBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_fee_days"), "gui.athens_coins.unit_days"), feeDaysBox,
                 Component.translatable("gui.athens_coins.cfg_fee_days_hint")));
 
         form.add(FormList.Row.heading(Component.translatable("gui.athens_coins.cfg_group_rates")));
         for (CoinType type : CoinType.ORDERED) {
-            form.add(FormList.Row.of(type.shortName(), rateBoxes[type.ordinal()],
+            form.add(FormList.Row.of(withUnit(type.shortName(), "gui.athens_coins.unit_money"), rateBoxes[type.ordinal()],
                     Component.translatable("gui.athens_coins.cfg_rate_hint")));
         }
 
         form.add(FormList.Row.heading(Component.translatable("gui.athens_coins.cfg_group_loans")));
         form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_loans"), loansButton,
                 Component.translatable("gui.athens_coins.cfg_loans_hint")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_loan_max"), loanMaxBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_loan_max"), "gui.athens_coins.unit_money"), loanMaxBox,
                 Component.translatable("gui.athens_coins.cfg_loan_max_hint")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_loan_days"), loanDaysBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_loan_days"), "gui.athens_coins.unit_days"), loanDaysBox,
                 Component.translatable("gui.athens_coins.cfg_loan_days_hint")));
-        form.add(FormList.Row.of(Component.translatable("gui.athens_coins.cfg_loan_interest"), loanInterestBox,
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_loan_interest"), "gui.athens_coins.unit_percent"), loanInterestBox,
                 Component.translatable("gui.athens_coins.cfg_loan_interest_hint")));
 
         layoutForm();
@@ -424,13 +441,21 @@ public class BankTerminalScreen extends Screen {
         ScreenLayout.Rect column = atmColumns(listArea).first();
         int buttonWidth = Math.min(170, column.width());
         int y = listArea.y() + 4;
-        for (int count : new int[] {1, 4, 8}) {
+        for (int count : new int[] {1, 4}) {
             int amount = count;
             addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.issue_atm", amount),
                             ignored -> send(C2STerminalActionPacket.Action.ISSUE_ATM, amount, ""))
                     .bounds(column.x(), y, buttonWidth, 20).build());
             y += 24;
         }
+        // A stats board for this bank, issued the same way and for the same reason: what it reports has to
+        // be decided by whoever handed it over, not by whoever stands it up.
+        y += 6;
+        addRenderableWidget(Button.builder(Component.translatable("gui.athens_coins.issue_board"),
+                        ignored -> send(C2STerminalActionPacket.Action.ISSUE_HOLOGRAM, 1L, ""))
+                .bounds(column.x(), y, buttonWidth, 20)
+                .tooltip(Tooltip.create(Component.translatable("gui.athens_coins.issue_board_tip")))
+                .build());
     }
 
     private void send(C2STerminalActionPacket.Action action, long value, String text) {
@@ -477,9 +502,11 @@ public class BankTerminalScreen extends Screen {
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
-        if (hoverTooltip != null) {
+        if (hoverTooltip != null && !confirm.consumesInput()) {
             graphics.renderTooltip(font, hoverTooltip, mouseX, mouseY);
         }
+        // Last, so it covers the widgets rather than being covered by them.
+        confirm.render(graphics, font, panel, mouseX, mouseY);
     }
 
     private void renderHeader(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -698,6 +725,11 @@ public class BankTerminalScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // While a question is up nothing else in the screen is live. The row that raised it is still
+        // drawn underneath, so without this a second click would queue a second action behind the first.
+        if (confirm.consumesInput()) {
+            return confirm.mouseClicked(mouseX, mouseY);
+        }
         if (locked(tab)) {
             return super.mouseClicked(mouseX, mouseY, button);
         }
@@ -707,10 +739,21 @@ public class BankTerminalScreen extends Screen {
             if (index >= 0) {
                 S2COpenTerminalPacket.PlayerRow row = players.get(index);
                 if (tab == Tab.USERS) {
-                    sendFor(row.banker() ? C2STerminalActionPacket.Action.REMOVE_BANKER
-                            : C2STerminalActionPacket.Action.ADD_BANKER, row.id());
+                    boolean revoke = row.banker();
+                    confirm.ask(Component.translatable(revoke
+                                    ? "message.athens_coins.ask_revoke_banker"
+                                    : "message.athens_coins.ask_grant_banker", row.name()),
+                            Component.translatable(revoke
+                                    ? "gui.athens_coins.ask_revoke_detail"
+                                    : "gui.athens_coins.ask_grant_detail"),
+                            () -> sendFor(revoke ? C2STerminalActionPacket.Action.REMOVE_BANKER
+                                    : C2STerminalActionPacket.Action.ADD_BANKER, row.id()));
                 } else if (!row.hasAccount()) {
+                    // No dialog for the banker here: this one is confirmed by the customer, in chat,
+                    // because an account is an agreement and they are the party agreeing to it.
                     sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
+                    message = Component.translatable("gui.athens_coins.offer_sent_to", row.name());
+                    messageIsError = false;
                 } else {
                     message = Component.translatable("gui.athens_coins.click_already_has", row.name());
                     messageIsError = true;
@@ -721,28 +764,54 @@ public class BankTerminalScreen extends Screen {
             int index = rowAt(mouseX, mouseY, requests.size(), rows);
             if (index >= 0) {
                 LoanRequest request = requests.get(index);
-                // Amount 0 means "the amount they asked for"; the server clamps against policy.
-                ModNetwork.toServer(new C2STerminalActionPacket(pos,
-                        button == 0 ? C2STerminalActionPacket.Action.APPROVE_LOAN
-                                : C2STerminalActionPacket.Action.REJECT_LOAN,
-                        null, request.id(), 0L, ""));
+                boolean approve = button == 0;
+                String amount = Money.format(request.amount(), "$");
+                confirm.ask(Component.translatable(approve
+                                ? "message.athens_coins.ask_approve_loan"
+                                : "message.athens_coins.ask_reject_loan",
+                                request.borrowerName(), amount),
+                        Component.translatable(approve
+                                ? "gui.athens_coins.ask_approve_detail"
+                                : "gui.athens_coins.ask_reject_detail"),
+                        // Amount 0 means "the amount they asked for"; the server clamps against policy.
+                        () -> ModNetwork.toServer(new C2STerminalActionPacket(pos,
+                                approve ? C2STerminalActionPacket.Action.APPROVE_LOAN
+                                        : C2STerminalActionPacket.Action.REJECT_LOAN,
+                                null, request.id(), 0L, "")));
                 return true;
             }
         } else if (tab == Tab.ACCOUNTS && (button == 0 || button == 1)) {
             int index = rowAt(mouseX, mouseY, accounts.size(), rows);
             if (index >= 0) {
+                S2COpenTerminalPacket.AccountRow row = accounts.get(index);
                 if (button == 0) {
                     ModNetwork.toServer(new com.athensmc.athenscoins.network.C2SRequestAccountPacket(
-                            pos, accounts.get(index).number()));
+                            pos, row.number()));
                 } else {
-                    ModNetwork.toServer(new C2STerminalActionPacket(pos,
-                            C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
-                            accounts.get(index).number(), 0L, ""));
+                    confirm.ask(Component.translatable("message.athens_coins.ask_close_account",
+                                    "#" + row.number() + " " + row.owner()),
+                            Component.translatable("gui.athens_coins.ask_close_detail"),
+                            () -> ModNetwork.toServer(new C2STerminalActionPacket(pos,
+                                    C2STerminalActionPacket.Action.WITHDRAW_ALL, null,
+                                    row.number(), 0L, "")));
                 }
                 return true;
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (confirm.consumesInput()) {
+            // Escape backs out of the question, not out of the whole terminal.
+            if (keyCode == 256) {
+                confirm.cancel();
+                return true;
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private int rowAt(double mouseX, double mouseY, int size, int rows) {
@@ -755,6 +824,9 @@ public class BankTerminalScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (confirm.consumesInput()) {
+            return true;
+        }
         if (tab == Tab.SETTINGS) {
             if (form.contains(mouseX, mouseY)) {
                 form.scrollBy((int) -Math.signum(delta) * 12);

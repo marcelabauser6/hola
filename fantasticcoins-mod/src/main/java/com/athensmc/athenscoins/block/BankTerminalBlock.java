@@ -1,6 +1,7 @@
 package com.athensmc.athenscoins.block;
 
 import com.athensmc.athenscoins.bank.Bank;
+import com.athensmc.athenscoins.bank.BankAccess;
 import com.athensmc.athenscoins.bank.BankData;
 import com.athensmc.athenscoins.bank.BankManager;
 import com.athensmc.athenscoins.network.ModNetwork;
@@ -93,26 +94,38 @@ public class BankTerminalBlock extends TallMachineBlock {
         BankData data = BankData.get(serverPlayer.server);
         Bank bank = data.bankAt(base);
         if (bank == null) {
+            // Seating creates a bank, so it needs the licence to create one. This used to run before any
+            // check at all: right-clicking an unseated terminal founded a bank for whoever touched it
+            // first, and only then asked whether they were allowed to be there.
+            if (!BankAccess.canFoundBanks(serverPlayer)) {
+                serverPlayer.sendSystemMessage(Component
+                        .translatable("message.athens_coins.bank_not_authorised")
+                        .withStyle(ChatFormatting.RED));
+                return InteractionResult.CONSUME;
+            }
             bank = BankManager.seatTerminal(serverPlayer.server, base, "Banco");
         }
 
-        // A card in hand opens an account here and pours the money straight in.
+        // A card in hand opens an account here and pours the money straight in. Deliberately before the
+        // staff check: redeeming a card is a customer action, and the terminal is the counter.
         ItemStack held = serverPlayer.getItemInHand(hand);
         if (held.is(com.athensmc.athenscoins.item.ModItems.BANK_CARD.get())) {
             redeemCard(serverPlayer, bank, held);
             return InteractionResult.CONSUME;
         }
 
-        boolean operator = serverPlayer.hasPermissions(2);
-        if (!operator && !bank.isBanker(serverPlayer.getUUID())) {
+        if (!BankAccess.canOpenTerminal(serverPlayer, bank)) {
             serverPlayer.sendSystemMessage(Component
                     .translatable("message.athens_coins.bank_not_authorised")
                     .withStyle(ChatFormatting.RED));
             return InteractionResult.CONSUME;
         }
 
+        // "manager" rather than "operator": a founder licensed by the central bank runs their bank with
+        // the same authority an operator would, which is the whole point of the licence.
         ModNetwork.toPlayer(serverPlayer,
-                S2COpenTerminalPacket.of(serverPlayer, bank, base, operator));
+                S2COpenTerminalPacket.of(serverPlayer, bank, base,
+                        BankAccess.canConfigure(serverPlayer)));
         return InteractionResult.CONSUME;
     }
 
