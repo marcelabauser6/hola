@@ -1,4 +1,4 @@
-package com.athensmc.fantasticregions.wand;
+package com.athensmc.yawpwand.wand;
 
 import de.z0rdak.yawp.core.area.AreaType;
 import de.z0rdak.yawp.core.stick.MarkerStick;

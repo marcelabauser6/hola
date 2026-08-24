@@ -1,4 +1,4 @@
-package com.athensmc.fantasticregions.wand;
+package com.athensmc.yawpwand.wand;
 
 import java.util.ArrayList;
 import java.util.List;

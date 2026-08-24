@@ -1,6 +1,11 @@
-# Fantastic Regions
+# YAWP Wand
 
-Una vara de blaze para **preseleccionar** el área de una zona de Yet Another World Protector.
+Complemento para **YAWP** (Yet Another World Protector): una vara de blaze para **preseleccionar**
+el área de una zona.
+
+> El modId es `yawp_wand`, no `yawp`. Dos mods con el mismo id es un fallo de carga en Forge, así
+> que reclamar `yawp` impediría arrancar al propio mod que este extiende. En la lista de mods se ve
+> como **YAWP Wand**.
 
 ```
 /yawp wand cuboide     Una caja recta, marcando dos esquinas opuestas

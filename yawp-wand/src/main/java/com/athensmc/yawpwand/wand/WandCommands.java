@@ -1,6 +1,6 @@
-package com.athensmc.fantasticregions.wand;
+package com.athensmc.yawpwand.wand;
 
-import com.athensmc.fantasticregions.FantasticRegions;
+import com.athensmc.yawpwand.YawpWand;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -57,7 +57,7 @@ public final class WandCommands {
             // YAWP is a mandatory dependency, so this should be unreachable. Logged as an error rather
             // than ignored because the symptom otherwise is a command that is merely absent, which
             // looks like the mod failing to load at all.
-            FantasticRegions.LOGGER.error(
+            YawpWand.LOGGER.error(
                     "No YAWP command tree to attach /yawp wand to. The wand will be unavailable.");
         }
     }

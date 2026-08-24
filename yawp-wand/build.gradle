@@ -93,7 +93,7 @@ tasks.register('verifyWandShapes', JavaExec) {
     description = 'Checks that every shape name is offerable, parseable and covers a YAWP area type.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.athensmc.fantasticregions.wand.WandShapeStaticTest'
+    mainClass = 'com.athensmc.yawpwand.wand.WandShapeStaticTest'
 }
 
 tasks.named('check') {

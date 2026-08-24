@@ -1,4 +1,4 @@
-package com.athensmc.fantasticregions;
+package com.athensmc.yawpwand;
 
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.fml.common.Mod;
@@ -26,11 +26,21 @@ import org.slf4j.Logger;
  * the network can ask for the source and have to be able to get it. YAWP's own jar is not bundled - it
  * stays the untouched file it was downloaded as.</p>
  */
-@Mod(FantasticRegions.MOD_ID)
-public final class FantasticRegions {
-    public static final String MOD_ID = "fantasticregions";
+@Mod(YawpWand.MOD_ID)
+public final class YawpWand {
+
+    /**
+     * This mod's own id, which deliberately is not {@code yawp}.
+     *
+     * <p>It reads as part of YAWP and is named for it everywhere a person looks - the command, the
+     * display name, the jar - but the id has to differ. Two mods declaring the same id is a hard load
+     * failure in Forge, so claiming {@code yawp} would stop the very mod this one extends from
+     * starting.</p>
+     */
+    public static final String MOD_ID = "yawp_wand";
+
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public FantasticRegions() {
+    public YawpWand() {
     }
 }

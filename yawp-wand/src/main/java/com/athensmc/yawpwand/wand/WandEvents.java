@@ -1,6 +1,6 @@
-package com.athensmc.fantasticregions.wand;
+package com.athensmc.yawpwand.wand;
 
-import com.athensmc.fantasticregions.FantasticRegions;
+import com.athensmc.yawpwand.YawpWand;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -16,7 +16,7 @@ import net.minecraftforge.fml.common.Mod;
  * rather than on the item holding it, so it registers the wand's clicks itself. Adding one here would
  * have marked every corner twice.</p>
  */
-@Mod.EventBusSubscriber(modid = FantasticRegions.MOD_ID)
+@Mod.EventBusSubscriber(modid = YawpWand.MOD_ID)
 public final class WandEvents {
 
     private WandEvents() {
