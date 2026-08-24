@@ -116,16 +116,41 @@ conseguirla.
 ## Orden de construcción
 
 1. ~~Motor de reglas + tests~~ **hecho**
-2. Modelo de datos y persistencia (`Bank`, `BankAccount`, `LedgerEntry`, `Loan`, `BankData`) y el
-   corte de la wallet en dos saldos
-3. Terminal del banco + bloque + GUI de 5 pestañas + `name_tag` de cuenta
-4. Cajeros por banco (NBT, identidad, tasas) — sustituye al cajero actual
-5. Celda de banco en la wallet + bloqueo de cash sin cuenta
-6. Comisiones y préstamos en marcha (ticker)
-7. Terminal de banco central
-8. Tarjeta de traspaso
-9. Parche del shop para exigir número de cuenta
+2. ~~Modelo de datos y persistencia y el corte de la wallet en dos saldos~~ **hecho**
+3. ~~Terminal del banco + bloque + GUI de pestañas + `name_tag` de cuenta~~ **hecho**
+4. ~~Cajeros por banco (NBT, identidad, tasas)~~ **hecho**
+5. ~~Celda de banco en la wallet + bloqueo de cash sin cuenta~~ **hecho**
+6. ~~Comisiones y préstamos en marcha (ticker)~~ **hecho**
+7. ~~Terminal de banco central~~ **hecho**
+8. ~~Tarjeta de traspaso~~ **hecho**
+9. ~~Parche del shop para exigir número de cuenta~~ **hecho**
 
-El paso 2 es el que rompe compatibilidad con los saldos actuales, así que llevará migración: el
-saldo de wallet que ya exista pasa a la cuenta si el jugador tiene banco, y si no queda retenido
-hasta que abra uno.
+El paso 2 rompió compatibilidad con los saldos antiguos, así que lleva migración: el saldo de wallet
+que ya existiera pasa a la cuenta si el jugador tiene banco, y si no queda retenido en cuarentena
+hasta que abra una.
+
+## Decisiones tomadas al cerrar el sistema
+
+Tres puntos del diseño de arriba se concretaron de una forma que conviene dejar escrita, porque la
+alternativa obvia era peor.
+
+**El cajero es la puerta del cliente, no solo un cambiador.** El diseño original dejaba conceder y
+cobrar préstamos únicamente al banquero, en su terminal. Eso deja al prestatario sin salida: si el
+banquero deja el servidor, la deuda sigue creciendo y no hay forma de pagarla. El cajero tiene ahora
+cuatro pestañas — Cambio, Caja, Transferir, Préstamo — y desde ellas el cliente retira, deposita,
+transfiere, pide y paga, siempre dentro de la política de su banco. El banquero conserva su terminal
+para conceder a mano.
+
+**El interés de mora es simple sobre el capital, con dos topes.** "En puntos base sobre lo pendiente"
+compone a diario en cuanto el ticker lo aplica más de una vez, y como el mod no tiene ningún camino
+de impago, quita ni condonación, una deuda abandonada crecía sin límite hasta ser impagable por
+construcción. Se calcula sobre el **capital**, con tope de recuperación tras una caída del servidor
+(`loanMaxCatchUp`, igual que las comisiones) y un techo total como porcentaje del capital
+(`loanMaxInterestPercent`, 100 por defecto, 0 = sin techo).
+
+**Todo importe se escribe a mano, con dos decimales como máximo.** Hay un único campo de entrada de
+dinero en todo el mod (`AmountField`) y un único de conteo (`CountField`). El tercer decimal no se
+puede teclear en vez de rechazarse después, y un importe inválido se explica en pantalla en vez de
+enviarse como cero. Antes cada pantalla llevaba su propia copia del parseo y no coincidían entre
+ellas: escribir `5` movía cinco céntimos y `5.00` movía cinco unidades, un factor de cien en la misma
+casilla.

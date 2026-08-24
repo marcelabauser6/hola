@@ -117,25 +117,42 @@ final class FShopCommands {
             FShopCommands.msg(player, "La moneda del servidor (FantasticCoins) no est\u00e1 instalada.", ChatFormatting.RED);
             return 0;
         }
+        // This used to sum only the three coin slots but call clearEarnings(), which zeroes all four,
+        // so any pending cash was deleted without ever being paid. Take each currency, pay it, and
+        // put back whatever the payout refused.
         FShopSavedData data = FShopSavedData.get(player.m_284548_());
-        long[] totals = new long[3];
+        long[] paid = new long[CoinEconomy.TYPES];
+        boolean heldBack = false;
         for (PlayerShop shop : data.getShopsByOwner(player.m_20148_())) {
-            for (c = 0; c < 3; ++c) {
-                int n = c;
-                totals[n] = totals[n] + shop.getPendingEarnings(c);
+            for (c = 0; c < CoinEconomy.TYPES; ++c) {
+                long amount = shop.takeEarnings(c);
+                if (amount <= 0L) continue;
+                if (CoinEconomy.depositSale((Player)player, c, amount,
+                        shop.isMain() ? 0 : shop.getAccountNumber())) {
+                    paid[c] = paid[c] + amount;
+                } else {
+                    shop.restoreEarnings(c, amount);
+                    heldBack = true;
+                }
             }
-            shop.clearEarnings();
         }
-        long sum = totals[0] + totals[1] + totals[2];
-        if (sum <= 0L) {
-            FShopCommands.msg(player, "No tienes ganancias pendientes por cobrar.", ChatFormatting.YELLOW);
-            return 0;
-        }
-        for (c = 0; c < 3; ++c) {
-            CoinEconomy.deposit((Player)player, c, totals[c]);
+        long sum = 0L;
+        for (long amount : paid) {
+            sum += amount;
         }
         data.m_77762_();
-        FShopCommands.msg(player, "Cobraste: " + FShopCommands.coinsToString(totals) + ".", ChatFormatting.GREEN);
+        if (sum <= 0L) {
+            FShopCommands.msg(player, heldBack
+                            ? "No se pudo abonar tu dinero: necesitas una cuenta bancaria activa."
+                            : "No tienes ganancias pendientes por cobrar.",
+                    heldBack ? ChatFormatting.RED : ChatFormatting.YELLOW);
+            return 0;
+        }
+        FShopCommands.msg(player, "Cobraste: " + FShopCommands.earningsToString(paid) + ".", ChatFormatting.GREEN);
+        if (heldBack) {
+            FShopCommands.msg(player, "Parte qued\u00f3 pendiente: necesitas una cuenta bancaria activa.",
+                    ChatFormatting.YELLOW);
+        }
         return 1;
     }
 
@@ -144,13 +161,26 @@ final class FShopCommands {
         if (player == null) {
             return 0;
         }
-        long[] bal = new long[]{CoinEconomy.balance((Player)player, 0), CoinEconomy.balance((Player)player, 1), CoinEconomy.balance((Player)player, 2)};
-        FShopCommands.msg(player, "Tu saldo: " + FShopCommands.coinsToString(bal) + ".", ChatFormatting.GOLD);
+        long[] bal = new long[CoinEconomy.TYPES];
+        for (int c = 0; c < CoinEconomy.TYPES; ++c) {
+            bal[c] = CoinEconomy.balance((Player)player, c);
+        }
+        FShopCommands.msg(player, "Tu saldo: " + FShopCommands.earningsToString(bal) + ".", ChatFormatting.GOLD);
         return 1;
     }
 
     static String coinsToString(long[] amounts) {
         return amounts[2] + " oro, " + amounts[1] + " plata, " + amounts[0] + " bronce";
+    }
+
+    /** Coins as plain counts, cash formatted with its symbol and two decimals. */
+    static String earningsToString(long[] amounts) {
+        String text = FShopCommands.coinsToString(amounts);
+        if (amounts.length > CoinEconomy.CASH && CoinEconomy.cashAvailable()) {
+            text = text + ", " + CoinEconomy.formatAmount(CoinEconomy.CASH, amounts[CoinEconomy.CASH])
+                    + " en " + CoinEconomy.cashName();
+        }
+        return text;
     }
 
     static int help(CommandContext<CommandSourceStack> ctx) {
@@ -160,7 +190,9 @@ final class FShopCommands {
         FShopCommands.line(src, "/fshop buy - explora las tiendas del servidor", ChatFormatting.YELLOW);
         FShopCommands.line(src, "/fshop edit - gestiona tu tienda, stock y precios", ChatFormatting.YELLOW);
         FShopCommands.line(src, "/fshop collect - cobra tus ganancias", ChatFormatting.YELLOW);
-        FShopCommands.line(src, "/fshop balance - muestra tu saldo en monedas", ChatFormatting.YELLOW);
+        FShopCommands.line(src, "/fshop balance - muestra tu saldo", ChatFormatting.YELLOW);
+        FShopCommands.line(src, "Para vender necesitas una cuenta bancaria: sin ella tu tienda queda "
+                + "congelada y nadie puede comprarte.", ChatFormatting.GRAY);
         if (Perms.isAdmin(src)) {
             FShopCommands.line(src, "/fshop admin ... - herramientas de administraci\u00f3n (solo OP)", ChatFormatting.AQUA);
         }

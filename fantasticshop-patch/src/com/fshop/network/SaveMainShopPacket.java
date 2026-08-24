@@ -12,6 +12,7 @@ package com.fshop.network;
 
 import com.fshop.Perms;
 import com.fshop.data.FShopSavedData;
+import com.fshop.economy.CoinEconomy;
 import com.fshop.shop.PlayerShop;
 import java.util.function.Supplier;
 import net.minecraft.ChatFormatting;
@@ -53,7 +54,10 @@ public final class SaveMainShopPacket {
                 incoming.setOwner(sender.m_20148_());
             }
             if ((existing = (data = FShopSavedData.get(sender.m_284548_())).getMainShop()) != null) {
-                for (int c = 0; c < 3; ++c) {
+                // Every currency, not the first three. The incoming shop is a fresh object built by
+                // the editor with no earnings, so a currency skipped here is money deleted by the act
+                // of saving the shop - and cash was the one being skipped.
+                for (int c = 0; c < CoinEconomy.TYPES; ++c) {
                     incoming.addEarnings(c, existing.getPendingEarnings(c));
                 }
             }

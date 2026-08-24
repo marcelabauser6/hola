@@ -55,6 +55,26 @@ extends Screen {
     private final List<Integer> filtered = new ArrayList<Integer>();
     private int openTick;
 
+    /**
+     * The player's balance in one currency.
+     *
+     * <p>{@code balances} comes from the shop-view packet, which still carries only the three coin
+     * currencies, so indexing it with the cash id (3) crashed the screen. Cash is read client-side
+     * from the value the currency mod pushes, and the coin path is clamped defensively.</p>
+     */
+    private long balanceOf(int coin) {
+        if (CoinEconomy.isCash(coin)) {
+            return this.f_96541_ == null || this.f_96541_.f_91074_ == null
+                    ? 0L
+                    : CoinEconomy.balance((net.minecraft.world.entity.player.Player) this.f_96541_.f_91074_,
+                    CoinEconomy.CASH);
+        }
+        if (this.balances == null || this.balances.length == 0) {
+            return 0L;
+        }
+        return this.balances[Math.max(0, Math.min(this.balances.length - 1, coin))];
+    }
+
     public ShopViewScreen(PlayerShop shop, long[] balances) {
         super((Component)Component.m_237113_((String)shop.getName()));
         this.shop = shop;
@@ -201,7 +221,7 @@ extends Screen {
 
     private void walletTip(GuiGraphics g, int mouseX, int mouseY, int coin) {
         List<Component> t = new ArrayList<Component>();
-        t.add(Component.m_237110_((String)"fshop.gui.wallet", (Object[])new Object[]{this.balances[coin], Component.m_237115_((String)CoinEconomy.coinKey(coin))}));
+        t.add(Component.m_237110_((String)"fshop.gui.wallet", (Object[])new Object[]{this.balanceOf(coin), Component.m_237115_((String)CoinEconomy.coinKey(coin))}));
         t.add(Component.m_237115_((String)"fshop.gui.wallet_hint").m_130940_(ChatFormatting.DARK_GRAY));
         g.m_280666_(this.f_96547_, t, mouseX, mouseY);
     }
@@ -228,7 +248,7 @@ extends Screen {
         }
         int cc = CoinEconomy.coinColor(offer.getCoin());
         t.add((Component)Component.m_237110_((String)(offer.getBundle() > 1 ? "fshop.gui.price_pack" : "fshop.gui.buy_price"), (Object[])new Object[]{CoinEconomy.formatAmount(offer.getCoin(), offer.getUnitPrice()), Component.m_237115_((String)CoinEconomy.coinKey(offer.getCoin()))}).m_130938_(s -> s.m_131148_(TextColor.m_131266_((int)cc))));
-        t.add((Component)Component.m_237110_((String)"fshop.gui.your_balance", (Object[])new Object[]{this.balances[offer.getCoin()], Component.m_237115_((String)CoinEconomy.coinKey(offer.getCoin()))}).m_130940_(ChatFormatting.GRAY));
+        t.add((Component)Component.m_237110_((String)"fshop.gui.your_balance", (Object[])new Object[]{this.balanceOf(offer.getCoin()), Component.m_237115_((String)CoinEconomy.coinKey(offer.getCoin()))}).m_130940_(ChatFormatting.GRAY));
         if (offer.isInfinite()) {
             t.add((Component)Component.m_237115_((String)"fshop.gui.stock_inf").m_130940_(ChatFormatting.AQUA));
         } else {

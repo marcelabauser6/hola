@@ -4,7 +4,7 @@ FantasticShop ships as a production (SRG-obfuscated) jar, so patches are applied
 individual classes against the SRG-named Minecraft jar and swapping them back into the jar. Public
 method signatures are kept identical so every other class still links.
 
-Output: `FantasticShop-1.2.0-cash.jar` (107 entries, same as the original).
+Output: `FantasticShop-1.4.0-bank.jar` (107 entries, same as the original).
 
 ## 1. Fantastic Cash as a fourth currency
 
@@ -23,13 +23,22 @@ paths that were already there.
 | `client/screen/MainShopCreatorScreen` | currency button cycles all four; cash name and symbol |
 | `client/screen/PriceInputScreen` | fourth selector cell, symbol on the price readout |
 
-### Cash is counted in whole units
+### Cash is counted in cents
 
-Accounts keep two decimals, but FShop prices are plain `long`s. Inside the shop cash is therefore
-measured in whole units: a price of `10` means `10.00`, and a player holding `9.99` reads as `9`
-and cannot afford it, with their 99 cents untouched. This keeps every existing price field, packet
-and comparison working unchanged. The currency mod exposes
-`FantasticCurrencyAPI.chargeUnits` / `depositUnits` / `getDisplayBalanceUnits` for exactly this.
+Accounts keep two decimals and FShop prices are plain `long`s, so a cash price is stored as a count
+of cents: `150` means 1.50. Every existing price field, packet and comparison keeps working on
+integers; only the display and the price entry know about the decimal point.
+
+That has one consequence worth stating plainly, because it was a usability trap: a raw price of `10`
+is ten *cents*, not ten units. `PriceInputScreen` therefore lets a cash price be **typed with a
+decimal point** — `12.50` — and converts it, so nobody has to work out that twelve fifty is `1250`.
+The `.` is accepted only for cash and only once, and a third decimal is untypable rather than
+rejected afterwards. The +/- buttons and the `64` shortcut are rendered back into the same notation,
+so typing and clicking always agree.
+
+An earlier version of this document claimed whole units and named
+`FantasticCurrencyAPI.chargeUnits` / `depositUnits` / `getDisplayBalanceUnits`. The code has always
+used cents and the plain `charge` / `deposit` calls; the document was wrong, not the code.
 
 ### Client-side balance
 
@@ -77,6 +86,68 @@ are `Holder.Reference` in 1.20.1 and would have needed `.value()`):
 
 Verified: zero references to `f_144243_` remain in any of the 66 classes.
 
+## 3. Bank accounts, and the money bugs that came with them
+
+A shop settles into a bank account: `PlayerShop` carries an `accountNumber`, `ShopService.buy`
+re-checks on every purchase that the number still belongs to the owner, and listing re-syncs it. A
+shop with no account is *frozen* — browsable, but nothing can be bought or listed.
+
+Widening the currency count from three to four left a set of loops that still stopped at three, and
+each one was a money bug rather than a cosmetic one:
+
+| Where | What happened |
+|---|---|
+| `AmountScreen`, `ShopViewScreen` | The `balances` array from the shop-view packet is three longs. Indexing it with the cash id threw `ArrayIndexOutOfBoundsException`, so **any cash-priced offer crashed the screen**. Cash is now read client-side from the balance the currency mod pushes, which that packet never needed to carry. |
+| `/fshop collect` | Summed three currencies but called `clearEarnings()`, which zeroes four. Pending cash was **deleted without being paid**. |
+| `SaveMainShopPacket` | Carried over three of the four earnings slots, so saving the server shop **dropped its cash earnings**. |
+| `ShopManageScreen` | Drew and hit-tested three earnings cells, so cash earnings were **invisible and un-collectable** from the GUI. |
+| `CoinEconomy.deposit` | Returned `void` and discarded the currency mod's answer. A cash payout can genuinely fail — it needs a live account — and the caller cleared the balance either way. |
+
+Payout now takes one currency at a time and puts back anything the deposit refused, so a failed
+payout leaves the money pending instead of destroying it. Cash settles through
+`FantasticCurrencyAPI.creditSaleToAccount` with the shop's stored number, which is what linking a
+shop to an account was for; it was previously credited to whatever account the seller happened to
+have at collect time.
+
+`ShopService.stock()` and `setPrice()` re-sync the account but deliberately do **not** block: nothing
+can be bought from a frozen shop anyway, and refusing to let an owner move stock or fix a price while
+they arrange a bank account would strand their items for no gain.
+
+## Rebuild
+
+```sh
+# The currency mod's build populates the ForgeGradle caches this needs, so do it first.
+cd ../fantasticcoins-mod && gradle build --no-daemon \
+    -Porg.gradle.java.installations.paths=<jdk17-path>
+
+cd ../fantasticshop-patch
+bash tools/rebuild.sh                 # -> FantasticShop-1.4.0-bank.jar
+python3 tools/verify_shop.py          # static guard, see below
+```
+
+`tools/rebuild.sh` pins JDK 17 (Forge 1.20.1 targets it, and the sandbox defaults to a newer one),
+asks Gradle for the resolved compile classpath rather than guessing at jar paths — fmlcore, netty,
+authlib, brigadier and DataFixerUpper all live in different caches — and puts the SRG Minecraft jar
+ahead of it so `net.minecraft.*` resolves to SRG names. It also merges `lang-overlay/` into the
+extracted language files: the patched classes reference keys the base jar never had, and a missing
+key renders as the raw identifier, so `fshop.msg.no_bank_account` used to appear on screen verbatim.
+
+`src/` holds the already-repaired and already-patched sources, so a straight rebuild needs neither
+`apply_*.py` script. Run those only when starting again from a fresh decompile of a future FShop
+build; `apply_bank.py` anchors on what `apply_cash.py` produces, so it must run second.
+
+## Verification
+
+There is no test harness here and there cannot be one: the mod ships obfuscated and the patch is a
+set of classes swapped into a jar. `tools/verify_shop.py` is the substitute — a static guard where
+every check corresponds to one of the defects above and says so in its failure message. It checks
+that no currency loop stops at three (distinguishing those from the three +/- step buttons, which
+legitimately loop to 3), that both buy screens read balances through a clamped helper, that both
+payout paths take-and-restore rather than clear, that the account gates are present, that cash prices
+accept a typed decimal, and that every referenced translation key is in every shipped locale. It also
+opens the built jar and asserts the entry count still matches the base jar, which catches a class
+being added or lost by mistake.
+
 ## Repeatability
 
 `tools/` carries everything needed to redo this against another FShop build:
@@ -91,25 +162,13 @@ Verified: zero references to `f_144243_` remain in any of the 66 classes.
   calls, which need no special access.
 - **`apply_cash.py`** applies the currency changes and fails loudly if a pattern it expects is
   gone, so it cannot silently half-patch a future version.
+- **`apply_bank.py`** adds the account field, the two `ShopService` gates, the `NO_BANK_ACCOUNT`
+  result and the check in `createShop`. It anchors on what `apply_cash.py` produces, so it runs
+  second.
+- **`rebuild.sh`** and **`merge_lang.py`** build the jar and merge the added translation keys;
+  **`verify_shop.py`** is the static guard over the result. These three are for every build, not just
+  a re-patch.
 
-### Rebuild
-
-```sh
-# 1. the SRG Minecraft jar comes from building the currency mod
-cd ../fantasticcoins-mod
-gradle build --no-daemon -Porg.gradle.java.installations.paths=<jdk17-path>
-
-SRG=~/.gradle/caches/forge_gradle/mcp_repo/net/minecraft/joined/1.20.1-20230612.114412/joined-1.20.1-20230612.114412-srg.jar
-FORGE=$(find ~/.gradle/caches/forge_gradle/minecraft_user_repo -name "*mapped_official*.jar" | head -1)
-CURRENCY=../fantasticcoins-mod/build/libs/FantasticCurrency-3.0.0-1.20.1.jar
-
-# 2. compile the patched classes and swap them in
-cd ../fantasticshop-patch
-unzip -oq FantasticShop-1.1.jar -d original
-javac -nowarn -cp "$SRG:$FORGE:$CURRENCY:original" -d out $(find src -name "*.java")
-cp -r out/. original/
-cd original && jar --create --file ../FantasticShop-1.2.0-cash.jar --manifest META-INF/MANIFEST.MF .
-```
-
-`src/` holds the already-repaired and already-patched sources, so a straight rebuild needs neither
-script. Run them only when starting again from a fresh decompile.
+Both `apply_*.py` scripts operate on a `patchsrc/` tree that is not kept in the repo — `src/` is
+their applied output. If they are ever used again they should be extended with the fixes described
+under "Bank accounts" above, which were made directly in `src/`.

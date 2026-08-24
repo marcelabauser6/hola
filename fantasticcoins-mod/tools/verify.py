@@ -9,7 +9,17 @@ import zipfile
 ROOT = "/projects/sandbox/hola/fantasticcoins-mod"
 RES = os.path.join(ROOT, "src/main/resources")
 SRC = os.path.join(ROOT, "src/main/java")
-JAR = os.path.join(ROOT, "build/libs/FantasticCurrency-5.2.0-1.20.1.jar")
+def _find_jar():
+    """Locates the built jar without pinning the version, which used to drift on every release."""
+    libs = os.path.join(ROOT, "build/libs")
+    if not os.path.isdir(libs):
+        return os.path.join(libs, "FantasticCurrency.jar")
+    jars = sorted(n for n in os.listdir(libs)
+                  if n.startswith("FantasticCurrency-") and n.endswith(".jar"))
+    return os.path.join(libs, jars[-1]) if jars else os.path.join(libs, "FantasticCurrency.jar")
+
+
+JAR = _find_jar()
 
 problems = []
 notes = []

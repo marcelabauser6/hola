@@ -104,24 +104,50 @@ public final class PlayerShop {
     }
 
     public long getPendingEarnings(int coin) {
-        return this.pendingEarnings[Math.max(0, Math.min(3, coin))];
+        return this.pendingEarnings[PlayerShop.slot(coin)];
     }
 
     public long totalPendingEarnings() {
-        return this.pendingEarnings[0] + this.pendingEarnings[1] + this.pendingEarnings[2]
-                + this.pendingEarnings[3];
+        long total = 0L;
+        for (long amount : this.pendingEarnings) {
+            total += amount;
+        }
+        return total;
     }
 
     public void addEarnings(int coin, long amount) {
-        int n = Math.max(0, Math.min(3, coin));
+        int n = PlayerShop.slot(coin);
+        this.pendingEarnings[n] = this.pendingEarnings[n] + Math.max(0L, amount);
+    }
+
+    /**
+     * Removes and returns one currency's pending earnings.
+     *
+     * <p>Payout used to be "deposit everything, then {@code clearEarnings()}", which threw away any
+     * amount the deposit had not actually delivered - and since the cash deposit can fail (the
+     * seller's account may have been closed since the sale) that silently destroyed money. Taking one
+     * currency at a time lets a caller clear only what it managed to pay out.</p>
+     */
+    public long takeEarnings(int coin) {
+        int n = PlayerShop.slot(coin);
+        long amount = this.pendingEarnings[n];
+        this.pendingEarnings[n] = 0L;
+        return amount;
+    }
+
+    /** Puts an amount back after a failed payout. */
+    public void restoreEarnings(int coin, long amount) {
+        int n = PlayerShop.slot(coin);
         this.pendingEarnings[n] = this.pendingEarnings[n] + Math.max(0L, amount);
     }
 
     public void clearEarnings() {
-        this.pendingEarnings[0] = 0L;
-        this.pendingEarnings[1] = 0L;
-        this.pendingEarnings[2] = 0L;
-        this.pendingEarnings[3] = 0L;
+        java.util.Arrays.fill(this.pendingEarnings, 0L);
+    }
+
+    /** Clamps a currency id onto the earnings array, whose length is the number of currencies. */
+    private static int slot(int coin) {
+        return Math.max(0, Math.min(4 - 1, coin));
     }
 
     public CompoundTag toNbt() {

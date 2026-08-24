@@ -77,7 +77,11 @@ extends Screen {
         super((Component)Component.m_237113_((String)"Creador de tienda"));
         this.shop = shop;
         this.offers = new ArrayList<ShopOffer>(shop.getOffers());
-        this.pending = new long[]{shop.getPendingEarnings(0), shop.getPendingEarnings(1), shop.getPendingEarnings(2)};
+        // Every currency, so cash earnings are visible and collectable here too.
+        this.pending = new long[CoinEconomy.TYPES];
+        for (int c = 0; c < CoinEconomy.TYPES; ++c) {
+            this.pending[c] = shop.getPendingEarnings(c);
+        }
         this.name = shop.getName() == null || shop.getName().isBlank() ? "La Moneda de Oro" : shop.getName();
         this.icon = shop.getIcon().m_41619_() ? new ItemStack((ItemLike)Items.f_42417_) : shop.getIcon().m_41777_();
     }
@@ -139,14 +143,24 @@ extends Screen {
             this.m_7379_();
         }).m_252987_(this.leftPos + this.panelW - w - 8, this.topPos + this.panelH - 24, w, 18).m_253136_());
         this.m_142416_(Button.m_253074_((Component)Component.m_237113_((String)"Cerrar"), b -> this.m_7379_()).m_252987_(this.leftPos + 8, this.topPos + this.panelH - 24, 80, 18).m_253136_());
-        long sum = this.pending[0] + this.pending[1] + this.pending[2];
-        String cobrar = sum > 0L ? "\u00a7aCobrar: " + this.pending[2] + "o " + this.pending[1] + "p " + this.pending[0] + "b" : "\u00a77Sin ganancias";
+        long sum = 0L;
+        for (long amount : this.pending) {
+            sum += amount;
+        }
+        String cobrar = sum > 0L
+                ? "\u00a7aCobrar: " + this.pending[2] + "o " + this.pending[1] + "p " + this.pending[0] + "b"
+                        + (this.pending.length > CoinEconomy.CASH && this.pending[CoinEconomy.CASH] > 0L
+                                ? " " + CoinEconomy.formatAmount(CoinEconomy.CASH, this.pending[CoinEconomy.CASH])
+                                : "")
+                : "\u00a77Sin ganancias";
         this.m_142416_(Button.m_253074_((Component)Component.m_237113_((String)cobrar), b -> {
-            if (this.pending[0] + this.pending[1] + this.pending[2] > 0L) {
+            long total = 0L;
+            for (long amount : this.pending) {
+                total += amount;
+            }
+            if (total > 0L) {
                 PacketHandler.sendToServer(new CollectMainShopPacket(false));
-                this.pending[0] = 0L;
-                this.pending[1] = 0L;
-                this.pending[2] = 0L;
+                java.util.Arrays.fill(this.pending, 0L);
                 Sfx.success();
                 this.m_232761_();
             }
@@ -244,7 +258,11 @@ extends Screen {
             int ey = y + this.bodyH() - 110;
             this.addLongField(rightX + 46, ey, 70, o2.getUnitPrice(), v -> o2.setUnitPrice(Math.max(1L, v)), "Precio:", rightX, ey + 4, "Precio por CADA venta (por el 'Vender de a'). Ej: si vendes de a 64 y el precio es 10, el jugador paga 10 por 64 items.");
             this.m_142416_(Button.m_253074_((Component)Component.m_237113_((String)("Moneda: " + CoinEconomy.coinColorCode(o2.getCoin()) + MainShopCreatorScreen.coinName(o2.getCoin()))), b -> {
-                o2.setCoin(CoinEconomy.sanitize((o2.getCoin() + 1) % CoinEconomy.TYPES));
+                // Cycle over the currencies that are actually selectable. Stepping modulo TYPES and
+                // then sanitizing meant gold -> cash -> sanitize -> gold without the currency mod, so
+                // the button could never get back to bronze.
+                int currencies = CoinEconomy.cashAvailable() ? CoinEconomy.TYPES : CoinEconomy.GOLD + 1;
+                o2.setCoin(CoinEconomy.sanitize((o2.getCoin() + 1) % currencies));
                 Sfx.click();
                 this.m_232761_();
             }).m_257505_(Tooltip.m_257550_((Component)Component.m_237113_((String)"Moneda del precio: bronce, plata, oro o cash digital. Clic para cambiar."))).m_252987_(rightX + 122, ey, colW - 122, 16).m_253136_());

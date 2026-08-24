@@ -96,8 +96,31 @@ extends Screen {
         return this.offer.getUnitPrice() * (long)this.amount;
     }
 
+    /**
+     * The player's balance in one currency.
+     *
+     * <p>{@code balances} is filled by the server's shop-view packet, which still carries three
+     * longs - the coin currencies. Indexing it with the cash id (3) threw
+     * {@code ArrayIndexOutOfBoundsException}, so hovering or opening any cash-priced offer crashed the
+     * screen. Cash does not need to travel in that packet at all: the currency mod pushes the balance
+     * to the client, so it can be read here directly. The clamp covers the coin ids against a shorter
+     * array than expected.</p>
+     */
+    private long balanceOf(int coin) {
+        if (CoinEconomy.isCash(coin)) {
+            return this.f_96541_ == null || this.f_96541_.f_91074_ == null
+                    ? 0L
+                    : CoinEconomy.balance((net.minecraft.world.entity.player.Player) this.f_96541_.f_91074_,
+                    CoinEconomy.CASH);
+        }
+        if (this.balances == null || this.balances.length == 0) {
+            return 0L;
+        }
+        return this.balances[Math.max(0, Math.min(this.balances.length - 1, coin))];
+    }
+
     private boolean canAfford() {
-        return this.total() <= this.balances[this.offer.getCoin()];
+        return this.total() <= this.balanceOf(this.offer.getCoin());
     }
 
     private boolean inStock() {
@@ -173,7 +196,7 @@ extends Screen {
         }
         if (coinHov >= 0) {
             List<Component> wt = new ArrayList<Component>();
-            wt.add(Component.m_237110_((String)"fshop.gui.wallet", (Object[])new Object[]{this.balances[coinHov], Component.m_237115_((String)CoinEconomy.coinKey(coinHov))}));
+            wt.add(Component.m_237110_((String)"fshop.gui.wallet", (Object[])new Object[]{this.balanceOf(coinHov), Component.m_237115_((String)CoinEconomy.coinKey(coinHov))}));
             wt.add(Component.m_237115_((String)"fshop.gui.wallet_hint").m_130940_(ChatFormatting.DARK_GRAY));
             g.m_280666_(this.f_96547_, wt, mouseX, mouseY);
         }
@@ -206,7 +229,7 @@ extends Screen {
         int cc = CoinEconomy.coinColor(this.offer.getCoin());
         t.add(Component.m_237110_((String)"fshop.gui.buy_price", (Object[])new Object[]{CoinEconomy.formatAmount(this.offer.getCoin(), this.offer.getUnitPrice()), coin}).m_130938_(s -> s.m_131148_(TextColor.m_131266_((int)cc))));
         t.add(Component.m_237110_((String)"fshop.gui.total_n", (Object[])new Object[]{this.total()}).m_130938_(s -> s.m_131148_(TextColor.m_131266_((int)(this.canAfford() ? cc : -2150856)))));
-        t.add(Component.m_237110_((String)"fshop.gui.your_balance", (Object[])new Object[]{this.balances[this.offer.getCoin()], coin}).m_130940_(this.canAfford() ? ChatFormatting.DARK_GRAY : ChatFormatting.RED));
+        t.add(Component.m_237110_((String)"fshop.gui.your_balance", (Object[])new Object[]{this.balanceOf(this.offer.getCoin()), coin}).m_130940_(this.canAfford() ? ChatFormatting.DARK_GRAY : ChatFormatting.RED));
         if (!this.inStock()) {
             t.add(Component.m_237119_());
             t.add(Component.m_237115_((String)"fshop.msg.out_of_stock").m_130940_(ChatFormatting.RED));

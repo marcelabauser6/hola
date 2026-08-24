@@ -115,3 +115,19 @@ tasks.named('check') {
     dependsOn tasks.named('verifyMoneyMath')
     dependsOn tasks.named('verifyBankRules')
 }
+
+
+// FantasticShop ships SRG-obfuscated with no buildable project, so its patched classes are compiled
+// by hand with javac. They need the same Forge and Mojang libraries this mod compiles against -
+// fmlcore, netty, authlib, brigadier and the rest - and hunting those out of the Gradle caches one
+// jar at a time is how a rebuild script rots. Let Gradle report what it already resolved instead.
+//
+// Used by ../fantasticshop-patch/tools/rebuild.sh, which puts the SRG Minecraft jar ahead of this so
+// net.minecraft.* resolves to SRG names while the libraries resolve normally.
+tasks.register('printCompileClasspath') {
+    group = 'help'
+    description = 'Prints the resolved compile classpath, for the FantasticShop patch rebuild.'
+    doLast {
+        println sourceSets.main.compileClasspath.asPath
+    }
+}

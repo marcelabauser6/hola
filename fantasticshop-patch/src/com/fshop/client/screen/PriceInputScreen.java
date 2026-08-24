@@ -71,7 +71,10 @@ extends Screen {
         this.mode = mode;
         this.ref = ref;
         this.coin = coin;
-        this.buf = Long.toString(Math.max(1L, initial));
+        // Show an existing cash price the way it will be typed, not as a raw count of cents.
+        this.buf = CoinEconomy.isCash(coin)
+                ? PriceInputScreen.unitsOf(Math.max(1L, initial))
+                : Long.toString(Math.max(1L, initial));
         this.bundleBuf = Integer.toString(Math.max(1, bundle));
     }
 
@@ -126,13 +129,62 @@ extends Screen {
         }).m_257505_(Tooltip.m_257550_((Component)Component.m_237115_((String)"fshop.gui.price.bundle_stack_tip"))).m_252987_(px, fieldY + 36, this.bundleW, 16).m_253136_());
     }
 
+    /**
+     * The price the offer will be saved with, always in the currency's raw unit.
+     *
+     * <p>Coins are counted, so the buffer is a plain integer. Cash is stored in cents, and the player
+     * types it in <em>units</em> - {@code 12.50} - because typing a price of twelve fifty as the
+     * integer {@code 1250} is not something anyone should have to work out. So for cash the buffer
+     * holds what was typed and this converts it, which is also why the buffer is the only place the
+     * decimal point ever exists: everything downstream stays integer arithmetic.</p>
+     */
     private long price() {
+        if (CoinEconomy.isCash(this.coin)) {
+            return PriceInputScreen.centsOf(this.buf);
+        }
         try {
-            return Math.max(1L, Math.min(999999999L, Long.parseLong(this.buf)));
+            return Math.max(1L, Math.min(CAP, Long.parseLong(this.buf)));
         }
         catch (NumberFormatException e) {
             return 1L;
         }
+    }
+
+    /** Parses a typed units string such as {@code "12"}, {@code "12."} or {@code "12.5"} into cents. */
+    private static long centsOf(String text) {
+        String cleaned = text == null ? "" : text.replace(',', '.').trim();
+        if (cleaned.isEmpty()) {
+            return 1L;
+        }
+        int dot = cleaned.indexOf('.');
+        String whole = dot < 0 ? cleaned : cleaned.substring(0, dot);
+        String fraction = dot < 0 ? "" : cleaned.substring(dot + 1);
+        if (whole.isEmpty()) {
+            whole = "0";
+        }
+        // Pad so "5.5" is fifty cents past five, not five and five cents.
+        while (fraction.length() < 2) {
+            fraction = fraction + "0";
+        }
+        if (fraction.length() > 2) {
+            fraction = fraction.substring(0, 2);
+        }
+        try {
+            long units = Long.parseLong(whole);
+            long cents = Long.parseLong(fraction);
+            long total = units * CoinEconomy.CASH_SCALE + cents;
+            return Math.max(1L, Math.min(CAP, total));
+        }
+        catch (NumberFormatException e) {
+            return 1L;
+        }
+    }
+
+    /** Renders cents back into the typed form, so the +/- buttons and typing agree. */
+    private static String unitsOf(long cents) {
+        long safe = Math.max(1L, Math.min(CAP, cents));
+        return String.format(java.util.Locale.ROOT, "%d.%02d",
+                safe / CoinEconomy.CASH_SCALE, safe % CoinEconomy.CASH_SCALE);
     }
 
     private int bundle() {
@@ -146,7 +198,10 @@ extends Screen {
     }
 
     private void setPrice(long v) {
-        this.buf = Long.toString(Math.max(1L, Math.min(999999999L, v)));
+        long clamped = Math.max(1L, Math.min(CAP, v));
+        this.buf = CoinEconomy.isCash(this.coin)
+                ? PriceInputScreen.unitsOf(clamped)
+                : Long.toString(clamped);
     }
 
     private boolean inBox(double mx, double my, int[] box) {
@@ -240,6 +295,10 @@ extends Screen {
             this.tip(g, mouseX, mouseY, (Component)Component.m_237115_((String)"fshop.gui.price.set64"));
         } else if (coinHov >= 0) {
             this.tip(g, mouseX, mouseY, (Component)Component.m_237110_((String)"fshop.gui.price.coin_tip", (Object[])new Object[]{Component.m_237115_((String)CoinEconomy.coinKey(coinHov))}));
+        } else if (CoinEconomy.isCash(this.coin)
+                && FShopTheme.inside(mouseX, mouseY, this.left + 96, this.top + 106, 64, 14)) {
+            // Tell the player the price accepts decimals; nothing else on this screen does.
+            this.tip(g, mouseX, mouseY, (Component)Component.m_237115_((String)"fshop.gui.cash_price_hint"));
         } else if (this.inBox(mouseX, mouseY, FShopTextures.NO_BOX)) {
             this.tip(g, mouseX, mouseY, (Component)Component.m_237115_((String)"fshop.gui.price.cancel_tip"));
         } else if (this.inBox(mouseX, mouseY, FShopTextures.YES_BOX)) {
@@ -284,13 +343,21 @@ extends Screen {
                 return true;
             }
             if (this.inBox(mx, my, FShopTextures.SET_STACK_BOX)) {
-                this.setPrice(64L);
+                // The button is labelled 64, so it should mean 64 of whatever is on screen. In cash
+                // that is 64 units, not 64 cents - the raw reading would put $0.64 behind a button
+                // that says 64.
+                this.setPrice(CoinEconomy.isCash(this.coin) ? 64L * CoinEconomy.CASH_SCALE : 64L);
                 Sfx.click();
                 return true;
             }
             for (int c = 0; c < PriceInputScreen.currencyCount(); ++c) {
                 if (!FShopTheme.inside(mx, my, this.coinCellX(c), this.coinCellY(), 18, 18)) continue;
+                // Keep the numeric value and re-render it in the new currency's notation. Switching
+                // between coins and cash changes whether the buffer means units or a raw count, so
+                // leaving the text alone would silently reinterpret the price by a factor of a hundred.
+                long carried = this.price();
                 this.coin = c;
+                this.setPrice(carried);
                 Sfx.click();
                 return true;
             }
@@ -345,12 +412,28 @@ extends Screen {
         }
         if (c >= '0' && c <= '9') {
             String next = (this.buf.equals("0") ? "" : this.buf) + c;
-            if (next.length() <= 9) {
+            // Cap the decimals at two rather than accepting a precision the price cannot hold.
+            if (PriceInputScreen.decimalsOf(next) > 2) {
+                return true;
+            }
+            if (next.length() <= 12) {
                 this.buf = next;
             }
             return true;
         }
+        // A decimal point only means something for cash, and only once.
+        if ((c == '.' || c == ',') && CoinEconomy.isCash(this.coin)
+                && this.buf.indexOf('.') < 0 && this.buf.indexOf(',') < 0) {
+            this.buf = (this.buf.isEmpty() ? "0" : this.buf) + '.';
+            return true;
+        }
         return super.m_5534_(c, mods);
+    }
+
+    /** How many digits follow the separator, or 0 when there is none. */
+    private static int decimalsOf(String text) {
+        int dot = Math.max(text.indexOf('.'), text.indexOf(','));
+        return dot < 0 ? 0 : text.length() - dot - 1;
     }
 
     public boolean m_7933_(int key, int scan, int mods) {

@@ -203,21 +203,31 @@ public final class CoinEconomy {
         return true;
     }
 
-    /** Pays out. */
-    public static void deposit(Player player, int type, long count) {
+    /**
+     * Pays out.
+     *
+     * @return whether the money actually reached the player. Cash can genuinely fail - it needs a
+     *         live bank account, which may have been closed since the sale - and the caller has to
+     *         know, because it is about to clear the pending balance. This used to return
+     *         {@code void} and discard the currency mod's answer, so a failed cash payout looked
+     *         exactly like a successful one and the earnings were wiped either way.
+     */
+    public static boolean deposit(Player player, int type, long count) {
         if (count <= 0L) {
-            return;
+            return true;
         }
         if (type == CASH) {
             if (CASH_MOD && player instanceof ServerPlayer serverPlayer) {
-                FantasticCurrencyAPI.deposit(serverPlayer.f_8924_,
+                // depositToAccount, not deposit: the void overload discards exactly the answer we
+                // need, which is whether the money landed anywhere.
+                return FantasticCurrencyAPI.depositToAccount(serverPlayer.f_8924_,
                         serverPlayer.m_20148_(), count);
             }
-            return;
+            return false;
         }
         Item coin = CoinEconomy.coinItem(type);
         if (coin == Items.f_41852_) {
-            return;
+            return false;
         }
         int max = coin.m_41459_();
         while (count > 0L) {
@@ -228,5 +238,36 @@ public final class CoinEconomy {
             }
             count -= (long) n;
         }
+        return true;
+    }
+
+    /**
+     * Settles a sale, routing cash through the shop's linked bank account.
+     *
+     * <p>Cash payouts went to whatever account the seller happened to have at collect time, which
+     * ignored the number the shop actually stored - the whole point of linking a shop to an account.
+     * The currency mod already exposes a settlement call that refuses unless the linked account still
+     * belongs to the seller; this is what uses it. Coins are physical items and have no account, so
+     * they take the ordinary path.</p>
+     *
+     * @param linkedAccount the shop's stored account number, or 0 for the server shop
+     */
+    public static boolean depositSale(Player player, int type, long count, int linkedAccount) {
+        if (count <= 0L) {
+            return true;
+        }
+        if (type != CASH) {
+            return CoinEconomy.deposit(player, type, count);
+        }
+        if (!CASH_MOD || !(player instanceof ServerPlayer serverPlayer)) {
+            return false;
+        }
+        if (linkedAccount <= 0) {
+            // The server shop has no account of its own; credit the operator collecting it.
+            return FantasticCurrencyAPI.depositToAccount(serverPlayer.f_8924_,
+                    serverPlayer.m_20148_(), count);
+        }
+        return FantasticCurrencyAPI.creditSaleToAccount(serverPlayer.f_8924_,
+                serverPlayer.m_20148_(), linkedAccount, count);
     }
 }

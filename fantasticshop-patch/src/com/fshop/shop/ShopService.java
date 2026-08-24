@@ -118,6 +118,11 @@ public final class ShopService {
         if (stack.m_41619_() || ShopService.isCoin(stack)) {
             return StockOutcome.INVALID;
         }
+        // Re-sync the account here too, so a shop that was frozen unfreezes as soon as its owner has
+        // an account again. Restocking itself is deliberately not blocked: nothing can be bought from
+        // a frozen shop anyway, and refusing to let an owner move stock while they sort out a bank
+        // account would strand their items for no gain.
+        ShopService.refreshAccount(owner, shop);
         ShopOffer existing = ShopService.findMatching(shop, stack);
         if (existing != null) {
             existing.addStock(stack.m_41613_());
@@ -142,6 +147,9 @@ public final class ShopService {
         if (offerIndex < 0 || offerIndex >= shop.getOffers().size()) {
             return Result.NO_OFFER;
         }
+        // Same reasoning as stock(): re-sync but do not block. Editing a price on a frozen shop is
+        // harmless, and it is exactly what an owner will want to do while getting an account.
+        ShopService.refreshAccount(owner, shop);
         ShopOffer offer = shop.getOffers().get(offerIndex);
         offer.setUnitPrice(ShopService.clampPrice(unitPrice));
         offer.setCoin(coin);
@@ -179,11 +187,28 @@ public final class ShopService {
         if (shop.totalPendingEarnings() <= 0L) {
             return Result.INVALID;
         }
+        // Take each currency out, pay it, and put it back if the payout failed. Clearing everything
+        // after the loop destroyed any amount that had not actually been delivered - and the cash
+        // payout can fail, because it needs a bank account that may have closed since the sale.
+        boolean paidAnything = false;
+        boolean heldBack = false;
         for (int coin = 0; coin < CoinEconomy.TYPES; ++coin) {
-            CoinEconomy.deposit((Player)owner, coin, shop.getPendingEarnings(coin));
+            long amount = shop.takeEarnings(coin);
+            if (amount <= 0L) {
+                continue;
+            }
+            if (CoinEconomy.depositSale((Player)owner, coin, amount,
+                    shop.isMain() ? 0 : shop.getAccountNumber())) {
+                paidAnything = true;
+            } else {
+                shop.restoreEarnings(coin, amount);
+                heldBack = true;
+            }
         }
-        shop.clearEarnings();
         FShopSavedData.get(owner.m_284548_()).m_77762_();
+        if (!paidAnything) {
+            return heldBack ? Result.NO_BANK_ACCOUNT : Result.INVALID;
+        }
         return Result.OK;
     }
 
