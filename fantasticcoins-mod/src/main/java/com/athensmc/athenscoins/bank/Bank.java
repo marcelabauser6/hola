@@ -35,6 +35,8 @@ public class Bank {
     private long walletLimit;
     /** Fixed fee, in cents, charged every commissionPeriodDays. */
     private long commissionFee;
+    /** Flat charge for sending money to a customer of a different bank. */
+    private long crossBankFee;
     private int commissionPeriodDays;
     /** This bank's own coin rates in cents, always kept inside the official band. */
     private final long[] rates = new long[CoinType.ORDERED.length];
@@ -62,6 +64,7 @@ public class Bank {
         this.themeColor = 0x2E4756;
         this.walletLimit = 25_000_00L;
         this.commissionFee = 50L;
+        this.crossBankFee = 100L;
         this.commissionPeriodDays = 1;
         this.loansEnabled = true;
         this.loanMaxAmount = 5_000_00L;
@@ -126,6 +129,21 @@ public class Bank {
 
     public void setWalletLimit(long value) {
         this.walletLimit = Math.max(0L, value);
+    }
+
+    /**
+     * What this bank charges to send money to another bank's customer.
+     *
+     * <p>Zero means free. Charged on the sender's side and paid into the sender's own reserve, because it
+     * is the sender's bank doing the work of settling with a rival - which is also why transfers between
+     * two customers of the same bank cost nothing: there is nothing to settle.</p>
+     */
+    public long crossBankFee() {
+        return crossBankFee;
+    }
+
+    public void setCrossBankFee(long value) {
+        this.crossBankFee = Money.clampBalance(Math.max(0L, value));
     }
 
     public long commissionFee() {
@@ -241,6 +259,7 @@ public class Bank {
         tag.putLong("reserve", reserve);
         tag.putLong("walletLimit", walletLimit);
         tag.putLong("fee", commissionFee);
+        tag.putLong("crossFee", crossBankFee);
         tag.putInt("feeDays", commissionPeriodDays);
         tag.putLongArray("rates", rates.clone());
         tag.putBoolean("loans", loansEnabled);
@@ -272,6 +291,9 @@ public class Bank {
         bank.reserve = Money.clampBalance(tag.getLong("reserve"));
         bank.walletLimit = Math.max(0L, tag.getLong("walletLimit"));
         bank.commissionFee = Money.clampBalance(tag.getLong("fee"));
+        // Absent on banks saved before the charge existed: keep the constructor default rather than
+        // zero, so an existing bank behaves like a new one instead of silently going free.
+        if (tag.contains("crossFee")) bank.crossBankFee = Money.clampBalance(tag.getLong("crossFee"));
         bank.commissionPeriodDays = Math.max(1, tag.getInt("feeDays"));
         long[] stored = tag.getLongArray("rates");
         for (int i = 0; i < bank.rates.length; i++) {
@@ -309,6 +331,7 @@ public class Bank {
         buffer.writeVarLong(reserve);
         buffer.writeVarLong(walletLimit);
         buffer.writeVarLong(commissionFee);
+        buffer.writeVarLong(crossBankFee);
         buffer.writeVarInt(commissionPeriodDays);
         for (CoinType type : CoinType.ORDERED) {
             buffer.writeVarLong(rate(type));
@@ -333,6 +356,7 @@ public class Bank {
         bank.reserve = buffer.readVarLong();
         bank.walletLimit = buffer.readVarLong();
         bank.commissionFee = buffer.readVarLong();
+        bank.crossBankFee = buffer.readVarLong();
         bank.commissionPeriodDays = buffer.readVarInt();
         for (int i = 0; i < bank.rates.length; i++) {
             bank.rates[i] = buffer.readVarLong();

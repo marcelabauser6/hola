@@ -18,15 +18,64 @@ public record WalletSnapshot(long cashCents,
                              String ownerName,
                              boolean atmNearby,
                              DisplaySettings display,
-                             BankInfo bank) {
+                             BankInfo bank,
+                             PlayStats stats) {
+
+    /**
+     * The holder's own record on this server.
+     *
+     * <p>Read from the vanilla statistics counter, which only exists server-side, so it travels with the
+     * snapshot like everything else here. The wallet is the one screen a player opens about themselves, so
+     * it is the natural place for it - and it replaced a cell that showed a picture of an ATM, which told
+     * the holder nothing they did not already know from standing next to one.</p>
+     */
+    public record PlayStats(int playTimeTicks, int mobKills, int playerKills, int deaths) {
+
+        public static final PlayStats NONE = new PlayStats(0, 0, 0, 0);
+
+        /** Whole hours played, which is the only resolution worth showing. */
+        public int hours() {
+            return playTimeTicks / 20 / 3600;
+        }
+
+        public int minutes() {
+            return playTimeTicks / 20 / 60 % 60;
+        }
+
+        void write(net.minecraft.network.FriendlyByteBuf buffer) {
+            buffer.writeVarInt(playTimeTicks);
+            buffer.writeVarInt(mobKills);
+            buffer.writeVarInt(playerKills);
+            buffer.writeVarInt(deaths);
+        }
+
+        static PlayStats read(net.minecraft.network.FriendlyByteBuf buffer) {
+            return new PlayStats(buffer.readVarInt(), buffer.readVarInt(),
+                    buffer.readVarInt(), buffer.readVarInt());
+        }
+
+        static PlayStats of(ServerPlayer player) {
+            net.minecraft.stats.ServerStatsCounter counter = player.getStats();
+            return new PlayStats(
+                    counter.getValue(net.minecraft.stats.Stats.CUSTOM
+                            .get(net.minecraft.stats.Stats.PLAY_TIME)),
+                    counter.getValue(net.minecraft.stats.Stats.CUSTOM
+                            .get(net.minecraft.stats.Stats.MOB_KILLS)),
+                    counter.getValue(net.minecraft.stats.Stats.CUSTOM
+                            .get(net.minecraft.stats.Stats.PLAYER_KILLS)),
+                    counter.getValue(net.minecraft.stats.Stats.CUSTOM
+                            .get(net.minecraft.stats.Stats.DEATHS)));
+        }
+    }
 
     /** The holder's bank, or {@link BankInfo#NONE} when they have no account. */
     public record BankInfo(boolean hasAccount, String name, int accountNumber, long accountCents,
                            long walletLimit, long commissionFee, int commissionDays,
+                           long crossBankFee,
                            long loanOwed, long loanDueAt, int themeColor) {
 
         public static final BankInfo NONE =
-                new BankInfo(false, "", 0, 0L, 0L, 0L, 0, 0L, 0L, 0x2E4756);
+                new BankInfo(false, "", 0, 0L, 0L, 0L, 0, 0L, 0L, 0L, 0x2E4756);
 
         void write(net.minecraft.network.FriendlyByteBuf buffer) {
             buffer.writeBoolean(hasAccount);
@@ -36,6 +85,7 @@ public record WalletSnapshot(long cashCents,
             buffer.writeVarLong(walletLimit);
             buffer.writeVarLong(commissionFee);
             buffer.writeVarInt(commissionDays);
+            buffer.writeVarLong(crossBankFee);
             buffer.writeVarLong(loanOwed);
             buffer.writeLong(loanDueAt);
             buffer.writeInt(themeColor);
@@ -44,8 +94,8 @@ public record WalletSnapshot(long cashCents,
         static BankInfo read(net.minecraft.network.FriendlyByteBuf buffer) {
             return new BankInfo(buffer.readBoolean(), buffer.readUtf(32), buffer.readVarInt(),
                     buffer.readVarLong(), buffer.readVarLong(), buffer.readVarLong(),
-                    buffer.readVarInt(), buffer.readVarLong(), buffer.readLong(),
-                    buffer.readInt());
+                    buffer.readVarInt(), buffer.readVarLong(), buffer.readVarLong(),
+                    buffer.readLong(), buffer.readInt());
         }
     }
 
@@ -57,7 +107,8 @@ public record WalletSnapshot(long cashCents,
                 target.getGameProfile().getName(),
                 WalletManager.findNearbyAtm(target) != null,
                 DisplaySettings.fromConfig(),
-                bankInfoOf(target));
+                bankInfoOf(target),
+                PlayStats.of(target));
     }
 
     private static BankInfo bankInfoOf(ServerPlayer target) {
@@ -71,6 +122,7 @@ public record WalletSnapshot(long cashCents,
         com.athensmc.athenscoins.bank.Loan loan = account.loan();
         return new BankInfo(true, bank.name(), account.number(), account.balance(),
                 bank.walletLimit(), bank.commissionFee(), bank.commissionPeriodDays(),
+                bank.crossBankFee(),
                 loan == null ? 0L : loan.owed(), loan == null ? 0L : loan.dueAt(),
                 bank.themeColor());
     }
@@ -85,6 +137,7 @@ public record WalletSnapshot(long cashCents,
         buffer.writeBoolean(atmNearby);
         display.write(buffer);
         bank.write(buffer);
+        stats.write(buffer);
     }
 
     public static WalletSnapshot read(FriendlyByteBuf buffer) {
@@ -97,7 +150,8 @@ public record WalletSnapshot(long cashCents,
         String name = buffer.readUtf(32);
         boolean atm = buffer.readBoolean();
         DisplaySettings settings = DisplaySettings.read(buffer);
-        return new WalletSnapshot(cash, counts, owner, name, atm, settings, BankInfo.read(buffer));
+        return new WalletSnapshot(cash, counts, owner, name, atm, settings,
+                BankInfo.read(buffer), PlayStats.read(buffer));
     }
 
     public int coinCount(CoinType type) {

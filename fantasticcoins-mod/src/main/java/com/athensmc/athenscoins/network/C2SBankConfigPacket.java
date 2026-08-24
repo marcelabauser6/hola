@@ -41,6 +41,7 @@ public class C2SBankConfigPacket {
     private final long walletLimit;
     private final long commissionFee;
     private final int commissionPeriodDays;
+    private final long crossBankFee;
     private final long[] rates;
     private final boolean loansEnabled;
     private final long loanMaxAmount;
@@ -48,7 +49,8 @@ public class C2SBankConfigPacket {
     private final int loanInterestBasisPoints;
 
     public C2SBankConfigPacket(BlockPos pos, String name, int themeColor, long walletLimit,
-                               long commissionFee, int commissionPeriodDays, long[] rates,
+                               long commissionFee, int commissionPeriodDays, long crossBankFee,
+                               long[] rates,
                                boolean loansEnabled, long loanMaxAmount, int loanDays,
                                int loanInterestBasisPoints) {
         this.pos = pos;
@@ -57,6 +59,7 @@ public class C2SBankConfigPacket {
         this.walletLimit = walletLimit;
         this.commissionFee = commissionFee;
         this.commissionPeriodDays = commissionPeriodDays;
+        this.crossBankFee = crossBankFee;
         this.rates = rates.clone();
         this.loansEnabled = loansEnabled;
         this.loanMaxAmount = loanMaxAmount;
@@ -71,6 +74,7 @@ public class C2SBankConfigPacket {
         this.walletLimit = buffer.readVarLong();
         this.commissionFee = buffer.readVarLong();
         this.commissionPeriodDays = buffer.readVarInt();
+        this.crossBankFee = buffer.readVarLong();
         this.rates = new long[CoinType.ORDERED.length];
         for (int i = 0; i < rates.length; i++) {
             rates[i] = buffer.readVarLong();
@@ -88,6 +92,7 @@ public class C2SBankConfigPacket {
         buffer.writeVarLong(walletLimit);
         buffer.writeVarLong(commissionFee);
         buffer.writeVarInt(commissionPeriodDays);
+        buffer.writeVarLong(crossBankFee);
         for (long rate : rates) {
             buffer.writeVarLong(rate);
         }
@@ -166,6 +171,7 @@ public class C2SBankConfigPacket {
             }
         }
 
+        bank.setCrossBankFee(crossBankFee);
         bank.setLoansEnabled(loansEnabled);
         bank.setLoanMaxAmount(loanMaxAmount);
         bank.setLoanDays(loanDays);

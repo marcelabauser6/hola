@@ -124,6 +124,7 @@ public class BankTerminalScreen extends Screen {
     private AmountField walletLimitBox;
     private AmountField feeBox;
     private CountField feeDaysBox;
+    private AmountField crossFeeBox;
     private final AmountField[] rateBoxes = new AmountField[CoinType.ORDERED.length];
     private AmountField loanMaxBox;
     private CountField loanDaysBox;
@@ -340,6 +341,7 @@ public class BankTerminalScreen extends Screen {
         walletLimitBox = money(bank.walletLimit());
         feeBox = money(bank.commissionFee());
         feeDaysBox = count(bank.commissionPeriodDays());
+        crossFeeBox = money(bank.crossBankFee());
         for (CoinType type : CoinType.ORDERED) {
             rateBoxes[type.ordinal()] = money(bank.syncedRate(type));
         }
@@ -372,6 +374,8 @@ public class BankTerminalScreen extends Screen {
                 Component.translatable("gui.athens_coins.cfg_fee_hint")));
         form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_fee_days"), "gui.athens_coins.unit_days"), feeDaysBox,
                 Component.translatable("gui.athens_coins.cfg_fee_days_hint")));
+        form.add(FormList.Row.of(withUnit(Component.translatable("gui.athens_coins.cfg_cross_fee"), "gui.athens_coins.unit_money"), crossFeeBox,
+                Component.translatable("gui.athens_coins.cfg_cross_fee_hint")));
 
         form.add(FormList.Row.heading(Component.translatable("gui.athens_coins.cfg_group_rates")));
         for (CoinType type : CoinType.ORDERED) {
@@ -420,6 +424,11 @@ public class BankTerminalScreen extends Screen {
             fail("gui.athens_coins.cfg_fee_days", feeDaysBox.error());
             return;
         }
+        long crossFee = crossFeeBox.cents();
+        if (crossFee < 0L) {
+            fail("gui.athens_coins.cfg_cross_fee", crossFeeBox.error());
+            return;
+        }
         long[] rates = new long[CoinType.ORDERED.length];
         for (CoinType type : CoinType.ORDERED) {
             long rate = rateBoxes[type.ordinal()].cents();
@@ -446,7 +455,7 @@ public class BankTerminalScreen extends Screen {
         }
 
         ModNetwork.toServer(new C2SBankConfigPacket(pos, nameBox.getValue(),
-                BankPalette.at(colorIndex).rgb(), walletLimit, fee, feeDays, rates,
+                BankPalette.at(colorIndex).rgb(), walletLimit, fee, feeDays, crossFee, rates,
                 loansEnabled, loanMax, loanDays, (int) interest));
         message = Component.translatable("gui.athens_coins.cfg_sent");
         messageIsError = false;

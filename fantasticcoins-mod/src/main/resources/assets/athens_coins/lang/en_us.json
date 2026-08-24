@@ -25,10 +25,6 @@
   "tooltip.athens_coins.net_worth": "Patrimonio: %s",
   "tooltip.athens_coins.rate_line": "1 %s = %s",
   "tooltip.athens_coins.account_theme": "Haz clic en la cartera para cambiar su color",
-  "tooltip.athens_coins.bank": "Banco",
-  "tooltip.athens_coins.bank_how": "Usa un cajero para cambiar monedas y cash",
-  "tooltip.athens_coins.bank_near": "Hay un cajero cerca",
-  "tooltip.athens_coins.bank_far": "No hay ningún cajero cerca",
   "message.athens_coins.balance_header": "Tu cuenta",
   "message.athens_coins.balance_header_other": "Cuenta de %s",
   "message.athens_coins.coins_header": " Monedas en el inventario:",
@@ -496,5 +492,14 @@
   "gui.athens_coins.done_board": "Tablero en tu inventario",
   "gui.athens_coins.done_licensed": "%s ya puede fundar bancos",
   "gui.athens_coins.done_unlicensed": "%s ya no puede fundar bancos",
-  "gui.athens_coins.done_sent": "Hecho"
+  "gui.athens_coins.done_sent": "Hecho",
+  "gui.athens_coins.cfg_cross_fee": "A otro banco",
+  "gui.athens_coins.cfg_cross_fee_hint": "Cargo fijo al enviar a un cliente de otro banco. 0 = gratis",
+  "tooltip.athens_coins.bank_cross_fee": "A otro banco: %s",
+  "tooltip.athens_coins.free": "gratis",
+  "tooltip.athens_coins.record": "Tu historial",
+  "tooltip.athens_coins.record_time": "Tiempo jugado: %s",
+  "tooltip.athens_coins.record_mobs": "Mobs eliminados: %s",
+  "tooltip.athens_coins.record_players": "Jugadores eliminados: %s",
+  "tooltip.athens_coins.record_deaths": "Muertes: %s"
 }

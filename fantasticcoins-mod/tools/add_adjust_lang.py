@@ -138,6 +138,20 @@ ADD = {
     "gui.athens_coins.done_unlicensed": "%s ya no puede fundar bancos",
     "gui.athens_coins.done_sent": "Hecho",
 
+    # --- charge for sending money to another bank ----------------------------
+    "gui.athens_coins.cfg_cross_fee": "A otro banco",
+    "gui.athens_coins.cfg_cross_fee_hint": "Cargo fijo al enviar a un cliente de otro banco. 0 = gratis",
+    "tooltip.athens_coins.bank_cross_fee": "A otro banco: %s",
+    "tooltip.athens_coins.free": "gratis",
+
+    # --- the wallet's third cell: the holder's own record --------------------
+    # It showed a picture of an ATM, which told the holder nothing they could not see by looking around.
+    "tooltip.athens_coins.record": "Tu historial",
+    "tooltip.athens_coins.record_time": "Tiempo jugado: %s",
+    "tooltip.athens_coins.record_mobs": "Mobs eliminados: %s",
+    "tooltip.athens_coins.record_players": "Jugadores eliminados: %s",
+    "tooltip.athens_coins.record_deaths": "Muertes: %s",
+
     # --- units, so a bare number says what it is ----------------------------
     "gui.athens_coins.unit_money": "($)",
     "gui.athens_coins.unit_days": "(días)",
@@ -170,6 +184,11 @@ REMOVE = [
     "message.athens_coins.offer_refused",
     # The wallet has no frame again, so it has no hint line to put in one.
     "gui.athens_coins.wallet_hint",
+    # The wallet's third cell reports the holder's record now, not whether an ATM is nearby.
+    "tooltip.athens_coins.bank",
+    "tooltip.athens_coins.bank_how",
+    "tooltip.athens_coins.bank_near",
+    "tooltip.athens_coins.bank_far",
     # The central bank has one hint per tab now, and the band is named in the rate tab.
     "gui.athens_coins.central_hint",
     "gui.athens_coins.central_margin",

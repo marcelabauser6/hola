@@ -186,12 +186,16 @@ public class WalletScreen extends Screen {
             drawCount(graphics, Money.compactCount(snapshot.coinCount(type)), x, y);
         }
 
-        // Row 2: cash balance, account details, bank.
+        // Row 2: cash balance, account details, and the holder's own record.
+        //
+        // The third cell used to show an ATM. That told the holder nothing: whether an ATM is nearby is
+        // something you can see by looking, and the cell it occupied is the only free space in the wallet
+        // for something about the player. A clock, because what it now reports starts with time played.
         graphics.blit(ICON_BALANCE, leftPos + CELLS[3][0], topPos + CELLS[3][1],
                 0.0F, 0.0F, 16, 16, 16, 16);
         graphics.blit(ICON_DOCUMENTS, leftPos + CELLS[4][0], topPos + CELLS[4][1],
                 0.0F, 0.0F, 16, 16, 16, 16);
-        graphics.renderItem(new ItemStack(ModItems.ATM_ITEM.get()),
+        graphics.renderItem(new ItemStack(net.minecraft.world.item.Items.CLOCK),
                 leftPos + CELLS[5][0], topPos + CELLS[5][1]);
     }
 
@@ -326,19 +330,35 @@ public class WalletScreen extends Screen {
                                             .withStyle(ChatFormatting.WHITE), status)
                             .withStyle(overdue > 0 ? ChatFormatting.RED : ChatFormatting.YELLOW));
                 }
+                lines.add(Component.translatable("tooltip.athens_coins.bank_cross_fee",
+                                Component.literal(info.crossBankFee() <= 0L
+                                        ? Component.translatable("tooltip.athens_coins.free").getString()
+                                        : Money.format(info.crossBankFee(), symbol))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.GRAY));
                 lines.add(Component.translatable("tooltip.athens_coins.account_theme")
                         .withStyle(ChatFormatting.DARK_GRAY));
             }
             default -> {
-                lines.add(Component.translatable("tooltip.athens_coins.bank")
+                WalletSnapshot.PlayStats stats = snapshot.stats();
+                lines.add(Component.translatable("tooltip.athens_coins.record")
                         .withStyle(ChatFormatting.GOLD));
-                lines.add(Component.translatable("tooltip.athens_coins.bank_how")
+                lines.add(Component.translatable("tooltip.athens_coins.record_time",
+                                Component.literal(stats.hours() + "h " + stats.minutes() + "m")
+                                        .withStyle(ChatFormatting.WHITE))
                         .withStyle(ChatFormatting.GRAY));
-                lines.add(snapshot.atmNearby()
-                        ? Component.translatable("tooltip.athens_coins.bank_near")
-                        .withStyle(ChatFormatting.GREEN)
-                        : Component.translatable("tooltip.athens_coins.bank_far")
-                                .withStyle(ChatFormatting.RED));
+                lines.add(Component.translatable("tooltip.athens_coins.record_mobs",
+                                Component.literal(Money.compactCount(stats.mobKills()))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("tooltip.athens_coins.record_players",
+                                Component.literal(String.valueOf(stats.playerKills()))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(ChatFormatting.GRAY));
+                lines.add(Component.translatable("tooltip.athens_coins.record_deaths",
+                                Component.literal(String.valueOf(stats.deaths()))
+                                        .withStyle(ChatFormatting.WHITE))
+                        .withStyle(stats.deaths() > 0 ? ChatFormatting.RED : ChatFormatting.GRAY));
             }
         }
         return lines;
