@@ -90,7 +90,6 @@ public class AthensCoinsMod {
         TransferManager.clear();
         // A confirmation is a question asked of somebody standing at a terminal; one that survived a
         // restart would be a click nobody remembers making.
-        com.athensmc.athenscoins.bank.AccountOffers.clear();
         com.athensmc.athenscoins.bank.LoanNotices.reset();
         com.athensmc.athenscoins.bank.BankManager.migrateLegacyWallets(event.getServer());
         for (com.athensmc.athenscoins.bank.BankAccount account
@@ -103,9 +102,8 @@ public class AthensCoinsMod {
     public void onServerStopped(ServerStoppedEvent event) {
         // Pending requests are per-session; never leak them into the next world.
         TransferManager.clear();
-        com.athensmc.athenscoins.bank.AccountOffers.clear();
-        // Same reason: a single-player client that opens a second world must not be handed the first
-        // world's economy figures on the next hologram refresh.
+        // A single-player client that opens a second world must not be handed the first world's economy
+        // figures on the next hologram refresh.
         com.athensmc.athenscoins.stats.StatsCache.clear();
     }
 
@@ -121,7 +119,6 @@ public class AthensCoinsMod {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             TransferManager.tick(server);
-            com.athensmc.athenscoins.bank.AccountOffers.tick(server);
             tickBanking(server);
         }
     }

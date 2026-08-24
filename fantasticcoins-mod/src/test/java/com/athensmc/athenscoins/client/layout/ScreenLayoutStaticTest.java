@@ -154,9 +154,6 @@ public final class ScreenLayoutStaticTest {
             require(ScreenLayout.visibleRows(body, 12) >= 10, "editor content too short" + at);
         }
 
-        // The wallet keeps its artwork at native size, so the panel has to be able to hold it.
-        ScreenLayout.Regions wallet = PanelMetrics.wallet(width, height);
-        verifyRegions("wallet" + at, wallet);
     }
 
     // ------------------------------------------------------------------ ATM
@@ -288,19 +285,10 @@ public final class ScreenLayoutStaticTest {
     private static void verifyWallet(int width, int height) {
         String at = " at " + width + "x" + height;
         ScreenLayout.Rect viewport = new ScreenLayout.Rect(0, 0, width, height);
-        // The wallet is now a responsive panel with the 176x98 artwork centred inside it at native size,
-        // so there are two things to check: the panel fits the viewport, and the artwork fits the panel's
-        // content band rather than being clipped by the new title bar and footer.
-        ScreenLayout.Regions regions = PanelMetrics.wallet(width, height);
-        require(viewport.contains(regions.panel()), "wallet panel outside viewport" + at);
-        verifyRegions("wallet" + at, regions);
-        ScreenLayout.Rect content = regions.content().inset(PanelMetrics.CONTENT_PAD);
-        int artX = content.x() + Math.max(0, (content.width() - 176) / 2);
-        int artY = content.y() + Math.max(0, (content.height() - 98) / 2);
-        ScreenLayout.Rect art = new ScreenLayout.Rect(artX, artY, 176, 98);
-        if (content.width() >= 176 && content.height() >= 98) {
-            require(content.contains(art), "wallet artwork escapes the content band" + at);
-        }
+        // The wallet is the drawing and nothing else - no panel, no title bar, no footer - so the only
+        // geometric claim to check is that the artwork lands inside the window.
+        ScreenLayout.Rect wallet = ScreenLayout.centeredPanel(width, height, 176, 98);
+        require(viewport.contains(wallet), "wallet outside viewport" + at);
         int innerText = 176 - 12;
         // Widest plausible amount string, to catch the case the budgets are meant to survive.
         for (int amountPixels : new int[] {10, 42, 80, 120, 400}) {

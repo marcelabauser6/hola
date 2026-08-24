@@ -35,6 +35,12 @@ import java.util.List;
  * lobby wall would be visible from outside the building, and there would be no way to hide one you did
  * not want to see. Depth-tested text means a wall hides it, which is what a sign on a wall does.</p>
  *
+ * <p><b>No drop shadow, and not as a setting either.</b> {@code Font} draws a shadow by offsetting a
+ * second copy of the glyph by a hair in z - about a thousandth of a block once this text has been scaled
+ * down to nameplate size. At that separation the depth buffer cannot tell the two copies apart, so the
+ * shadow and the glyph fight for every pixel and the whole board strobes as the camera moves. It is not a
+ * look worth offering a toggle for; a hologram is a projection and projections do not cast shadows.</p>
+ *
  * <p><b>Full brightness.</b> The text is lit at {@link LightTexture#FULL_BRIGHT} regardless of the light
  * reaching the block, because the thing being simulated is a projection, not a painted surface. Passing
  * the block's own light would make a board in an unlit square unreadable at night - which is exactly
@@ -103,7 +109,7 @@ public class StatsHologramRenderer implements BlockEntityRenderer<StatsHologramB
         float y = top;
         if (title != null) {
             float titleX = -font.width(title) / 2.0F;
-            font.drawInBatch(title, titleX, y, 0xFF000000 | config.titleColor(), config.textShadow(),
+            font.drawInBatch(title, titleX, y, 0xFF000000 | config.titleColor(), false,
                     matrix, buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
             y += titleHeight;
         }
@@ -121,16 +127,16 @@ public class StatsHologramRenderer implements BlockEntityRenderer<StatsHologramB
         }
         if (row.valueOnly()) {
             float x = -font.width(row.value()) / 2.0F;
-            font.drawInBatch(row.value(), x, y, 0xFF000000 | row.rgb(), config.textShadow(),
+            font.drawInBatch(row.value(), x, y, 0xFF000000 | row.rgb(), false,
                     matrix, buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
             return;
         }
         font.drawInBatch(row.label(), -half, y, 0xFF000000 | config.labelColor(),
-                config.textShadow(), matrix, buffers, Font.DisplayMode.NORMAL, 0,
+                false, matrix, buffers, Font.DisplayMode.NORMAL, 0,
                 LightTexture.FULL_BRIGHT);
         if (!row.value().isEmpty()) {
             font.drawInBatch(row.value(), half - font.width(row.value()), y,
-                    0xFF000000 | row.rgb(), config.textShadow(), matrix, buffers,
+                    0xFF000000 | row.rgb(), false, matrix, buffers,
                     Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
         }
     }

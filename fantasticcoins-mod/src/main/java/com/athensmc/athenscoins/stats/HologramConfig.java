@@ -82,7 +82,6 @@ public class HologramConfig {
     private int topRows = 3;
 
     private boolean showBackground = true;
-    private boolean textShadow = true;
     private boolean boldTitle = true;
     /** True to always face the viewer; false to stay flat on the projector's facing. */
     private boolean billboard = true;
@@ -276,14 +275,6 @@ public class HologramConfig {
         showBackground = value;
     }
 
-    public boolean textShadow() {
-        return textShadow;
-    }
-
-    public void setTextShadow(boolean value) {
-        textShadow = value;
-    }
-
     public boolean boldTitle() {
         return boldTitle;
     }
@@ -344,7 +335,6 @@ public class HologramConfig {
         tag.putInt("offset", heightOffsetTenths);
         tag.putInt("topRows", topRows);
         tag.putBoolean("showBackground", showBackground);
-        tag.putBoolean("textShadow", textShadow);
         tag.putBoolean("boldTitle", boldTitle);
         tag.putBoolean("billboard", billboard);
         tag.putBoolean("showLabels", showLabels);
@@ -403,9 +393,6 @@ public class HologramConfig {
         }
         if (tag.contains("showBackground")) {
             config.setShowBackground(tag.getBoolean("showBackground"));
-        }
-        if (tag.contains("textShadow")) {
-            config.setTextShadow(tag.getBoolean("textShadow"));
         }
         if (tag.contains("boldTitle")) {
             config.setBoldTitle(tag.getBoolean("boldTitle"));

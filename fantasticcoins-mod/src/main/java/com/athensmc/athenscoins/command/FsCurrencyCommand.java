@@ -1,6 +1,5 @@
 package com.athensmc.athenscoins.command;
 
-import com.athensmc.athenscoins.bank.AccountOffers;
 import com.athensmc.athenscoins.config.CurrencyConfig;
 import com.athensmc.athenscoins.network.ModNetwork;
 import com.athensmc.athenscoins.network.S2COpenWalletPacket;
@@ -76,18 +75,6 @@ public final class FsCurrencyCommand {
                                 .then(Commands.argument("target", EntityArgument.player())
                                         .executes(FsCurrencyCommand::requestTransfer))))
 
-                // The account offer's chat buttons. A player command, not an operator one: the
-                // person answering is the prospective customer, and it is their own account.
-                .then(Commands.literal("account")
-                        .then(Commands.literal("accept")
-                                .requires(FsCurrencyCommand::hasPendingOffer)
-                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
-                                        .executes(context -> answerOffer(context, true))))
-                        .then(Commands.literal("decline")
-                                .requires(FsCurrencyCommand::hasPendingOffer)
-                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
-                                        .executes(context -> answerOffer(context, false)))))
-
                 .then(Commands.literal("reload")
                         .requires(source -> source.hasPermission(2))
                         .executes(FsCurrencyCommand::reload)));
@@ -96,50 +83,6 @@ public final class FsCurrencyCommand {
     private static boolean hasPendingTransfer(CommandSourceStack source) {
         return source.getEntity() instanceof ServerPlayer player
                 && TransferManager.hasPendingFor(player.getUUID());
-    }
-
-    private static boolean hasPendingOffer(CommandSourceStack source) {
-        return source.getEntity() instanceof ServerPlayer player
-                && AccountOffers.hasPendingFor(player.getUUID());
-    }
-
-    /**
-     * Answers an offer of a bank account.
-     *
-     * <p>Only the player the account was offered to may answer it, whatever id they type. The id is a
-     * small integer sitting in a click event, so without the ownership check anybody could accept - and
-     * therefore create - somebody else's account.</p>
-     */
-    private static int answerOffer(CommandContext<CommandSourceStack> context, boolean accepted)
-            throws CommandSyntaxException {
-        ServerPlayer player = self(context);
-        int id = IntegerArgumentType.getInteger(context, "id");
-        AccountOffers.Offer offer = AccountOffers.get(id);
-        if (offer == null || !offer.holder().equals(player.getUUID())
-                || offer.isExpired(System.currentTimeMillis())) {
-            AccountOffers.remove(id);
-            context.getSource().sendFailure(
-                    Component.translatable("message.athens_coins.offer_gone"));
-            return 0;
-        }
-        AccountOffers.remove(id);
-        if (!accepted) {
-            context.getSource().sendSuccess(() -> Component
-                    .translatable("message.athens_coins.offer_declined", offer.bankName())
-                    .withStyle(ChatFormatting.GRAY), false);
-            ServerPlayer banker = player.server.getPlayerList().getPlayer(offer.banker());
-            if (banker != null) {
-                banker.sendSystemMessage(Component.translatable(
-                                "message.athens_coins.offer_refused",
-                                player.getGameProfile().getName())
-                        .withStyle(ChatFormatting.RED));
-            }
-            player.server.getCommands().sendCommands(player);
-            return 1;
-        }
-        com.athensmc.athenscoins.network.C2STerminalActionPacket.completeOffer(player, offer);
-        player.server.getCommands().sendCommands(player);
-        return 1;
     }
 
     private static ServerPlayer self(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {

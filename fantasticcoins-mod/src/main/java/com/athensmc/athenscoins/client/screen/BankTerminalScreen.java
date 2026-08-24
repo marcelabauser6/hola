@@ -749,11 +749,14 @@ public class BankTerminalScreen extends Screen {
                             () -> sendFor(revoke ? C2STerminalActionPacket.Action.REMOVE_BANKER
                                     : C2STerminalActionPacket.Action.ADD_BANKER, row.id()));
                 } else if (!row.hasAccount()) {
-                    // No dialog for the banker here: this one is confirmed by the customer, in chat,
-                    // because an account is an agreement and they are the party agreeing to it.
-                    sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id());
-                    message = Component.translatable("gui.athens_coins.offer_sent_to", row.name());
-                    messageIsError = false;
+                    // Confirmed here like every other action. It was briefly an offer the customer
+                    // accepted from chat, which needed a command to back the buttons - and a command
+                    // whose visibility depends on having a pending offer is a command that is missing
+                    // exactly when you need it. The dialog is where the click is.
+                    confirm.ask(Component.translatable("message.athens_coins.ask_open_account",
+                                    row.name()),
+                            Component.translatable("gui.athens_coins.ask_open_detail"),
+                            () -> sendFor(C2STerminalActionPacket.Action.OPEN_ACCOUNT, row.id()));
                 } else {
                     message = Component.translatable("gui.athens_coins.click_already_has", row.name());
                     messageIsError = true;

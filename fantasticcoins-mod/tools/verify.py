@@ -267,7 +267,6 @@ else:
             "com/athensmc/athenscoins/client/widget/ColorPicker.class",
             "com/athensmc/athenscoins/client/ClientCashCache.class",
             "com/athensmc/athenscoins/bank/BankAccess.class",
-            "com/athensmc/athenscoins/bank/AccountOffers.class",
             "com/athensmc/athenscoins/bank/BankRules.class",
             "com/athensmc/athenscoins/bank/Bank.class",
             "com/athensmc/athenscoins/bank/BankAccount.class",
@@ -508,19 +507,34 @@ else:
 
 # (d5) Confirmations are in the screens, not in chat.
 #
-# The chat prompts are gone; a click-event button that runs a command is what they were made of, so its
-# absence from the bank code is what proves they stayed gone. The account offer is the deliberate exception
-# and is allowed to build one, because its reader is a customer who is not standing at a screen.
+# A click-event button that runs a command is what the chat prompts were made of, so its absence from the
+# bank code is what proves they stayed gone. Transfers are the one exception and keep theirs: the recipient
+# of a transfer is not standing at a screen when it arrives, so there is nowhere else to ask them.
 for base, _, files in os.walk(os.path.join(SRC, "com/athensmc/athenscoins")):
     for name in files:
-        if not name.endswith(".java"):
-            continue
-        if name == "AccountOffers.java" or "transfer" in base:
+        if not name.endswith(".java") or "transfer" in base:
             continue
         source = open(os.path.join(base, name), encoding="utf-8").read()
         if "ClickEvent.Action.RUN_COMMAND" in source:
             problems.append(f"{name} builds a chat command button; confirmations belong in the screen")
-notes.append("confirmations are in-screen; only the account offer and transfers use chat buttons")
+notes.append("confirmations are in-screen; only transfers use chat buttons")
+
+# (d6) The command tree stays small.
+#
+# Every subcommand is a thing to document, a thing to gate and a thing that can be typed wrong. Two of them
+# have already been removed for being redundant with a screen - a dashboard command and a confirmation
+# command - so the list is pinned here: adding one is a decision, not something that happens by accident.
+command_source = open(os.path.join(SRC, "com/athensmc/athenscoins/command/FsCurrencyCommand.java"),
+                      encoding="utf-8").read()
+tree_end = command_source.index("private static boolean hasPendingTransfer")
+literals = set(re.findall(r'Commands\.literal\("(\w+)"\)', command_source[:tree_end]))
+expected_literals = {"fscurrency", "wallet", "balance", "transfer", "accept", "deny", "reload"}
+if literals != expected_literals:
+    problems.append("command tree changed: expected "
+                    + ", ".join(sorted(expected_literals))
+                    + " but found " + ", ".join(sorted(literals)))
+else:
+    notes.append(f"command tree is the expected {len(expected_literals)} literals")
 
 
 # ---------------------------------------------------------------- 6. responsive screen layout arithmetic

@@ -68,18 +68,12 @@ ADD = {
     "gui.athens_coins.ask_approve_detail": "El dinero sale de la reserva ahora mismo.",
     "gui.athens_coins.ask_reject_detail": "La solicitud se borra y se le avisa.",
 
-    # --- the account offer ---------------------------------------------------
-    "gui.athens_coins.offer_sent_to": "Oferta enviada a %s",
-    "message.athens_coins.offer_sent": "Oferta enviada al cliente",
-    "message.athens_coins.offer_header": "%s te ofrece abrir una cuenta",
-    "message.athens_coins.offer_terms": "Comisión %s cada %s días · techo de tarjeta %s",
-    "message.athens_coins.offer_accept": "[Aceptar]",
-    "message.athens_coins.offer_decline": "[Rechazar]",
-    "message.athens_coins.offer_expired": "La oferta de %s caducó",
-    "message.athens_coins.offer_lapsed": "Tu oferta caducó sin respuesta",
-    "message.athens_coins.offer_gone": "Esa oferta ya no existe",
-    "message.athens_coins.offer_declined": "Rechazaste la cuenta de %s",
-    "message.athens_coins.offer_refused": "%s rechazó la cuenta",
+    # --- opening an account is confirmed in the screen too --------------------
+    # It was briefly an offer the customer accepted from a chat button, which needed a command behind it -
+    # and a command that only exists while an offer is pending is one that is missing exactly when someone
+    # tries to use it. Same dialog as every other action.
+    "message.athens_coins.ask_open_account": "¿Aperturar una cuenta a %s?",
+    "gui.athens_coins.ask_open_detail": "Se le entrega la cuenta y el comprobante.",
 
     # --- boards belong to a bank --------------------------------------------
     "item.athens_coins.board_of": "Tablero de %s",
@@ -143,11 +137,26 @@ REMOVE = [
     "message.athens_coins.ask_expired",
     "message.athens_coins.ask_cancelled",
     "message.athens_coins.hologram_none_near",
+    # The hologram never casts a shadow now: Font draws one by offsetting a copy a thousandth of a block in
+    # z, which at nameplate scale strobes instead of reading as a shadow.
+    "gui.athens_coins.holo_shadow",
+    # The account offer and its command are gone; the banker confirms in the screen.
+    "gui.athens_coins.offer_sent_to",
+    "message.athens_coins.offer_sent",
+    "message.athens_coins.offer_header",
+    "message.athens_coins.offer_terms",
+    "message.athens_coins.offer_accept",
+    "message.athens_coins.offer_decline",
+    "message.athens_coins.offer_expired",
+    "message.athens_coins.offer_lapsed",
+    "message.athens_coins.offer_gone",
+    "message.athens_coins.offer_declined",
+    "message.athens_coins.offer_refused",
+    # The wallet has no frame again, so it has no hint line to put in one.
+    "gui.athens_coins.wallet_hint",
     # The central bank has one hint per tab now, and the band is named in the rate tab.
     "gui.athens_coins.central_hint",
     "gui.athens_coins.central_margin",
-    # Replaced by the offer the customer receives, which has its own header and terms.
-    "message.athens_coins.ask_open_account",
 ]
 
 

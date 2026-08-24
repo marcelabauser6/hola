@@ -217,7 +217,6 @@ public class StatsHologramEditorScreen extends Screen {
         into.setHeightOffsetTenths(source.heightOffsetTenths());
         into.setTopRows(source.topRows());
         into.setShowBackground(source.showBackground());
-        into.setTextShadow(source.textShadow());
         into.setBoldTitle(source.boldTitle());
         into.setBillboard(source.billboard());
         into.setShowLabels(source.showLabels());
@@ -339,8 +338,6 @@ public class StatsHologramEditorScreen extends Screen {
                 working::showLabels, working::setShowLabels, false);
         y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_billboard",
                 working::billboard, working::setBillboard, true);
-        y = addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_shadow",
-                working::textShadow, working::setTextShadow, false);
         addToggle(column.x(), y, column.width(), limit, "gui.athens_coins.holo_bold",
                 working::boldTitle, working::setBoldTitle, false);
     }
@@ -693,7 +690,7 @@ public class StatsHologramEditorScreen extends Screen {
         int y = 0;
         if (heading != null) {
             graphics.drawString(font, heading, (textWidth - font.width(heading)) / 2, y,
-                    0xFF000000 | working.titleColor(), working.textShadow());
+                    0xFF000000 | working.titleColor(), false);
             y += titleHeight;
         }
         for (HologramLines.Row row : rows) {
@@ -701,14 +698,14 @@ public class StatsHologramEditorScreen extends Screen {
                 if (row.valueOnly()) {
                     graphics.drawString(font, row.value(),
                             (textWidth - font.width(row.value())) / 2, y,
-                            0xFF000000 | row.rgb(), working.textShadow());
+                            0xFF000000 | row.rgb(), false);
                 } else {
                     graphics.drawString(font, row.label(), 0, y,
-                            0xFF000000 | working.labelColor(), working.textShadow());
+                            0xFF000000 | working.labelColor(), false);
                     if (!row.value().isEmpty()) {
                         graphics.drawString(font, row.value(),
                                 textWidth - font.width(row.value()), y,
-                                0xFF000000 | row.rgb(), working.textShadow());
+                                0xFF000000 | row.rgb(), false);
                     }
                 }
             }

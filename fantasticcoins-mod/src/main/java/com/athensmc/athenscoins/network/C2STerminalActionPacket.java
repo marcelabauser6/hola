@@ -280,58 +280,22 @@ public class C2STerminalActionPacket {
                     .withStyle(ChatFormatting.RED));
             return;
         }
-        // Refused early rather than after the customer has agreed: being told "you already have an
-        // account" is the banker's problem to see, not something to interrupt the customer with.
-        if (data.hasAccount(holder.getUUID())) {
-            player.sendSystemMessage(Component.translatable("gui.athens_coins.click_already_has",
-                    holder.getGameProfile().getName()).withStyle(ChatFormatting.RED));
-            return;
-        }
-        // The account is offered, not created. An account is an agreement, and the person who has to
-        // agree is the one who will be paying the fee - so the question, and the terms, go to them.
-        com.athensmc.athenscoins.bank.AccountOffers.offer(player, holder, bank);
-        feedback(player, "message.athens_coins.offer_sent");
-    }
-
-    /**
-     * Creates the account a customer has just accepted.
-     *
-     * <p>Lives here rather than in the offer store because this is where the rest of the opening lives:
-     * the tag the banker hands over, the wording of both messages. The bank is re-resolved by id, and the
-     * banker no longer has to be online - they made the offer, the customer accepted it, and whether the
-     * staff member is still logged in is not the customer's problem.</p>
-     */
-    public static void completeOffer(ServerPlayer holder,
-                                     com.athensmc.athenscoins.bank.AccountOffers.Offer offer) {
-        BankData data = BankData.get(holder.server);
-        Bank bank = data.bank(offer.bankId());
-        if (bank == null) {
-            holder.sendSystemMessage(Component
-                    .translatable("message.athens_coins.bank_no_such_account")
-                    .withStyle(ChatFormatting.RED));
-            return;
-        }
-        BankManager.OpenResult result = BankManager.openAccount(holder.server, bank,
+        BankManager.OpenResult result = BankManager.openAccount(player.server, bank,
                 holder.getUUID(), holder.getGameProfile().getName(), 0L);
         if (!result.ok()) {
-            holder.sendSystemMessage(Component.translatable(result.messageKey())
+            player.sendSystemMessage(Component.translatable(result.messageKey())
                     .withStyle(ChatFormatting.RED));
             return;
         }
         BankAccount account = data.account(result.number());
-        ServerPlayer banker = holder.server.getPlayerList().getPlayer(offer.banker());
-        // The paperwork goes to the banker if they are still around, and to the customer otherwise, so
-        // the tag is never quietly lost.
-        ServerPlayer recipient = banker != null ? banker : holder;
+        // The banker receives the tag and hands it to the customer.
         ItemStack tag = BankManager.accountTag(account, bank);
-        if (!recipient.getInventory().add(tag)) {
-            recipient.drop(tag, false);
+        if (!player.getInventory().add(tag)) {
+            player.drop(tag, false);
         }
-        if (banker != null) {
-            banker.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_opened",
-                            holder.getGameProfile().getName(), result.number())
-                    .withStyle(ChatFormatting.GREEN));
-        }
+        player.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_opened",
+                        holder.getGameProfile().getName(), result.number())
+                .withStyle(ChatFormatting.GREEN));
         holder.sendSystemMessage(Component.translatable("message.athens_coins.bank_account_yours",
                         bank.name(), result.number())
                 .withStyle(ChatFormatting.GREEN));
@@ -344,7 +308,6 @@ public class C2STerminalActionPacket {
                 com.athensmc.athenscoins.item.ModItems.ATM_ITEM.get(),
                 (int) Math.max(1L, Math.min(16L, value)));
         com.athensmc.athenscoins.block.AtmBlockEntity.brand(atm, bank);
-        atm.setHoverName(Component.translatable("item.athens_coins.atm_of", bank.name()));
         if (!player.getInventory().add(atm)) {
             player.drop(atm, false);
         }
