@@ -1,0 +1,53 @@
+{
+  "credit": "FantasticCurrency ATM, lower half - shape here, detail in the textures (tools/gen_machine_textures.py)",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/atm_side",
+    "front": "athens_coins:block/atm_front",
+    "side": "athens_coins:block/atm_side",
+    "back": "athens_coins:block/atm_back",
+    "bottom": "athens_coins:block/atm_bottom",
+    "tray": "athens_coins:block/atm_tray"
+  },
+  "elements": [
+    {
+      "name": "plinth",
+      "__comment": "A recessed base, so the machine stands on the floor instead of growing out of it.",
+      "from": [1, 0, 1],
+      "to": [15, 2, 14],
+      "faces": {
+        "north": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "south": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "east": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "west": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "cabinet",
+      "__comment": "The body, from the plinth to the top of this block. Explicit UVs so each texture fills a whole face rather than being cropped to the element's slice of the block.",
+      "from": [1.5, 2, 2],
+      "to": [14.5, 16, 13.5],
+      "faces": {
+        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "cash_tray",
+      "__comment": "The dispenser, low down where an ATM actually puts it: the money comes out at hip height, not at the screen.",
+      "from": [4, 4, 1],
+      "to": [12, 7, 2],
+      "faces": {
+        "north": { "texture": "#tray", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#tray", "uv": [0, 0, 4, 16] },
+        "west": { "texture": "#tray", "uv": [0, 0, 4, 16] },
+        "up": { "texture": "#tray", "uv": [0, 0, 16, 6] },
+        "down": { "texture": "#tray", "uv": [0, 0, 16, 6] }
+      }
+    }
+  ]
+}

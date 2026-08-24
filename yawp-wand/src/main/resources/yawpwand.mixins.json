@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "de.z0rdak.yawp.wand.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "CommandRegistryMixin",
+    "MarkerStickHandlerMixin"
+  ],
+  "client": [],
+  "server": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

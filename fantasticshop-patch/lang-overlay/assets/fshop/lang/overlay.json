@@ -1,0 +1,6 @@
+{
+  "fshop.coin.cash": "Fantastic Cash",
+  "fshop.msg.no_bank_account": "Esta tienda no tiene cuenta bancaria activa, así que no puede vender.",
+  "fshop.gui.cash_price_hint": "Escribe el importe con hasta dos decimales, por ejemplo 12.50",
+  "fshop.gui.frozen": "Congelada: sin cuenta bancaria"
+}

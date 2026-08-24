@@ -1,0 +1,84 @@
+plugins {
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_name
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Yet Another World Protector, compiled against but never bundled.
+    //
+    // compileOnly, not implementation: YAWP is AGPL v3 and is the user's own installed copy. Shipping
+    // it inside this jar would make this jar a redistribution of their work, which drags in the
+    // obligation to carry their source alongside it. Left external, their jar stays the untouched
+    // file they downloaded and this mod is just something that calls into it.
+    //
+    // Its class names are already the official Mojang ones (1.17+ only obfuscates members), so no
+    // fg.deobf is needed - javac reads the signatures and the member names never enter our bytecode.
+    compileOnly files(yawp_jar)
+
+    // Same jar at runtime, so runClient/runServer can actually load a world with regions in it.
+    runtimeOnly files(yawp_jar)
+}
+
+// No processResources block: there is no mods.toml or pack.mcmeta to expand properties into. These
+// classes are injected into YAWP's own jar and are part of that mod rather than a second one beside it,
+// so the only resource is the mixin config, which is copied verbatim. See tools/inject.py.
+
+tasks.named('jar', Jar).configure {
+    // The AGPL text travels with the binary, which is what mods.toml promises and what the licence
+    // itself asks for.
+    from('LICENSE')
+
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : mod_id,
+                'Implementation-Version'  : mod_version,
+                'Implementation-Vendor'   : mod_authors,
+        ])
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar.finalizedBy('reobfJar')
+
+// Pure-JVM guards: the shape table and the outline geometry, checked without starting Minecraft.
+tasks.register('verifyWand', JavaExec) {
+    group = 'verification'
+    description = 'Checks the shape names, point counts and outline geometry.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'de.z0rdak.yawp.wand.WandStaticTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyWand')
+}
