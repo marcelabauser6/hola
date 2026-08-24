@@ -28,6 +28,8 @@ public class AmountField extends EditBox {
     public static final int MAX_LENGTH = 18;
 
     private Component error;
+    /** True for policy fields where zero means something - "no ceiling", "free". */
+    private boolean zeroAllowed;
 
     public AmountField(Font font, int x, int y, int width, int height, Component label) {
         super(font, x, y, width, height, label);
@@ -35,6 +37,18 @@ public class AmountField extends EditBox {
         setFilter(AmountInput::typable);
         setHint(Component.translatable("gui.athens_coins.amount_hint"));
         setValue("");
+    }
+
+    /**
+     * Lets this box accept zero.
+     *
+     * <p>Off by default, because most amount boxes move money and moving nothing is a mistake. On for the
+     * settings whose own hint text offers zero as a choice - the card ceiling and the cross-bank charge -
+     * which until now sat above a box that refused the value it was recommending.</p>
+     */
+    public AmountField allowingZero() {
+        zeroAllowed = true;
+        return this;
     }
 
     /** True when the player has not typed anything yet. */
@@ -56,7 +70,7 @@ public class AmountField extends EditBox {
             return -1L;
         }
         try {
-            return Money.parse(raw);
+            return Money.parse(raw, zeroAllowed);
         } catch (Money.InvalidAmountException exception) {
             error = Component.translatable(exception.reasonKey());
             return -1L;

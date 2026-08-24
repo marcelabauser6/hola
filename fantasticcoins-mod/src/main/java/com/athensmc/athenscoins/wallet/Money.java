@@ -56,6 +56,23 @@ public final class Money {
      *                                more than two decimal places
      */
     public static long parse(String raw) throws InvalidAmountException {
+        return parse(raw, false);
+    }
+
+    /**
+     * Parses an amount, optionally accepting zero.
+     *
+     * <p>Zero is not a valid amount to <em>move</em> - a transfer or a withdrawal of nothing is a mistake,
+     * and refusing it is why {@link #parse(String)} exists. But zero is a perfectly good <em>policy</em>
+     * value, and several of the bank's settings document it as one: a card ceiling of zero means no
+     * ceiling, a cross-bank charge of zero means free. Those fields were sharing the strict parser, so the
+     * form told the admin "0 = free" in the hint underneath a box that then refused to accept 0.</p>
+     *
+     * <p>One parser with a flag rather than a second copy of the rules: the shape, the two-decimal limit
+     * and the ceiling all have to stay identical, and the way they stop being identical is by existing
+     * twice.</p>
+     */
+    public static long parse(String raw, boolean allowZero) throws InvalidAmountException {
         if (raw == null) {
             throw new InvalidAmountException("message.athens_coins.amount_invalid");
         }
@@ -72,8 +89,10 @@ public final class Money {
         }
 
         BigDecimal value = new BigDecimal(cleaned);
-        if (value.signum() <= 0) {
-            throw new InvalidAmountException("message.athens_coins.amount_positive");
+        if (value.signum() < 0 || (!allowZero && value.signum() == 0)) {
+            throw new InvalidAmountException(allowZero
+                    ? "message.athens_coins.amount_negative"
+                    : "message.athens_coins.amount_positive");
         }
         long cents = value.movePointRight(2).longValueExact();
         if (cents > MAX_CENTS) {

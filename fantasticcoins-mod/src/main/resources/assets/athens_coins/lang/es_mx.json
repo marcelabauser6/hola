@@ -501,5 +501,6 @@
   "tooltip.athens_coins.record_time": "Tiempo jugado: %s",
   "tooltip.athens_coins.record_mobs": "Mobs eliminados: %s",
   "tooltip.athens_coins.record_players": "Jugadores eliminados: %s",
-  "tooltip.athens_coins.record_deaths": "Muertes: %s"
+  "tooltip.athens_coins.record_deaths": "Muertes: %s",
+  "message.athens_coins.amount_negative": "La cantidad no puede ser negativa"
 }

@@ -288,9 +288,10 @@ public class BankTerminalScreen extends Screen {
 
     // ------------------------------------------------------------------ settings form
 
+    /** A settings money box. Zero is legal here: these are policy values, not amounts being moved. */
     private AmountField money(long cents) {
         AmountField field = new AmountField(font, 0, 0, 100, 16,
-                Component.translatable("gui.athens_coins.bank_value"));
+                Component.translatable("gui.athens_coins.bank_value")).allowingZero();
         field.setCents(cents);
         addRenderableWidget(field);
         return field;

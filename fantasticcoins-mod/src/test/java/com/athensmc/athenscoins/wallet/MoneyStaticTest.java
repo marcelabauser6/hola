@@ -29,6 +29,37 @@ public class MoneyStaticTest {
         }
     }
 
+    static void parseZeroAccepts(String input, long expectedCents) {
+        checks++;
+        try {
+            long cents = Money.parse(input, true);
+            if (cents != expectedCents) {
+                failures++;
+                System.out.println("  FAIL parse(\"" + input + "\", allowZero): got " + cents
+                        + " expected " + expectedCents);
+            }
+        } catch (Money.InvalidAmountException exception) {
+            failures++;
+            System.out.println("  FAIL parse(\"" + input + "\", allowZero) rejected: "
+                    + exception.reasonKey());
+        }
+    }
+
+    static void parseZeroRejects(String input, String expectedReasonSuffix) {
+        checks++;
+        try {
+            Money.parse(input, true);
+            failures++;
+            System.out.println("  FAIL parse(\"" + input + "\", allowZero) should have been rejected");
+        } catch (Money.InvalidAmountException exception) {
+            if (!exception.reasonKey().endsWith(expectedReasonSuffix)) {
+                failures++;
+                System.out.println("  FAIL parse(\"" + input + "\", allowZero) reason: got "
+                        + exception.reasonKey() + " expected *" + expectedReasonSuffix);
+            }
+        }
+    }
+
     static void parseRejects(String input, String expectedReasonSuffix) {
         checks++;
         try {
@@ -63,6 +94,16 @@ public class MoneyStaticTest {
         parseRejects("0.001", "amount_decimals");
         parseRejects("0", "amount_positive");
         parseRejects("-5", "amount_positive");
+
+        // Policy fields accept zero, amounts to be moved do not. Both directions are pinned, because the
+        // bug this fixes was a settings box refusing the value its own hint text recommended - and the
+        // opposite mistake, letting somebody transfer nothing, is just as easy to reintroduce.
+        parseZeroAccepts("0", 0L);
+        parseZeroAccepts("0.00", 0L);
+        parseZeroAccepts("2.50", 250L);
+        parseZeroRejects("-0.01", "amount_negative");
+        parseZeroRejects("-5", "amount_negative");
+        parseZeroRejects("1.234", "amount_decimals");
         parseRejects("abc", "amount_invalid");
         parseRejects("", "amount_invalid");
         parseRejects("1e5", "amount_invalid");        // scientific notation must not sneak through

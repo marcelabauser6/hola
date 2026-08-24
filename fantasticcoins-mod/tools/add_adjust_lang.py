@@ -143,6 +143,8 @@ ADD = {
     "gui.athens_coins.cfg_cross_fee_hint": "Cargo fijo al enviar a un cliente de otro banco. 0 = gratis",
     "tooltip.athens_coins.bank_cross_fee": "A otro banco: %s",
     "tooltip.athens_coins.free": "gratis",
+    # Policy fields accept zero, so the refusal they can still hit is a negative one.
+    "message.athens_coins.amount_negative": "La cantidad no puede ser negativa",
 
     # --- the wallet's third cell: the holder's own record --------------------
     # It showed a picture of an ATM, which told the holder nothing they could not see by looking around.
