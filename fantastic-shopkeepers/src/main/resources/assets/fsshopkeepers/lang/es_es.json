@@ -1,0 +1,11 @@
+{
+  "menu.fsshopkeepers.shop_trade": "Tienda",
+  "menu.fsshopkeepers.editor": "Editor de tienda",
+  "fsshopkeepers.tab.trades": "Tratos",
+  "fsshopkeepers.tab.appearance": "Apariencia",
+  "fsshopkeepers.tab.settings": "Ajustes",
+  "fsshopkeepers.action.save": "Guardar",
+  "fsshopkeepers.action.cancel": "Cancelar",
+  "fsshopkeepers.action.delete": "Borrar tienda",
+  "fsshopkeepers.action.add_trade": "Anadir trato"
+}

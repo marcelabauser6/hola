@@ -1,0 +1,8 @@
+# Build output and Gradle state
+build/
+.gradle/
+serverlog.txt
+
+# The throwaway test server's working directory. The world, logs and config it
+# generates are per-machine and must not follow the source into the repository.
+run/

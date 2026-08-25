@@ -1,0 +1,105 @@
+plugins {
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_name }
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+
+    runs {
+        // A dedicated server run, used to prove the mod actually loads rather than merely compiles.
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', ''
+            property 'forge.logging.console.level', 'info'
+            args '--nogui'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', ''
+            property 'forge.logging.console.level', 'info'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            mod_id: mod_id, mod_name: mod_name, mod_display_name: mod_display_name,
+            mod_version: mod_version, mod_authors: mod_authors, mod_license: mod_license,
+            minecraft_version_range: minecraft_version_range,
+            forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) { expand replaceProperties }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Vendor'  : mod_authors,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : mod_id,
+                'Implementation-Version': mod_version,
+                'Implementation-Vendor' : mod_authors,
+        ])
+    }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+
+jar.finalizedBy('reobfJar')
+
+/**
+ * The overlap guard.
+ *
+ * <p>Runs on a plain JVM as part of `check`, so a screen that would draw one control over another, or push the
+ * footer off the bottom of the window, fails the build rather than being found by looking at it.</p>
+ */
+tasks.register('verifyEditorLayout', JavaExec) {
+    group = 'verification'
+    description = 'Comprueba que el editor no solapa controles a ningun tamano de ventana.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fsshopkeepers.client.layout.EditorLayoutTest'
+}
+
+/** The guard on prices: what an admin types becoming what a buyer is charged. */
+tasks.register('verifyMoney', JavaExec) {
+    group = 'verification'
+    description = 'Comprueba el analisis, formato y aritmetica de los precios.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fsshopkeepers.money.MoneyTest'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verifyEditorLayout')
+    dependsOn tasks.named('verifyMoney')
+}

@@ -1,0 +1,11 @@
+{
+  "menu.fsshopkeepers.shop_trade": "Shop",
+  "menu.fsshopkeepers.editor": "Shop editor",
+  "fsshopkeepers.tab.trades": "Trades",
+  "fsshopkeepers.tab.appearance": "Appearance",
+  "fsshopkeepers.tab.settings": "Settings",
+  "fsshopkeepers.action.save": "Save",
+  "fsshopkeepers.action.cancel": "Cancel",
+  "fsshopkeepers.action.delete": "Delete shop",
+  "fsshopkeepers.action.add_trade": "Add trade"
+}
