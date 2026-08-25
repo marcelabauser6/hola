@@ -2,6 +2,7 @@ package com.athensmc.fsshopkeepers.event;
 
 import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.config.ShopConfig;
+import com.athensmc.fsshopkeepers.item.ModItems;
 import com.athensmc.fsshopkeepers.menu.ShopMenus;
 import com.athensmc.fsshopkeepers.net.EditorAccess;
 import com.athensmc.fsshopkeepers.net.Net;
@@ -17,6 +18,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -39,6 +41,11 @@ import java.util.UUID;
  * <p>There is deliberately no shop-creation item. Handing a player a spawn egg that silently means something else, and
  * then asking them to right-click a chest and then the ground in the right order, is a flow nobody can guess without
  * being told. Making a shop is {@code /fskeepers crear} and nothing else.</p>
+ *
+ * <p>The editor opens on a right-click with the wand from {@code /fskeepers editor}, and on nothing else. It used to open
+ * on a sneaking right-click, which is the gesture Easy Villagers uses to pick a villager up: that mod acts on the client
+ * and sends its own packet, so it took the shopkeeper away before the server heard about the click at all. No gesture of
+ * this mod's can be reached by sneaking any more, so there is nothing left to collide with.</p>
  */
 @Mod.EventBusSubscriber(modid = FantasticShopkeepers.MOD_ID)
 public final class ShopEvents {
@@ -74,14 +81,14 @@ public final class ShopEvents {
         handleShopClick(event, event.getEntity(), event.getTarget());
     }
 
-    private static void handleShopClick(PlayerInteractEvent event, net.minecraft.world.entity.player.Player clicker,
-            Entity target) {
+    private static void handleShopClick(PlayerInteractEvent event,
+            net.minecraft.world.entity.player.Player clicker, Entity target) {
         UUID shopId = ShopSpawner.shopIdOf(target);
         if (shopId == null) {
             return;
         }
-        // Consumed on both sides and for every player: a shopkeeper must never respond as the mob it is made of, and
-        // must not be pickable, breedable, leashable or nameable by anything else.
+        // Consumed either way: a shopkeeper must never respond as the mob it is made of, so it cannot be bred,
+        // leashed, named or sheared.
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
 
@@ -95,13 +102,23 @@ public final class ShopEvents {
             target.discard();
             return;
         }
-        openFor(player, shop);
+        openFor(player, event.getItemStack(), shop);
     }
 
-    /** Opens the editor for someone who may edit, otherwise the trading window. */
-    private static void openFor(ServerPlayer player, Shopkeeper shop) {
-        if (player.isShiftKeyDown() && EditorAccess.mayEdit(player, shop)) {
-            Net.openEditor(player, shop);
+    /**
+     * Opens the editor when the wand is held, otherwise the trading window.
+     *
+     * <p>The wand is what decides, not whether the player is sneaking. A held item is unambiguous: no other mod is looking
+     * for it, and a customer without one can only ever open the shop.</p>
+     */
+    private static void openFor(ServerPlayer player, ItemStack held, Shopkeeper shop) {
+        if (ModItems.isWand(held)) {
+            if (EditorAccess.mayEdit(player, shop)) {
+                Net.openEditor(player, shop);
+            } else {
+                player.sendSystemMessage(Component.literal("Esa tienda no es tuya.")
+                        .withStyle(ChatFormatting.RED));
+            }
             return;
         }
         ShopMenus.openTrade(player, shop);
@@ -125,7 +142,7 @@ public final class ShopEvents {
         Shopkeeper atBlock = registry.byPosition(level.dimension(), pos);
         if (atBlock != null && atBlock.objectKind() == ShopObjectKind.SIGN) {
             event.setCanceled(true);
-            openFor(player, atBlock);
+            openFor(player, event.getItemStack(), atBlock);
             return;
         }
 

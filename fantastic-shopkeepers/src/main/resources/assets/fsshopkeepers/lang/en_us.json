@@ -8,5 +8,6 @@
   "fsshopkeepers.action.save": "Save changes",
   "fsshopkeepers.action.close": "Close",
   "fsshopkeepers.action.delete": "Delete",
-  "fsshopkeepers.trade.trades": "Trades"
+  "fsshopkeepers.trade.trades": "Trades",
+  "item.fsshopkeepers.shop_wand": "Editor wand"
 }

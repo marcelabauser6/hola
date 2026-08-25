@@ -44,6 +44,7 @@ aquí, y un comando que duplica un campo es un segundo sitio donde el mismo ajus
 |---|---|
 | `/fskeepers crear` | Crea la tienda junto al cofre libre más cercano y abre el editor |
 | `/fskeepers crear admin` | Crea una tienda de staff con existencias infinitas |
+| `/fskeepers editor` | Te da la varita del editor |
 | `/fskeepers editar` | Abre el editor de la tienda que tengas delante |
 | `/fskeepers borrar` | Borra la tienda que tengas delante |
 | `/fskeepers lista` | Lista tus tiendas y dónde están |

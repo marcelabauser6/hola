@@ -2,6 +2,7 @@ package com.athensmc.fsshopkeepers.command;
 
 import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.config.ShopConfig;
+import com.athensmc.fsshopkeepers.item.ModItems;
 import com.athensmc.fsshopkeepers.net.EditorAccess;
 import com.athensmc.fsshopkeepers.net.Net;
 import com.athensmc.fsshopkeepers.shop.ShopCreation;
@@ -20,6 +21,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -29,7 +31,7 @@ import java.util.List;
 /**
  * The {@code /fskeepers} command.
  *
- * <p>One command with five subcommands, and that is the whole surface. Shopkeepers had twenty-five, most of which
+ * <p>One command with six subcommands, and that is the whole surface. Shopkeepers had twenty-five, most of which
  * existed to work around not having an editor - {@code setforhire}, {@code settradeperm}, {@code setcurrency} and the
  * rest are all fields on a form here, and a command that duplicates a field is a second place for the same setting to be
  * wrong. What is left is the five things a command is genuinely better at than a screen: making a shop, opening one,
@@ -63,6 +65,7 @@ public final class ShopCommands {
                         .executes(context -> create(context, ShopType.PLAYER_SELL))
                         .then(Commands.literal("admin")
                                 .executes(context -> create(context, ShopType.ADMIN))))
+                .then(Commands.literal("editor").executes(ShopCommands::giveWand))
                 .then(Commands.literal("editar").executes(ShopCommands::edit))
                 .then(Commands.literal("borrar").executes(ShopCommands::remove))
                 .then(Commands.literal("lista").executes(ShopCommands::list))
@@ -81,12 +84,13 @@ public final class ShopCommands {
                 .withStyle(ChatFormatting.GOLD), false);
         line(source, LABEL + " crear", "Crea una tienda junto al cofre mas cercano y abre el editor.");
         line(source, LABEL + " crear admin", "Crea una tienda de staff con existencias infinitas.");
+        line(source, LABEL + " editor", "Te da la varita del editor.");
         line(source, LABEL + " editar", "Abre el editor de la tienda que tengas delante.");
         line(source, LABEL + " borrar", "Borra la tienda que tengas delante.");
         line(source, LABEL + " lista", "Lista tus tiendas y donde estan.");
         line(source, LABEL + " recargar", "Vuelve a leer la configuracion.");
         source.sendSuccess(() -> Component.literal(
-                "Tambien puedes agacharte y hacer clic derecho en un tendero para editarlo.")
+                "Con la varita en la mano, clic derecho en un tendero abre su editor.")
                 .withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
@@ -135,6 +139,33 @@ public final class ShopCommands {
                     "Tienda de staff creada con existencias infinitas.").withStyle(ChatFormatting.GREEN), false);
         }
         Net.openEditor(player, shop);
+        return 1;
+    }
+
+    /**
+     * Hands over the editor wand.
+     *
+     * <p>The wand exists because the editor used to open on a sneaking right-click, and that is the same gesture Easy
+     * Villagers uses to pick a villager up as an item. That mod acts on the client and sends its own packet, so it took
+     * the shopkeeper away before the server heard about the click. An item in the hand collides with nothing.</p>
+     */
+    private static int giveWand(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        if (!FantasticShopkeepers.hasPermission(player, FantasticShopkeepers.Perms.EDIT_OWN)
+                && !FantasticShopkeepers.hasPermission(player, FantasticShopkeepers.Perms.EDIT_OTHERS)) {
+            context.getSource().sendFailure(Component.literal("No tienes permiso para editar tiendas."));
+            return 0;
+        }
+        ItemStack wand = ModItems.wand();
+        if (!player.getInventory().add(wand)) {
+            player.drop(wand, false);
+        }
+        context.getSource().sendSuccess(() -> Component.literal(
+                "Toma la varita del editor. Con ella en la mano, clic derecho en un tendero o en un cartel "
+                        + "para abrir su editor.").withStyle(ChatFormatting.GREEN), false);
         return 1;
     }
 

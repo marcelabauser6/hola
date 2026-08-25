@@ -31,7 +31,31 @@ public final class ModItems {
     public static final RegistryObject<Item> CASH_NOTE = ITEMS.register("cash_note",
             () -> new Item(new Item.Properties().stacksTo(1)));
 
+    /**
+     * The wand that opens a shop's editor.
+     *
+     * <p>A held item rather than a gesture. The editor used to open on a sneaking right-click, which is the same gesture
+     * Easy Villagers uses to pick a villager up as an item - and that mod acts on the client, before the server ever hears
+     * about the click, so the shopkeeper was carried off instead of configured. A wand cannot collide with anything,
+     * because nothing else looks for it.</p>
+     */
+    public static final RegistryObject<Item> SHOP_WAND = ITEMS.register("shop_wand",
+            () -> new Item(new Item.Properties().stacksTo(1).rarity(net.minecraft.world.item.Rarity.RARE)));
+
     private ModItems() {
+    }
+
+    /** True when this stack is the editor wand. */
+    public static boolean isWand(ItemStack stack) {
+        return !stack.isEmpty() && stack.is(SHOP_WAND.get());
+    }
+
+    /** A wand to hand to an administrator, named and with a line saying what it does. */
+    public static ItemStack wand() {
+        ItemStack wand = new ItemStack(SHOP_WAND.get());
+        wand.setHoverName(Component.literal("Varita del editor")
+                .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        return wand;
     }
 
     public static void register(IEventBus modEventBus) {

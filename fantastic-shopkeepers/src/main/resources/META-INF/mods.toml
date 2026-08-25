@@ -16,7 +16,7 @@ cobra el dinero y decide si un trato puede ocurrir. El cliente aporta el editor 
 la tienda, con el mismo aspecto que el resto de mods Fantastic.
 
   /fskeepers crear   - crea la tienda junto al cofre mas cercano y abre el editor.
-  Agachate + clic    - abre el editor del tendero que tengas delante.
+  /fskeepers editor  - te da la varita: clic derecho en el tendero abre su editor.
   Clic normal        - abre la ventana de compra, la de comercio con aldeanos de siempre.
   /fskeepers         - la lista de comandos.
 
