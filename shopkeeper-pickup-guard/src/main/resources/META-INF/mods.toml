@@ -1,0 +1,44 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_display_name}"
+authors="${mod_authors}"
+
+# Server-side only, so a client without it can still connect. There is no item, no packet and no rendering
+# here - just a refusal on the server.
+displayTest="IGNORE_ALL_VERSION"
+
+description='''
+Stops Easy Villagers picking up Shopkeepers shops.
+
+Easy Villagers checks only that a villager is alive and awake before letting it be taken, and the pickup is
+requested by the client. So any player could pocket a shop NPC. This refuses that for entities Shopkeepers
+owns, and leaves every ordinary villager exactly as it was.
+'''
+
+[[dependencies.${mod_id}]]
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Optional, and loaded first when present. Without it this mod does nothing, which is the correct outcome
+# rather than a startup failure.
+[[dependencies.${mod_id}]]
+    modId="easy_villagers"
+    mandatory=false
+    versionRange="[1.1,)"
+    ordering="AFTER"
+    side="BOTH"

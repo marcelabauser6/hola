@@ -1,0 +1,12 @@
+# Cuánto Fantastic Cash vale un punto de precio de Shopkeepers.
+#
+# Los precios de Shopkeepers son un número entero: en el editor pones una cantidad de moneda y eso es el
+# precio. Este ajuste dice qué significa ese número en dinero digital.
+#
+#   1.0   -> un precio de 25 en el editor cuesta 25.00 de Cash   (recomendado)
+#   0.01  -> un precio de 25 cuesta 0.25, es decir precios en céntimos
+#   10.0  -> un precio de 25 cuesta 250.00
+#
+# Tiene que ser un número exacto de céntimos. Un valor como 0.005 se rechaza al arrancar en vez de
+# redondearse en silencio, porque un céntimo partido no se puede cobrar y desajustaría todas las tiendas.
+cash-per-price-unit: 1.0

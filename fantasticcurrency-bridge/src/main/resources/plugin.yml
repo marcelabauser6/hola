@@ -1,0 +1,21 @@
+name: FantasticCurrencyBridge
+version: '${version}'
+main: com.athensmc.fcbridge.BridgePlugin
+api-version: '1.20'
+authors: [AthensMC team]
+description: Makes Shopkeepers trade in Fantastic Coins, and publishes FantasticCurrency to Vault.
+
+# Loaded after both, so their APIs are there to hook. Neither is required: each half of the bridge
+# reports its own state and a missing plugin costs that half only.
+softdepend: [Vault, Shopkeepers]
+
+commands:
+    fcbridge:
+        description: Shows what the bridge managed to connect, and the currency in force.
+        usage: /fcbridge
+        permission: fcbridge.admin
+
+permissions:
+    fcbridge.admin:
+        description: Use /fcbridge
+        default: op
