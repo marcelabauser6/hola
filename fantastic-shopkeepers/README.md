@@ -16,10 +16,17 @@ funcional, más el editor de la familia Fantastic y el cobro en Fantastic Cash.
 
 **La ventana de compra es la vanilla de comercio con aldeanos.** Se dibuja con la textura del propio juego
 (`villager2.png`): el mismo marco, la misma lista de tratos a la izquierda, los mismos dos huecos de pago y el hueco
-de resultado a la derecha, el mismo deslizador. Un cliente que ya ha comerciado con un aldeano sabe usarla, y esa
-familiaridad vale más que cualquier cosa que aportase un diseño propio. Lo único que cambia es lo que tiene que
-cambiar: un precio en Fantastic Cash es dinero, no un objeto, así que donde vanilla pone esmeraldas aquí va el
-importe, y se compra con clic en el hueco de resultado.
+de resultado a la derecha, el mismo deslizador, y **al tamaño de vanilla**. Un cliente que ya ha comerciado con un
+aldeano sabe usarla.
+
+Lo único que cambia es lo que tiene que cambiar: un precio en Fantastic Cash es dinero y no un objeto, así que donde
+vanilla pone esmeraldas aquí va el billete de Cash con el importe. Cuando un trato pide dinero *y* un artículo, el
+Cash va al primer hueco, el artículo al segundo, y entre los dos se dibuja un **+** para que se lea como un precio
+único y no como dos opciones.
+
+No se amplía con ninguna escala propia. Se probó y quedaba mal: el inventario creativo y JEI se dibujan a la escala
+de GUI del juego, así que una ventana escalada encima de ellos aparecía de otro tamaño que todo lo demás. Para
+verlo todo más grande está la opción de escala de GUI de Minecraft, que agranda todas las ventanas a la vez.
 
 **El editor es de la familia Fantastic.** Panel centrado de 540×320 como máximo, franja de título, pestañas, regla,
 una línea de ayuda sobre lo que tengas bajo el cursor, y un pie de acciones. Los botones son los de la familia:

@@ -294,21 +294,9 @@ public final class ShopEditorScreen extends Screen {
         int visible = geo.tradeVisibleRows();
         tradeScroll = Math.max(0, Math.min(tradeScroll, Math.max(0, rows.size() - visible)));
 
-        for (int slot = 0; slot < visible; slot++) {
-            int index = tradeScroll + slot;
-            if (index >= rows.size()) {
-                break;
-            }
-            Row row = rows.get(index);
-            boolean current = index == selectedRow;
-            String price = row.priceText.isBlank() ? "" : "  \u00a7a" + row.priceText;
-            button(geo.tradeRow(slot), (current ? "\u00a7e\u25b6 " : "") + row.describe() + price, () -> {
-                selectedRow = index;
-                focus = Focus.NONE;
-                rebuildWidgets();
-            });
-        }
-
+        // The rows themselves are drawn, not widgets. A list of widgets has to be rebuilt to scroll or filter, and
+        // rebuilding while a text field has the keyboard is what killed typing: it clears the widget list that
+        // Minecraft is part-way through iterating.
         button(geo.addTradeButton(), "\u00a7a+ Anadir", rows.size() < MAX_ROWS, () -> {
             rows.add(new Row(ItemStack.EMPTY, "", ItemStack.EMPTY, ItemStack.EMPTY));
             selectedRow = rows.size() - 1;
@@ -442,21 +430,65 @@ public final class ShopEditorScreen extends Screen {
 
     // ------------------------------------------------------------ appearance tab
 
+    /**
+     * The vanilla creatures that live in {@link MobCategory#MISC}.
+     *
+     * <p>MISC is not "not a mob": vanilla files the villager, the armour stand and both golems under it, alongside arrows
+     * and boats. Excluding the whole category is why the villager - the most obvious shopkeeper there is - was missing
+     * from the list.</p>
+     */
+    private static final List<String> LIVING_MISC = List.of(
+            "villager", "armor_stand", "iron_golem", "snow_golem");
+
+    /** Whether a type can stand in the world as a shopkeeper. */
+    private boolean usableAsBody(EntityType<?> type) {
+        if (!type.canSummon()) {
+            // Drops the player, lightning and the fishing bobber, none of which can be placed.
+            return false;
+        }
+        if (type.getCategory() != MobCategory.MISC) {
+            return true;
+        }
+        ResourceLocation id = EntityType.getKey(type);
+        if (!"minecraft".equals(id.getNamespace())) {
+            // Another mod's MISC entity is far more likely to be a creature than a projectile, and the server
+            // checks its own allow-list before anything is spawned anyway.
+            return true;
+        }
+        return LIVING_MISC.contains(id.getPath());
+    }
+
+    /**
+     * The mob list, filtered by the search box and sorted by name.
+     *
+     * <p>Sorted so it can be browsed as well as searched: registry order puts the villager somewhere in the middle of a
+     * hundred entries with no way to predict where.</p>
+     */
     private List<ResourceLocation> mobChoices() {
-        List<ResourceLocation> out = new ArrayList<>();
         String needle = mobSearch.toLowerCase();
+        List<Map.Entry<String, ResourceLocation>> named = new ArrayList<>();
         for (EntityType<?> type : BuiltInRegistries.ENTITY_TYPE) {
-            boolean usable = type.getCategory() != MobCategory.MISC || type == EntityType.ARMOR_STAND;
-            if (!usable) {
+            if (!usableAsBody(type)) {
                 continue;
             }
             ResourceLocation id = EntityType.getKey(type);
-            String label = type.getDescription().getString().toLowerCase();
-            if (needle.isEmpty() || label.contains(needle) || id.getPath().contains(needle)) {
-                out.add(id);
+            String label = type.getDescription().getString();
+            if (needle.isEmpty() || label.toLowerCase().contains(needle)
+                    || id.getPath().contains(needle)) {
+                named.add(Map.entry(label, id));
             }
         }
+        named.sort(Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER));
+        List<ResourceLocation> out = new ArrayList<>(named.size());
+        for (Map.Entry<String, ResourceLocation> entry : named) {
+            out.add(entry.getValue());
+        }
         return out;
+    }
+
+    private String mobLabel(ResourceLocation id) {
+        return EntityType.byString(id.toString())
+                .map(type -> type.getDescription().getString()).orElse(id.getPath());
     }
 
     private void initAppearance() {
@@ -486,40 +518,15 @@ public final class ShopEditorScreen extends Screen {
             return;
         }
 
-        EditBox search = field(geo.mobSearchField(), Focus.MOB_SEARCH, mobSearch, "buscar mob...", 32, true);
+        EditBox search = field(geo.mobSearchField(), Focus.MOB_SEARCH, mobSearch, "escribe para filtrar",
+                32, true);
         if (search != null) {
+            // Only the text is recorded. The list below is drawn from it every frame, so no widget is destroyed
+            // between one keystroke and the next.
             search.setResponder(text -> {
                 if (!text.equals(mobSearch)) {
                     mobSearch = text;
                     mobScroll = 0;
-                    // The list is made of buttons, so it has to be rebuilt; focus is restored by field().
-                    focus = Focus.MOB_SEARCH;
-                    rebuildWidgets();
-                }
-            });
-        }
-
-        List<ResourceLocation> choices = mobChoices();
-        int visible = geo.mobVisibleRows();
-        mobScroll = Math.max(0, Math.min(mobScroll, Math.max(0, choices.size() - visible)));
-        if (choices.isEmpty()) {
-            addLabel("\u00a78Ningun mob coincide con la busqueda.", geo.mobRow(0));
-        }
-        for (int slot = 0; slot < visible; slot++) {
-            int index = mobScroll + slot;
-            if (index >= choices.size()) {
-                break;
-            }
-            ResourceLocation id = choices.get(index);
-            boolean current = id.equals(entityType);
-            String label = EntityType.byString(id.toString())
-                    .map(type -> type.getDescription().getString()).orElse(id.getPath());
-            button(geo.mobRow(slot), (current ? "\u00a7a\u2714 " : "\u00a7f") + label, () -> {
-                if (!id.equals(entityType)) {
-                    entityType = id;
-                    // Variant data belonged to the old species and means nothing on the new one.
-                    entityData = new CompoundTag();
-                    rebuildWidgets();
                 }
             });
         }
@@ -543,46 +550,84 @@ public final class ShopEditorScreen extends Screen {
 
     // ------------------------------------------------------------ settings tab
 
+    /**
+     * The settings tab.
+     *
+     * <p>Every row says what it does underneath itself, because none of these are guessable. The two that only make sense
+     * for a shop with an owner are hidden on an admin shop rather than shown doing nothing: an admin shop has nobody to
+     * pay and nobody to sell itself to.</p>
+     */
     private void initSettings() {
-        addLabel("\u00a77Cuenta bancaria donde cobrar", geo.settingLabel(0));
-        EditBox account = field(geo.settingControl(0), Focus.ACCOUNT,
-                linkedAccount > 0 ? String.valueOf(linkedAccount) : "", "tu cuenta por defecto", 10, true);
-        if (account != null) {
-            account.setFilter(text -> text.matches("[0-9]{0,10}"));
-            account.setResponder(text -> {
-                try {
-                    linkedAccount = text.isBlank() ? 0 : Math.max(0, Integer.parseInt(text));
-                } catch (NumberFormatException tooBig) {
-                    linkedAccount = 0;
-                }
-            });
+        boolean playerShop = source.type().isPlayerShop();
+        int block = 0;
+
+        if (playerShop) {
+            addLabel("\u00a77Cuenta bancaria donde cobrar", geo.settingLabel(block));
+            EditBox account = field(geo.settingControl(block), Focus.ACCOUNT,
+                    linkedAccount > 0 ? String.valueOf(linkedAccount) : "", "vacio = tu cuenta principal",
+                    10, true);
+            if (account != null) {
+                account.setFilter(text -> text.matches("[0-9]{0,10}"));
+                account.setResponder(text -> {
+                    try {
+                        linkedAccount = text.isBlank() ? 0 : Math.max(0, Integer.parseInt(text));
+                    } catch (NumberFormatException tooBig) {
+                        linkedAccount = 0;
+                    }
+                });
+            }
+            addNote("Numero de cuenta donde entra el dinero de cada venta.", geo.settingNote(block));
+            block++;
+
+            addLabel("\u00a77Poner la tienda en venta", geo.settingLabel(block));
+            button(geo.settingControl(block),
+                    forHire ? "\u00a7aSi: otro jugador puede comprarla" : "\u00a77No: la tienda no se vende",
+                    () -> {
+                        forHire = !forHire;
+                        rebuildWidgets();
+                    });
+            addNote("Si esta activo, quien pague el precio de abajo pasa a ser el dueno.",
+                    geo.settingNote(block));
+            block++;
+
+            addLabel(forHire ? "\u00a77Precio para quedarse la tienda"
+                    : "\u00a78Precio para quedarse la tienda", geo.settingLabel(block));
+            EditBox hire = field(geo.settingControl(block), Focus.HIRE, hireCostText,
+                    forHire ? "0.00" : "activa la venta de arriba primero", 16, forHire);
+            if (hire != null) {
+                hire.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
+                hire.setResponder(text -> hireCostText = text);
+            }
+            addNote("Lo que cuesta comprarte la tienda entera, con sus tratos y su cofre.",
+                    geo.settingNote(block));
+            block++;
         }
 
-        addLabel("\u00a77Traspaso de la tienda", geo.settingLabel(1));
-        button(geo.settingControl(1), forHire ? "\u00a7aSe vende a otro jugador" : "\u00a77No se vende", () -> {
-            forHire = !forHire;
-            rebuildWidgets();
-        });
-
-        addLabel(forHire ? "\u00a77Precio de traspaso" : "\u00a78Precio de traspaso", geo.settingLabel(2));
-        EditBox hire = field(geo.settingControl(2), Focus.HIRE, hireCostText,
-                forHire ? "0.00" : "activa el traspaso primero", 16, forHire);
-        if (hire != null) {
-            hire.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
-            hire.setResponder(text -> hireCostText = text);
-        }
-
-        addLabel("\u00a77Permiso para comerciar \u00a78(solo staff)", geo.settingLabel(3));
-        EditBox perms = field(geo.settingControl(3), Focus.PERMISSION, permission,
-                "cualquiera puede comprar", 128, true);
+        addLabel("\u00a77Permiso necesario para comprar aqui", geo.settingLabel(block));
+        EditBox perms = field(geo.settingControl(block), Focus.PERMISSION, permission,
+                "vacio = cualquiera puede comprar", 128, true);
         if (perms != null) {
             perms.setResponder(text -> permission = text);
         }
+        addNote("Nodo de permiso, por ejemplo tienda.vip. Vacio deja comprar a todo el mundo.",
+                geo.settingNote(block));
+        block++;
 
-        addLabel(Cash.available()
-                ? "\u00a7aFantastic Currency detectado: se cobra en " + Cash.currencyName() + "."
-                : "\u00a7cFantastic Currency no esta instalado: solo pagos con articulos.",
-                geo.settingLabel(4));
+        if (block < geo.settingBlocks()) {
+            addLabel(Cash.available()
+                    ? "\u00a7aFantastic Currency detectado: los precios se cobran en " + Cash.currencyName()
+                    : "\u00a7cFantastic Currency no esta instalado", geo.settingLabel(block));
+            addNote(Cash.available()
+                    ? "El dinero sale y entra de las cuentas del banco."
+                    : "Sin el, solo funcionan los pagos con articulos.", geo.settingControl(block));
+        }
+    }
+
+    /** A grey explanation line under a control. */
+    private void addNote(String text, Rect where) {
+        if (!where.isEmpty()) {
+            labels.add(new Label(fit("\u00a78" + text, where.width()), where.x(), where.y(), 0));
+        }
     }
 
     // ------------------------------------------------------------ drawing
@@ -622,15 +667,126 @@ public final class ShopEditorScreen extends Screen {
         }
 
         if (activeTab == Tab.TRADES) {
+            drawTradeRows(graphics, mouseX, mouseY);
             drawTradeIcons(graphics);
             drawScrollbar(graphics, geo.tradeScrollbar(), rows.size(), geo.tradeVisibleRows(), tradeScroll,
                     mouseX, mouseY, draggingTradeBar);
         } else if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
+            drawMobRows(graphics, mouseX, mouseY);
             drawScrollbar(graphics, geo.mobScrollbar(), mobChoices().size(), geo.mobVisibleRows(), mobScroll,
                     mouseX, mouseY, draggingMobBar);
         }
 
         drawItemTooltip(graphics, mouseX, mouseY);
+    }
+
+    /**
+     * One row of a drawn list, in the Fantastic lists' style.
+     *
+     * <p>Selected rows take the accent, hovered rows lighten. Drawn rather than made of buttons so that scrolling and
+     * filtering never have to rebuild the screen.</p>
+     */
+    private void drawListRow(GuiGraphics graphics, Rect where, String text, boolean selected, boolean hovered) {
+        if (where.isEmpty()) {
+            return;
+        }
+        if (selected) {
+            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x66E8A33D);
+        } else if (hovered) {
+            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x33FFFFFF);
+        }
+        int textY = where.y() + (where.height() - font.lineHeight) / 2 + 1;
+        graphics.drawString(font, fit(text, where.width() - 6), where.x() + 3, textY, FSGui.TEXT, false);
+    }
+
+    private void drawTradeRows(GuiGraphics graphics, int mouseX, int mouseY) {
+        Rect column = geo.tradeListColumn();
+        FSGui.inset(graphics, column.x(), column.y(), column.width() - 2, column.height() - 22);
+        int visible = geo.tradeVisibleRows();
+        tradeScroll = Math.max(0, Math.min(tradeScroll, Math.max(0, rows.size() - visible)));
+        for (int slot = 0; slot < visible; slot++) {
+            int index = tradeScroll + slot;
+            if (index >= rows.size()) {
+                break;
+            }
+            Row row = rows.get(index);
+            Rect where = geo.tradeRow(slot);
+            String price = row.priceText.isBlank() ? "" : "  \u00a7a" + row.priceText;
+            drawListRow(graphics, where, row.describe() + price, index == selectedRow,
+                    where.contains(mouseX, mouseY));
+        }
+    }
+
+    private void drawMobRows(GuiGraphics graphics, int mouseX, int mouseY) {
+        Rect column = geo.mobListColumn();
+        FSGui.inset(graphics, column.x(), column.y(), column.width() - 2, column.height());
+        List<ResourceLocation> choices = mobChoices();
+        int visible = geo.mobVisibleRows();
+        mobScroll = Math.max(0, Math.min(mobScroll, Math.max(0, choices.size() - visible)));
+        if (choices.isEmpty()) {
+            Rect first = geo.mobRow(0);
+            if (!first.isEmpty()) {
+                graphics.drawString(font, "\u00a78Ningun mob coincide.", first.x() + 3,
+                        first.y() + 5, FSGui.TEXT_DIM, false);
+            }
+            return;
+        }
+        for (int slot = 0; slot < visible; slot++) {
+            int index = mobScroll + slot;
+            if (index >= choices.size()) {
+                break;
+            }
+            ResourceLocation id = choices.get(index);
+            Rect where = geo.mobRow(slot);
+            boolean current = id.equals(entityType);
+            drawListRow(graphics, where, (current ? "\u00a7a\u2714 " : "") + mobLabel(id), current,
+                    where.contains(mouseX, mouseY));
+        }
+    }
+
+    /** Selecting a row in either drawn list. */
+    private boolean clickList(double mouseX, double mouseY) {
+        if (activeTab == Tab.TRADES) {
+            int visible = geo.tradeVisibleRows();
+            for (int slot = 0; slot < visible; slot++) {
+                int index = tradeScroll + slot;
+                if (index >= rows.size()) {
+                    break;
+                }
+                if (geo.tradeRow(slot).contains(mouseX, mouseY)) {
+                    if (index != selectedRow) {
+                        selectedRow = index;
+                        focus = Focus.NONE;
+                        // The detail column is widgets, so choosing a different row does rebuild - but a click is
+                        // not a keystroke, so nothing is being typed into at the time.
+                        rebuildWidgets();
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
+            List<ResourceLocation> choices = mobChoices();
+            int visible = geo.mobVisibleRows();
+            for (int slot = 0; slot < visible; slot++) {
+                int index = mobScroll + slot;
+                if (index >= choices.size()) {
+                    break;
+                }
+                if (geo.mobRow(slot).contains(mouseX, mouseY)) {
+                    ResourceLocation id = choices.get(index);
+                    if (!id.equals(entityType)) {
+                        entityType = id;
+                        // Variant data belonged to the old species and means nothing on the new one.
+                        entityData = new CompoundTag();
+                        rebuildWidgets();
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void drawTradeIcons(GuiGraphics graphics) {
@@ -728,6 +884,9 @@ public final class ShopEditorScreen extends Screen {
                 return true;
             }
         }
+        if (clickList(mouseX, mouseY)) {
+            return true;
+        }
         boolean handled = super.mouseClicked(mouseX, mouseY, button);
         // Whichever field the click focused becomes the one to restore after the next rebuild.
         focus = Focus.NONE;
@@ -760,15 +919,11 @@ public final class ShopEditorScreen extends Screen {
         double fraction = (mouseY - track.y() - thumb / 2.0D) / travel;
         int target = (int) Math.round(fraction * maxScroll);
         target = Math.max(0, Math.min(target, maxScroll));
+        // No rebuild: both lists are drawn from their scroll offset every frame.
         if (trades) {
-            if (target != tradeScroll) {
-                tradeScroll = target;
-                rebuildWidgets();
-            }
-        } else if (target != mobScroll) {
+            tradeScroll = target;
+        } else {
             mobScroll = target;
-            focus = Focus.MOB_SEARCH == focus ? Focus.MOB_SEARCH : focus;
-            rebuildWidgets();
         }
     }
 
@@ -796,22 +951,14 @@ public final class ShopEditorScreen extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         int step = (int) -Math.signum(delta);
         if (activeTab == Tab.TRADES && geo.tradeListColumn().contains(mouseX, mouseY)) {
-            int next = Math.max(0, Math.min(tradeScroll + step,
+            tradeScroll = Math.max(0, Math.min(tradeScroll + step,
                     Math.max(0, rows.size() - geo.tradeVisibleRows())));
-            if (next != tradeScroll) {
-                tradeScroll = next;
-                rebuildWidgets();
-            }
             return true;
         }
         if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING
                 && geo.mobListColumn().contains(mouseX, mouseY)) {
-            int next = Math.max(0, Math.min(mobScroll + step,
+            mobScroll = Math.max(0, Math.min(mobScroll + step,
                     Math.max(0, mobChoices().size() - geo.mobVisibleRows())));
-            if (next != mobScroll) {
-                mobScroll = next;
-                rebuildWidgets();
-            }
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, delta);

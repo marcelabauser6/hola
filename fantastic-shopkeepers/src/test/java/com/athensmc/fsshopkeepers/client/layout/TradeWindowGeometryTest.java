@@ -8,9 +8,9 @@ import java.util.Map;
 /**
  * The guard on the buying window.
  *
- * <p>Two things are checked, and both were reported as broken by hand before this existed. That the item hit areas are the
- * item's own 16 pixels and nothing wider, so a tooltip cannot cover the screen when the cursor merely crosses a row. And
- * that the magnified window always fits on the screen it is drawn on, so making it bigger cannot push it off an edge.</p>
+ * <p>Checked because both were reported as broken by hand. That the item hit areas are the item's own 16 pixels and
+ * nothing wider, so a tooltip cannot cover the screen when the cursor merely crosses a row. And that the plus drawn
+ * between two payments sits in the gap between them rather than on top of either.</p>
  */
 public final class TradeWindowGeometryTest {
 
@@ -40,21 +40,15 @@ public final class TradeWindowGeometryTest {
 
     private static void check(int screenWidth, int screenHeight) {
         String at = screenWidth + "x" + screenHeight;
-        float scale = TradeWindowGeometry.scaleFor(screenWidth, screenHeight);
-        int leftPos = TradeWindowGeometry.leftPos(screenWidth, scale);
-        int topPos = TradeWindowGeometry.topPos(screenHeight, scale);
+        int leftPos = TradeWindowGeometry.leftPos(screenWidth);
+        int topPos = TradeWindowGeometry.topPos(screenHeight);
 
-        // The window, once magnified, must still be on screen.
-        float drawnLeft = leftPos * scale;
-        float drawnTop = topPos * scale;
-        float drawnRight = (leftPos + TradeWindowGeometry.WINDOW_WIDTH) * scale;
-        float drawnBottom = (topPos + TradeWindowGeometry.WINDOW_HEIGHT) * scale;
-        if (drawnLeft < -0.5F || drawnTop < -0.5F) {
-            failures.add(at + ": la ventana empieza fuera de la pantalla (" + drawnLeft + ", " + drawnTop + ")");
+        // Centred, at vanilla size, and on screen wherever the screen is big enough to hold it.
+        if (screenWidth >= TradeWindowGeometry.WINDOW_WIDTH && leftPos < 0) {
+            failures.add(at + ": la ventana empieza fuera de la pantalla por la izquierda");
         }
-        if (drawnRight > screenWidth + 0.5F || drawnBottom > screenHeight + 0.5F) {
-            failures.add(at + ": la ventana se sale por abajo o por la derecha ("
-                    + drawnRight + " > " + screenWidth + " o " + drawnBottom + " > " + screenHeight + ")");
+        if (screenHeight >= TradeWindowGeometry.WINDOW_HEIGHT && topPos < 0) {
+            failures.add(at + ": la ventana empieza fuera de la pantalla por arriba");
         }
 
         Rect window = new Rect(leftPos, topPos, TradeWindowGeometry.WINDOW_WIDTH,
@@ -65,9 +59,20 @@ public final class TradeWindowGeometryTest {
             Map<String, Rect> pieces = new LinkedHashMap<>();
             pieces.put("pagoA", TradeWindowGeometry.rowPaymentA(leftPos, topPos, slot));
             pieces.put("pagoB", TradeWindowGeometry.rowPaymentB(leftPos, topPos, slot));
+            pieces.put("mas", TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot));
             pieces.put("flecha", TradeWindowGeometry.rowArrow(leftPos, topPos, slot));
             pieces.put("resultado", TradeWindowGeometry.rowResult(leftPos, topPos, slot));
             assertNoOverlaps(pieces, at + " fila " + slot);
+
+            // The plus has to exist and land between the two payments, not on either of them.
+            Rect plus = TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot);
+            Rect payA = TradeWindowGeometry.rowPaymentA(leftPos, topPos, slot);
+            Rect payB = TradeWindowGeometry.rowPaymentB(leftPos, topPos, slot);
+            if (plus.isEmpty()) {
+                failures.add(at + ": la fila " + slot + " no tiene sitio para el mas entre los pagos");
+            } else if (plus.x() < payA.right() || plus.right() > payB.x()) {
+                failures.add(at + ": el mas de la fila " + slot + " se sale del hueco entre los pagos");
+            }
 
             for (Map.Entry<String, Rect> piece : pieces.entrySet()) {
                 Rect rect = piece.getValue();
@@ -76,7 +81,7 @@ public final class TradeWindowGeometryTest {
                             + " se sale de la ventana " + rect);
                 }
                 // Every item hit area must be exactly one item, never the whole row.
-                if (!piece.getKey().equals("flecha")
+                if (!piece.getKey().equals("flecha") && !piece.getKey().equals("mas")
                         && (rect.width() != TradeWindowGeometry.ITEM
                         || rect.height() != TradeWindowGeometry.ITEM)) {
                     failures.add(at + ": " + piece.getKey() + " de la fila " + slot + " mide "
@@ -107,37 +112,39 @@ public final class TradeWindowGeometryTest {
         slots.put("slotPagoA", TradeWindowGeometry.slotPaymentA(leftPos, topPos));
         slots.put("slotPagoB", TradeWindowGeometry.slotPaymentB(leftPos, topPos));
         slots.put("slotResultado", TradeWindowGeometry.slotResult(leftPos, topPos));
+        slots.put("slotMas", TradeWindowGeometry.slotPaymentPlus(leftPos, topPos));
         assertNoOverlaps(slots, at + " slots");
+        Rect slotPlus = TradeWindowGeometry.slotPaymentPlus(leftPos, topPos);
+        if (slotPlus.isEmpty()) {
+            failures.add(at + ": no hay sitio para el mas entre los dos huecos de pago");
+        }
         for (Map.Entry<String, Rect> slot : slots.entrySet()) {
             if (!slot.getValue().within(window)) {
                 failures.add(at + ": " + slot.getKey() + " se sale de la ventana");
             }
-            if (slot.getValue().width() != TradeWindowGeometry.ITEM) {
+            if (!slot.getKey().equals("slotMas") && slot.getValue().width() != TradeWindowGeometry.ITEM) {
                 failures.add(at + ": " + slot.getKey() + " no mide 16 de ancho");
             }
         }
     }
 
-    /** The scale must stay between one and its cap, and must actually grow on a normal screen. */
+    /**
+     * The window stays exactly vanilla size.
+     *
+     * <p>Asserted rather than assumed, because an earlier version magnified it and that turned out to clash with every
+     * other window on screen. If someone reaches for a scale factor again, this fails.</p>
+     */
     private static void checkScaleBounds() {
-        for (int[] size : SIZES) {
-            float scale = TradeWindowGeometry.scaleFor(size[0], size[1]);
-            if (scale < 1.0F || scale > TradeWindowGeometry.MAX_SCALE) {
-                failures.add(size[0] + "x" + size[1] + ": escala fuera de rango (" + scale + ")");
-            }
+        if (TradeWindowGeometry.WINDOW_WIDTH != 276 || TradeWindowGeometry.WINDOW_HEIGHT != 166) {
+            failures.add("la ventana ya no mide lo que la de vanilla ("
+                    + TradeWindowGeometry.WINDOW_WIDTH + "x" + TradeWindowGeometry.WINDOW_HEIGHT + ")");
         }
-        // On anything from 1080p up the window should be at full magnification, which is the point of the change.
-        float big = TradeWindowGeometry.scaleFor(1920, 1080);
-        if (big < TradeWindowGeometry.MAX_SCALE - 0.001F) {
-            failures.add("en 1920x1080 la ventana no llega a la ampliacion maxima (" + big + ")");
+        // Centred on a 1080p screen, to the pixel.
+        if (TradeWindowGeometry.leftPos(1920) != (1920 - 276) / 2) {
+            failures.add("la ventana no queda centrada horizontalmente");
         }
-        // On a screen too small for the window it must clamp to vanilla size rather than shrink below it.
-        // Minecraft's own containers overflow at these sizes too; shrinking would only make the text unreadable
-        // as well as cut off.
-        float tooSmall = TradeWindowGeometry.scaleFor(200, 150);
-        if (tooSmall != 1.0F) {
-            failures.add("en una pantalla mas pequena que la ventana la escala deberia quedarse en 1 y es "
-                    + tooSmall);
+        if (TradeWindowGeometry.topPos(1080) != (1080 - 166) / 2) {
+            failures.add("la ventana no queda centrada verticalmente");
         }
     }
 

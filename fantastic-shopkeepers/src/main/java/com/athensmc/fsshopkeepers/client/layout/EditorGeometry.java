@@ -400,18 +400,39 @@ public final class EditorGeometry {
 
     // ------------------------------------------------------------ settings tab
 
-    /** A settings block, stacked the same way the detail blocks are. */
+    /**
+     * A settings block: a label, its control, and a line explaining what the control does.
+     *
+     * <p>Taller than a detail block because of that third line. Every setting on this tab needs saying in words - an
+     * operator should not have to guess what "traspaso" does or what happens if the account field is left empty.</p>
+     */
+    public static final int SETTING_NOTE_HEIGHT = 9;
+    public static final int SETTING_BLOCK = DETAIL_LABEL_HEIGHT + CONTROL_HEIGHT + SETTING_NOTE_HEIGHT + 5;
+
     public Rect settingLabel(int block) {
         Rect body = body();
-        int y = body.y() + block * DETAIL_BLOCK;
+        int y = body.y() + block * SETTING_BLOCK;
         return y + DETAIL_LABEL_HEIGHT > body.bottom() ? Rect.EMPTY
                 : new Rect(body.x(), y, body.width(), DETAIL_LABEL_HEIGHT);
     }
 
     public Rect settingControl(int block) {
         Rect body = body();
-        int y = body.y() + block * DETAIL_BLOCK + DETAIL_LABEL_HEIGHT;
+        int y = body.y() + block * SETTING_BLOCK + DETAIL_LABEL_HEIGHT;
         return y + CONTROL_HEIGHT > body.bottom() ? Rect.EMPTY
                 : new Rect(body.x(), y, body.width(), CONTROL_HEIGHT);
+    }
+
+    /** The explanation under a setting's control. */
+    public Rect settingNote(int block) {
+        Rect body = body();
+        int y = body.y() + block * SETTING_BLOCK + DETAIL_LABEL_HEIGHT + CONTROL_HEIGHT + 1;
+        return y + SETTING_NOTE_HEIGHT > body.bottom() ? Rect.EMPTY
+                : new Rect(body.x(), y, body.width(), SETTING_NOTE_HEIGHT);
+    }
+
+    /** How many setting blocks fit in the body. */
+    public int settingBlocks() {
+        return Math.max(0, body().height() / SETTING_BLOCK);
     }
 }

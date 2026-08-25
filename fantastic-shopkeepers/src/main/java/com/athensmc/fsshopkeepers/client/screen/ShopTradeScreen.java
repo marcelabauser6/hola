@@ -23,11 +23,10 @@ import java.util.List;
  * at u=15 with its barred variant at u=25 on row v=171, the result at {@code leftPos + 73}, the scroller at
  * {@code leftPos + 94} with its disabled form at u=6, and 0x404040 for text.</p>
  *
- * <p>Drawn through a scale transform, because the vanilla merchant window is 276x166 and looks lost on a modern screen.
- * The scale applies to everything, including the slots, so the whole window grows rather than gaining empty margins. All
- * mouse input is divided by the same factor before anything sees it, which is what keeps clicking a slot landing on the
- * slot that was drawn there - {@link AbstractContainerScreen} finds slots by comparing raw mouse coordinates against
- * {@code leftPos} and {@code slot.x}, so those have to agree about which space they are in.</p>
+ * <p>Drawn at vanilla size, with no magnification. An earlier version scaled the whole window up to fill more of the
+ * screen, and it looked wrong as soon as anything else was visible: the creative inventory and JEI draw at the game's own
+ * GUI scale, so a window scaled on top of them sat at a different size from everything around it. If the window should be
+ * larger, the game's GUI scale setting is the place that makes every window larger together.</p>
  *
  * <p>Fantastic Cash is a balance, not an object, so the first payment slot shows the mod's note with the amount where a
  * stack count would be. When a trade also asks for an item, that item takes the second slot: Cash and a coin side by
@@ -66,15 +65,8 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
 
     private static final int VANILLA_TEXT = 0x404040;
 
-    /** How much larger than vanilla the window is drawn, at most. */
-    private static final float MAX_SCALE = 1.75F;
-
-    /** Breathing room left around the window when working out how large it can be. */
-    private static final int SCREEN_MARGIN = 20;
-
     private final Button[] tradeButtons = new Button[NUMBER_OF_OFFER_BUTTONS];
 
-    private float scale = 1.0F;
     private int selected;
     private int scrollOff;
     private boolean isDragging;
@@ -85,24 +77,9 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         this.inventoryLabelX = 107;
     }
 
-    /**
-     * How much to magnify the window.
-     *
-     * <p>Bounded by the screen so the window can never grow past its edges, and never below 1 so a small window is drawn
-     * at vanilla size rather than shrunk.</p>
-     */
-    private float computeScale() {
-        return TradeWindowGeometry.scaleFor(width, height);
-    }
-
     @Override
     protected void init() {
-        scale = computeScale();
         super.init();
-        // Re-centred in the scaled space the whole screen is drawn in, because super centred it in screen pixels.
-        leftPos = TradeWindowGeometry.leftPos(width, scale);
-        topPos = TradeWindowGeometry.topPos(height, scale);
-
         clearWidgets();
         int y = topPos + SCROLL_BAR_TOP_POS_Y;
         for (int index = 0; index < NUMBER_OF_OFFER_BUTTONS; index++) {
@@ -214,16 +191,8 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The world dim stays unscaled: it covers the screen, not the window.
         renderBackground(graphics);
-
-        int viewX = (int) (mouseX / scale);
-        int viewY = (int) (mouseY / scale);
-
-        graphics.pose().pushPose();
-        graphics.pose().scale(scale, scale, 1.0F);
-
-        super.render(graphics, viewX, viewY, partialTick);
+        super.render(graphics, mouseX, mouseY, partialTick);
 
         List<ShopTradeMenu.OfferView> offers = menu.offers();
         for (int index = 0; index < NUMBER_OF_OFFER_BUTTONS; index++) {
@@ -237,12 +206,10 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             renderSelectedTrade(graphics, offers.get(selected));
         }
 
-        renderTooltip(graphics, viewX, viewY);
+        renderTooltip(graphics, mouseX, mouseY);
         if (!offers.isEmpty()) {
-            renderItemTooltips(graphics, viewX, viewY, offers);
+            renderItemTooltips(graphics, mouseX, mouseY, offers);
         }
-
-        graphics.pose().popPose();
     }
 
     private void renderTradeRows(GuiGraphics graphics, List<ShopTradeMenu.OfferView> offers) {
@@ -257,8 +224,13 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             // Forward of the button faces, the way vanilla lifts its trade items.
             graphics.pose().translate(0.0F, 0.0F, 100.0F);
 
-            drawPayment(graphics, paymentA(offer), rowPaymentARect(slot));
-            drawPayment(graphics, paymentB(offer), rowPaymentBRect(slot));
+            Payment costA = paymentA(offer);
+            Payment costB = paymentB(offer);
+            drawPayment(graphics, costA, rowPaymentARect(slot));
+            drawPayment(graphics, costB, rowPaymentBRect(slot));
+            if (!costA.isEmpty() && !costB.isEmpty()) {
+                drawPlus(graphics, TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot));
+            }
 
             graphics.blit(VILLAGER_LOCATION, leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X + 20,
                     rowItemY(slot) + 3, 0, offer.inStock() ? 15.0F : 25.0F, 171.0F, 10, 9,
@@ -275,8 +247,13 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
     private void renderSelectedTrade(GuiGraphics graphics, ShopTradeMenu.OfferView offer) {
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
-        drawPayment(graphics, paymentA(offer), slotPaymentARect());
-        drawPayment(graphics, paymentB(offer), slotPaymentBRect());
+        Payment costA = paymentA(offer);
+        Payment costB = paymentB(offer);
+        drawPayment(graphics, costA, slotPaymentARect());
+        drawPayment(graphics, costB, slotPaymentBRect());
+        if (!costA.isEmpty() && !costB.isEmpty()) {
+            drawPlus(graphics, TradeWindowGeometry.slotPaymentPlus(leftPos, topPos));
+        }
         Rect result = slotResultRect();
         if (!offer.result().isEmpty()) {
             graphics.renderFakeItem(offer.result(), result.x(), result.y());
@@ -296,6 +273,22 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             graphics.renderItemDecorations(font, payment.stack(), where.x(), where.y(),
                     payment.countOverride());
         }
+    }
+
+    /**
+     * The plus between two payments.
+     *
+     * <p>Drawn as two bars rather than as the font's "+", so it lines up on the pixel grid and reads at the same weight
+     * whatever language pack is loaded. Its job is to say the two costs are both required, not either-or.</p>
+     */
+    private void drawPlus(GuiGraphics graphics, Rect where) {
+        if (where.isEmpty()) {
+            return;
+        }
+        int midY = where.y() + where.height() / 2;
+        int midX = where.x() + where.width() / 2;
+        graphics.fill(where.x(), midY - 1, where.right(), midY + 1, VANILLA_TEXT);
+        graphics.fill(midX - 1, where.y() + 1, midX + 1, where.bottom() - 1, VANILLA_TEXT);
     }
 
     private void renderScroller(GuiGraphics graphics, int count) {
@@ -354,16 +347,14 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
     /**
      * Buying, on a click of the result slot.
      *
-     * <p>Coordinates are divided by the scale before anything, including {@code super}, sees them. Everything below this
-     * point works in the same space the window was drawn in.</p>
+     * <p>Checked against the result square alone, so a click anywhere else in the window still reaches the slots and
+     * widgets underneath.</p>
      */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        double viewX = mouseX / scale;
-        double viewY = mouseY / scale;
         List<ShopTradeMenu.OfferView> offers = menu.offers();
 
-        if (!offers.isEmpty() && slotResultRect().contains(viewX, viewY)) {
+        if (!offers.isEmpty() && slotResultRect().contains(mouseX, mouseY)) {
             if (offers.get(selected).inStock() && minecraft != null && minecraft.gameMode != null) {
                 minecraft.gameMode.handleInventoryButtonClick(menu.containerId,
                         ShopTradeMenu.buttonFor(selected, hasShiftDown()));
@@ -371,31 +362,38 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             return true;
         }
         if (canScroll(offers.size())
-                && TradeWindowGeometry.scrollTrack(leftPos, topPos).contains(viewX, viewY)) {
+                && TradeWindowGeometry.scrollTrack(leftPos, topPos).contains(mouseX, mouseY)) {
             isDragging = true;
+            scrollBarTo(mouseY);
             return true;
         }
-        return super.mouseClicked(viewX, viewY, button);
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /** Moves the list to where the scrollbar was grabbed, thumb centred on the cursor. */
+    private void scrollBarTo(double mouseY) {
+        int max = maxScroll();
+        if (max <= 0) {
+            return;
+        }
+        int travel = SCROLL_BAR_HEIGHT - SCROLLER_HEIGHT;
+        double fraction = (mouseY - (topPos + SCROLL_BAR_TOP_POS_Y) - SCROLLER_HEIGHT / 2.0D) / travel;
+        scrollOff = Math.max(0, Math.min((int) Math.round(fraction * max), max));
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         isDragging = false;
-        return super.mouseReleased(mouseX / scale, mouseY / scale, button);
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        double viewY = mouseY / scale;
-        int count = menu.offers().size();
-        if (isDragging && canScroll(count)) {
-            int top = topPos + SCROLL_BAR_TOP_POS_Y;
-            int travel = SCROLL_BAR_HEIGHT - SCROLLER_HEIGHT;
-            double fraction = (viewY - top - SCROLLER_HEIGHT / 2.0D) / travel;
-            scrollOff = Math.max(0, Math.min((int) Math.round(fraction * maxScroll()), maxScroll()));
+        if (isDragging && canScroll(menu.offers().size())) {
+            scrollBarTo(mouseY);
             return true;
         }
-        return super.mouseDragged(mouseX / scale, viewY, button, dragX / scale, dragY / scale);
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
     @Override
@@ -404,11 +402,6 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             scrollOff = Math.max(0, Math.min(scrollOff - (int) Math.signum(delta), maxScroll()));
             return true;
         }
-        return super.mouseScrolled(mouseX / scale, mouseY / scale, delta);
-    }
-
-    @Override
-    public void mouseMoved(double mouseX, double mouseY) {
-        super.mouseMoved(mouseX / scale, mouseY / scale);
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 }
