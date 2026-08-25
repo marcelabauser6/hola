@@ -92,6 +92,36 @@ public final class MoneyTest {
         if (Money.canAdd(-1L, 5L)) {
             fail("canAdd acepto un operando negativo");
         }
+
+        // The spendable total decides whether a purchase is allowed, so every odd input must make the buyer look
+        // poorer and never richer. A version of this that answered MAX_CENTS on a bad reading let goods out for free.
+        equalsLong("addSpendable normal", Money.addSpendable(1000L, 2500L), 3500L);
+        equalsLong("addSpendable con cero", Money.addSpendable(0L, 0L), 0L);
+        equalsLong("addSpendable primer negativo", Money.addSpendable(-5000L, 2500L), 2500L);
+        equalsLong("addSpendable segundo negativo", Money.addSpendable(2500L, -5000L), 2500L);
+        equalsLong("addSpendable ambos negativos", Money.addSpendable(-1L, -1L), 0L);
+        equalsLong("addSpendable saturado", Money.addSpendable(Money.MAX_CENTS, Money.MAX_CENTS),
+                Money.MAX_CENTS);
+        equalsLong("addSpendable al limite", Money.addSpendable(Money.MAX_CENTS, 0L), Money.MAX_CENTS);
+        if (Money.addSpendable(Long.MAX_VALUE, Long.MAX_VALUE) != Money.MAX_CENTS) {
+            fail("addSpendable no saturo con dos valores enormes");
+        }
+        if (Money.addSpendable(Long.MIN_VALUE, Long.MIN_VALUE) != 0L) {
+            fail("addSpendable no trato dos negativos extremos como cero");
+        }
+        for (long wallet = -2000L; wallet <= 2000L; wallet += 250L) {
+            for (long account = -2000L; account <= 2000L; account += 250L) {
+                long total = Money.addSpendable(wallet, account);
+                if (total < 0L || total > Money.MAX_CENTS) {
+                    fail("addSpendable(" + wallet + ", " + account + ") dio " + total);
+                }
+                long expected = Math.max(0L, wallet) + Math.max(0L, account);
+                if (total != expected) {
+                    fail("addSpendable(" + wallet + ", " + account + ") dio " + total
+                            + " y se esperaba " + expected);
+                }
+            }
+        }
         equalsLong("clamp negativo", Money.clamp(-50L), 0L);
         equalsLong("clamp excesivo", Money.clamp(Money.MAX_CENTS + 1L), Money.MAX_CENTS);
         equalsLong("parseOrInvalid malo", Money.parseOrInvalid("nope"), -1L);

@@ -245,12 +245,14 @@ public final class Cash {
      * affordability by it tells a player with a full account that they are broke.</p>
      */
     public static long spendable(MinecraftServer server, UUID player) {
+        // Every value is floored at zero and the sum is capped, so an odd reading can only ever make a player look
+        // poorer. The first version answered MAX_CENTS when the two balances would not add cleanly, which meant a
+        // negative or unreadable balance reported as "can afford anything" - a fail-open on money.
         long wallet = balance(server, player);
         if (debitAccount == null) {
-            return wallet;
+            return Money.addSpendable(wallet, 0L);
         }
-        long account = accountBalance(server, player);
-        return Money.canAdd(wallet, account) ? wallet + account : Money.MAX_CENTS;
+        return Money.addSpendable(wallet, accountBalance(server, player));
     }
 
     public static long spendable(ServerPlayer player) {
@@ -268,7 +270,32 @@ public final class Cash {
         if (!available || server == null || player == null || cents <= 0L) {
             return false;
         }
-        long wallet = balance(server, player);
+        // The gate lives here, not only in the callers. Any path that reaches a charge without having checked the
+        // balance is refused rather than trusted, so no future caller can hand goods over for free by forgetting.
+        long before = spendable(server, player);
+        if (before < cents) {
+            FantasticShopkeepers.LOGGER.warn("Cobro rechazado: {} necesita {} y solo tiene {}.",
+                    player, cents, before);
+            return false;
+        }
+        if (!takeFrom(server, player, cents)) {
+            return false;
+        }
+        // Confirms the money really left. An economy API that answered yes without deducting would otherwise be an
+        // unlimited supply of free goods, which is exactly the failure this guards.
+        long after = spendable(server, player);
+        if (after >= before) {
+            FantasticShopkeepers.LOGGER.error(
+                    "Fantastic Currency dijo que cobro {} a {} pero su saldo sigue en {}. Compra anulada.",
+                    cents, player, after);
+            return false;
+        }
+        return true;
+    }
+
+    /** Takes the amount from the wallet, the account, or both. */
+    private static boolean takeFrom(MinecraftServer server, UUID player, long cents) {
+        long wallet = Math.max(0L, balance(server, player));
         if (wallet >= cents) {
             return chargeWallet(server, player, cents);
         }

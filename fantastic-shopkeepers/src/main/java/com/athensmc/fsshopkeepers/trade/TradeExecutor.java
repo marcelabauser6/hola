@@ -212,7 +212,13 @@ public final class TradeExecutor {
                 .withStyle(ChatFormatting.GREEN));
     }
 
-    /** Items for items, with no money on either side. */
+    /**
+     * Items for items, and money too when the row asks for it.
+     *
+     * <p>The money used to be ignored here entirely, which meant a bartering shop with a price handed its goods over for
+     * nothing. The charge is the same one selling makes, in the same order: paid before anything is delivered, and put back
+     * if a later step fails.</p>
+     */
     private static Result barter(ServerPlayer buyer, ServerLevel level, Shopkeeper shop, TradeOffer offer,
             int times) {
         Container container = shop.usesContainer() ? ShopStock.container(level, shop) : null;
@@ -241,23 +247,45 @@ public final class TradeExecutor {
                 && ShopStock.room(container, payment2) < payment2.getCount()) {
             return Result.no("El cofre de la tienda esta lleno.");
         }
+
+        long price = offer.priceCents() * times;
+        if (offer.hasCashPrice()) {
+            if (price / times != offer.priceCents()) {
+                return Result.no("El precio total es demasiado grande.");
+            }
+            if (!Cash.available()) {
+                return Result.no("El sistema de dinero no esta disponible ahora mismo.");
+            }
+            long available = Cash.spendable(buyer.server, buyer.getUUID());
+            if (available < price) {
+                return Result.no("Cuesta " + Cash.format(price) + " y solo tienes "
+                        + Cash.format(available) + ".");
+            }
+            if (!Cash.charge(buyer.server, buyer.getUUID(), price)) {
+                return Result.no("No se pudo cobrar el importe. Revisa tu cuenta bancaria.");
+            }
+        }
+
         if (!takeItems(buyer, payment1) || !takeItems(buyer, payment2)) {
+            refund(buyer, shop, price);
             giveBack(buyer, payment1);
             giveBack(buyer, payment2);
-            return Result.no("No se pudo retirar el pago.");
+            return Result.no("No se pudo retirar el pago. No se te ha cobrado.");
         }
         if (container != null && !ShopStock.remove(container, offer.result(), goods.getCount())) {
+            refund(buyer, shop, price);
             giveBack(buyer, payment1);
             giveBack(buyer, payment2);
-            return Result.no("Las existencias cambiaron mientras cambiabas.");
+            return Result.no("Las existencias cambiaron mientras cambiabas. No se te ha cobrado.");
         }
         if (container != null) {
             storeIfPresent(container, payment1);
             storeIfPresent(container, payment2);
         }
         give(buyer, goods);
-        log(buyer, shop, offer, times, 0L);
-        notifyOwner(buyer, shop, goods, 0L);
+        payOwner(buyer, shop, price);
+        log(buyer, shop, offer, times, price);
+        notifyOwner(buyer, shop, goods, price);
         return Result.ok(Component.literal("Has cambiado por " + goods.getCount() + " x "
                 + goods.getHoverName().getString()).withStyle(ChatFormatting.GREEN));
     }

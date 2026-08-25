@@ -39,6 +39,23 @@ public final class Money {
         return a >= 0L && b >= 0L && a <= MAX_CENTS - b;
     }
 
+    /**
+     * Adds two balances the way money must be added: failing closed.
+     *
+     * <p>A negative reading is treated as nothing rather than subtracted, and a sum too large to represent saturates instead
+     * of wrapping. Both matter because this total is what decides whether someone can afford something: an earlier version
+     * answered {@link #MAX_CENTS} whenever the two would not add cleanly, so an unreadable or negative balance came out as
+     * "can afford anything" and goods left the shop for free.</p>
+     */
+    public static long addSpendable(long a, long b) {
+        long left = Math.max(0L, a);
+        long right = Math.max(0L, b);
+        if (left > MAX_CENTS - right) {
+            return MAX_CENTS;
+        }
+        return Math.min(MAX_CENTS, left + right);
+    }
+
     /** Clamps a value into the representable range. */
     public static long clamp(long cents) {
         if (cents < 0L) {
