@@ -1,11 +1,12 @@
 {
+  "item.fsshopkeepers.cash_note": "Fantastic Cash",
   "menu.fsshopkeepers.shop_trade": "Tienda",
   "menu.fsshopkeepers.editor": "Editor de tienda",
   "fsshopkeepers.tab.trades": "Tratos",
-  "fsshopkeepers.tab.appearance": "Apariencia",
+  "fsshopkeepers.tab.appearance": "Aspecto",
   "fsshopkeepers.tab.settings": "Ajustes",
-  "fsshopkeepers.action.save": "Guardar",
-  "fsshopkeepers.action.cancel": "Cancelar",
-  "fsshopkeepers.action.delete": "Borrar tienda",
-  "fsshopkeepers.action.add_trade": "Anadir trato"
+  "fsshopkeepers.action.save": "Guardar cambios",
+  "fsshopkeepers.action.close": "Cerrar",
+  "fsshopkeepers.action.delete": "Borrar",
+  "fsshopkeepers.trade.trades": "Tratos"
 }

@@ -4,7 +4,6 @@ import com.athensmc.fsshopkeepers.client.MobVariants;
 import com.athensmc.fsshopkeepers.client.layout.EditorGeometry;
 import com.athensmc.fsshopkeepers.client.layout.Rect;
 import com.athensmc.fsshopkeepers.client.theme.FSGui;
-import com.athensmc.fsshopkeepers.client.widget.FSButton;
 import com.athensmc.fsshopkeepers.money.Cash;
 import com.athensmc.fsshopkeepers.money.Money;
 import com.athensmc.fsshopkeepers.net.DeleteShopPacket;
@@ -15,6 +14,7 @@ import com.athensmc.fsshopkeepers.shop.Shopkeeper;
 import com.athensmc.fsshopkeepers.shop.TradeOffer;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,36 +31,34 @@ import java.util.List;
 /**
  * The screen an administrator sets a shop up on.
  *
- * <p>Built to the Fantastic family's pattern: a centred panel no wider than 540 pixels, a title strip, a row of tabs, a
- * rule, one line of help text about whatever is under the cursor, and a footer of actions. The geometry is the family's
- * - the same 8-pixel gutter, 18-pixel controls, 22-pixel row pitch and 62/28 body inset - so this screen sits beside
- * the other Fantastic editors rather than looking like a different mod.</p>
+ * <p>Built to match the Crates editor, because that is the Fantastic family's editor and this should be the same tool
+ * with different fields. Same centred panel capped at 540x320, same title strip, same row of tabs, same rule with a line
+ * of help under it, same footer. The controls are plain vanilla {@link Button}s and {@link EditBox}es with the active tab
+ * marked by bold white text and the inactive ones grey, exactly as Crates does it - not custom-drawn buttons, which was
+ * the mistake that made the first attempt look like a different mod.</p>
  *
- * <p>The trades tab is two columns: the shop's rows on the left, and the selected row's details on the right. Cramming
- * an item, a name, a quantity stepper, a price field, two payment slots and a delete button into one 500-pixel row is
- * what made the first attempt unreadable; splitting it means every control has room for its label.</p>
- *
- * <p>Text is edited with real {@link EditBox} widgets rather than hand-rolled fields. A widget brings a caret,
- * selection, clipboard and click-to-position for free, all of which a hand-rolled field silently lacks.</p>
+ * <p>Every position, for widgets and for the item icons alike, comes from {@link EditorGeometry}. The first version
+ * placed buttons with one formula and icons with another, and they drifted apart: that is what put a coin on top of a
+ * button and a tooltip across a price field.</p>
  */
 public final class ShopEditorScreen extends Screen {
 
-    /**
-     * The family's gutters and control sizes, re-exported from the shared geometry.
-     *
-     * <p>Aliases rather than copies, so the numbers the screen draws with are provably the numbers the overlap test
-     * checks. A second set of constants here is how a screen and its test come to disagree.</p>
-     */
     private static final int GUTTER = EditorGeometry.GUTTER;
     private static final int TITLE_HEIGHT = EditorGeometry.TITLE_HEIGHT;
-    private static final int TAB_HEIGHT = EditorGeometry.TAB_HEIGHT;
-    private static final int CONTROL_HEIGHT = EditorGeometry.CONTROL_HEIGHT;
     private static final int ROW_PITCH = EditorGeometry.ROW_PITCH;
 
+    /** Which detail block holds what, in the trades tab. */
+    private static final int BLOCK_ITEM = 0;
+    private static final int BLOCK_AMOUNT = 1;
+    private static final int BLOCK_PRICE = 2;
+    private static final int BLOCK_PAY_1 = 3;
+    private static final int BLOCK_PAY_2 = 4;
+    private static final int BLOCK_COUNT = 5;
+
     private enum Tab {
-        TRADES("Tratos", "Que vende la tienda y a que precio."),
-        APPEARANCE("Aspecto", "El cuerpo y el nombre del tendero."),
-        SETTINGS("Ajustes", "Cuenta bancaria, traspaso y permisos.");
+        TRADES("Tratos", "Elige una fila a la izquierda y ponle articulo, cantidad y precio a la derecha."),
+        APPEARANCE("Aspecto", "El cuerpo y el nombre del tendero. Busca el mob y ajusta sus variantes."),
+        SETTINGS("Ajustes", "Cuenta bancaria donde cobrar, traspaso y permisos.");
 
         final String label;
         final String help;
@@ -90,10 +88,6 @@ public final class ShopEditorScreen extends Screen {
                     offer.cost1().copy(), offer.cost2().copy());
         }
 
-        boolean priceValid() {
-            return priceText.isBlank() || Money.parseOrInvalid(priceText) >= 0L;
-        }
-
         long priceCents() {
             return priceText.isBlank() ? 0L : Math.max(0L, Money.parseOrInvalid(priceText));
         }
@@ -111,11 +105,13 @@ public final class ShopEditorScreen extends Screen {
         }
     }
 
-    /** A label drawn after the widgets, with an optional tooltip zone. */
-    private record Label(String text, int x, int y, int colour) {
-    }
-
-    private record TooltipZone(int x, int y, int width, int height, List<Component> lines) {
+    /**
+     * A label to draw after the widgets.
+     *
+     * <p>{@code centreWidth} greater than zero centres the text in a box that wide starting at {@code x}, which is what
+     * the stepper's number needs; everything else is drawn from its left edge.</p>
+     */
+    private record Label(String text, int x, int y, int centreWidth) {
     }
 
     private final Shopkeeper.EditorView source;
@@ -137,21 +133,9 @@ public final class ShopEditorScreen extends Screen {
     private String mobSearch = "";
 
     private final List<Label> labels = new ArrayList<>();
-    private final List<TooltipZone> tooltipZones = new ArrayList<>();
     private String helpLine = "";
 
     private EditorGeometry geo;
-    private int leftPos;
-    private int topPos;
-    private int panelWidth;
-    private int panelHeight;
-
-    private EditBox priceBox;
-    private EditBox nameBox;
-    private EditBox mobSearchBox;
-    private EditBox accountBox;
-    private EditBox hireBox;
-    private EditBox permissionBox;
 
     public ShopEditorScreen(Shopkeeper.EditorView view) {
         super(Component.literal("Editor de tienda"));
@@ -177,43 +161,11 @@ public final class ShopEditorScreen extends Screen {
         return false;
     }
 
-    // ---------------------------------------------------------------- geometry
-
-    private int bodyX() {
-        return geo.body().x();
-    }
-
-    private int bodyY() {
-        return geo.body().y();
-    }
-
-    private int bodyW() {
-        return geo.body().width();
-    }
-
-    private int bodyH() {
-        return geo.body().height();
-    }
-
-    private int separatorY() {
-        return geo.separatorY();
-    }
-
     @Override
     protected void init() {
         geo = new EditorGeometry(width, height);
-        panelWidth = geo.panelWidth();
-        panelHeight = geo.panelHeight();
-        leftPos = geo.leftPos();
-        topPos = geo.topPos();
         labels.clear();
-        tooltipZones.clear();
-        priceBox = null;
-        nameBox = null;
-        mobSearchBox = null;
-        accountBox = null;
-        hireBox = null;
-        permissionBox = null;
+        helpLine = activeTab.help;
 
         initTabs();
         initFooter();
@@ -224,16 +176,37 @@ public final class ShopEditorScreen extends Screen {
         }
     }
 
-    private void addLabel(String text, int x, int y, int colour) {
-        labels.add(new Label(text, x, y, colour));
+    private void addLabel(String text, Rect where) {
+        if (!where.isEmpty()) {
+            labels.add(new Label(text, where.x(), where.y(), 0));
+        }
     }
 
-    private void addTooltip(int x, int y, int w, int h, String... lines) {
-        List<Component> components = new ArrayList<>(lines.length);
-        for (String line : lines) {
-            components.add(Component.literal(line));
+    /** A label centred in its rectangle, and vertically centred if the rectangle is a control. */
+    private void addCentredLabel(String text, Rect where) {
+        if (!where.isEmpty()) {
+            int y = where.y() + (where.height() - font.lineHeight) / 2 + 1;
+            labels.add(new Label(text, where.x(), y, where.width()));
         }
-        tooltipZones.add(new TooltipZone(x, y, w, h, components));
+    }
+
+    /** A plain vanilla button, which is what the Crates editor uses for everything. */
+    private void button(Rect where, String text, Runnable action) {
+        if (where.isEmpty()) {
+            return;
+        }
+        addRenderableWidget(Button.builder(Component.literal(text), pressed -> action.run())
+                .bounds(where.x(), where.y(), where.width(), where.height()).build());
+    }
+
+    private EditBox field(Rect where, String value, String hint, int maxLength) {
+        EditBox box = new EditBox(font, where.x() + 1, where.y() + 1, where.width() - 2,
+                where.height() - 2, Component.literal(hint));
+        box.setMaxLength(maxLength);
+        box.setValue(value);
+        box.setHint(Component.literal(hint));
+        addRenderableWidget(box);
+        return box;
     }
 
     private void initTabs() {
@@ -241,55 +214,30 @@ public final class ShopEditorScreen extends Screen {
         for (int i = 0; i < tabs.length; i++) {
             Tab tab = tabs[i];
             boolean current = tab == activeTab;
-            Rect slot = geo.tab(i, tabs.length);
-            int x = slot.x();
-            int w = slot.width();
-            addRenderableWidget(new FSButton(x, slot.y(), w, TAB_HEIGHT,
-                    Component.literal((current ? "\u00a7f\u00a7l" : "\u00a77") + tab.label),
-                    current ? FSGui.ACCENT_BLUE : FSGui.PANEL_BORDER, () -> {
-                        if (activeTab != tab) {
-                            activeTab = tab;
-                            tradeScroll = 0;
-                            mobScroll = 0;
-                            rebuildWidgets();
-                        }
-                    }));
+            button(geo.tab(i, tabs.length), (current ? "\u00a7f\u00a7l" : "\u00a77") + tab.label, () -> {
+                if (activeTab != tab) {
+                    activeTab = tab;
+                    tradeScroll = 0;
+                    mobScroll = 0;
+                    rebuildWidgets();
+                }
+            });
         }
     }
 
     private void initFooter() {
-        Rect save = geo.saveButton();
-        addRenderableWidget(new FSButton(save.x(), save.y(), save.width(), save.height(),
-                Component.literal("\u00a7aGuardar cambios"), FSGui.ACCENT_GREEN, this::save));
-        Rect close = geo.closeButton();
-        addRenderableWidget(new FSButton(close.x(), close.y(), close.width(), close.height(),
-                Component.literal("Cerrar"), FSGui.PANEL_BORDER, this::onClose));
-        Rect delete = geo.deleteButton();
-        addRenderableWidget(new FSButton(delete.x(), delete.y(), delete.width(), delete.height(),
-                Component.literal("\u00a7cBorrar"), FSGui.ACCENT_RED,
-                () -> minecraft.setScreen(new ConfirmDeleteScreen(this, source.id()))));
+        button(geo.closeButton(), "Cerrar", this::onClose);
+        button(geo.deleteButton(), "\u00a7cBorrar", () ->
+                minecraft.setScreen(new ConfirmDeleteScreen(this, source.id())));
+        button(geo.saveButton(), "\u00a7aGuardar cambios", this::save);
     }
 
-    // ---------------------------------------------------------------- trades tab
-
-    private int tradeListWidth() {
-        return geo.tradeListWidth();
-    }
-
-    private int tradeVisibleRows() {
-        return geo.tradeVisibleRows();
-    }
+    // ------------------------------------------------------------ trades tab
 
     private void initTrades() {
-        helpLine = "Elige una fila a la izquierda y ponle articulo y precio a la derecha.";
-        int x = bodyX();
-        int y = bodyY();
-        int listW = tradeListWidth();
-
         selectedRow = Math.max(0, Math.min(selectedRow, rows.size() - 1));
-        int visible = tradeVisibleRows();
-        int maxScroll = Math.max(0, rows.size() - visible);
-        tradeScroll = Math.max(0, Math.min(tradeScroll, maxScroll));
+        int visible = geo.tradeVisibleRows();
+        tradeScroll = Math.max(0, Math.min(tradeScroll, Math.max(0, rows.size() - visible)));
 
         for (int slot = 0; slot < visible; slot++) {
             int index = tradeScroll + slot;
@@ -298,131 +246,118 @@ public final class ShopEditorScreen extends Screen {
             }
             Row row = rows.get(index);
             boolean current = index == selectedRow;
-            String price = row.priceText.isBlank() ? "\u00a78-" : "\u00a7a" + row.priceText;
-            String label = (current ? "\u00a7e\u25b6 " : "  ") + row.describe() + "  " + price;
-            int rowIndex = index;
-            // Room is left to the left of the row for the item icon, drawn after the widgets.
-            Rect rowRect = geo.tradeRow(slot);
-            addRenderableWidget(new FSButton(rowRect.x(), rowRect.y(), rowRect.width(), rowRect.height(),
-                    Component.literal(label), current ? FSGui.ACCENT_BLUE : FSGui.PANEL_BORDER, () -> {
-                        selectedRow = rowIndex;
-                        rebuildWidgets();
-                    }).leftAligned());
+            String price = row.priceText.isBlank() ? "" : "  \u00a7a" + row.priceText;
+            button(geo.tradeRow(slot), (current ? "\u00a7e\u25b6 " : "") + row.describe() + price, () -> {
+                selectedRow = index;
+                rebuildWidgets();
+            });
         }
 
-        Rect addRect = geo.addTradeButton();
-        addRenderableWidget(new FSButton(addRect.x(), addRect.y(), addRect.width(), addRect.height(),
-                Component.literal("\u00a7a+ Anadir"), FSGui.ACCENT_GREEN, () -> {
-                    if (rows.size() < 45) {
-                        rows.add(new Row(ItemStack.EMPTY, "", ItemStack.EMPTY, ItemStack.EMPTY));
-                        selectedRow = rows.size() - 1;
-                        tradeScroll = Math.max(0, rows.size() - tradeVisibleRows());
-                        rebuildWidgets();
-                    }
-                }));
-        Rect removeRect = geo.removeTradeButton();
-        addRenderableWidget(new FSButton(removeRect.x(), removeRect.y(), removeRect.width(),
-                removeRect.height(), Component.literal("\u00a7cQuitar"), FSGui.ACCENT_RED, () -> {
-                    if (!rows.isEmpty()) {
-                        rows.remove(Math.max(0, Math.min(selectedRow, rows.size() - 1)));
-                        if (rows.isEmpty()) {
-                            rows.add(new Row(ItemStack.EMPTY, "", ItemStack.EMPTY, ItemStack.EMPTY));
-                        }
-                        selectedRow = Math.max(0, selectedRow - 1);
-                        rebuildWidgets();
-                    }
-                }));
+        button(geo.addTradeButton(), "\u00a7a+ Anadir", () -> {
+            if (rows.size() < 45) {
+                rows.add(new Row(ItemStack.EMPTY, "", ItemStack.EMPTY, ItemStack.EMPTY));
+                selectedRow = rows.size() - 1;
+                tradeScroll = Math.max(0, rows.size() - geo.tradeVisibleRows());
+                rebuildWidgets();
+            }
+        });
+        button(geo.removeTradeButton(), "\u00a7cQuitar", () -> {
+            rows.remove(Math.max(0, Math.min(selectedRow, rows.size() - 1)));
+            if (rows.isEmpty()) {
+                rows.add(new Row(ItemStack.EMPTY, "", ItemStack.EMPTY, ItemStack.EMPTY));
+            }
+            selectedRow = Math.max(0, selectedRow - 1);
+            rebuildWidgets();
+        });
 
-        initTradeDetail(x + listW + GUTTER, y, bodyW() - listW - GUTTER);
+        initTradeDetail(rows.get(Math.max(0, Math.min(selectedRow, rows.size() - 1))));
     }
 
-    /** The right-hand column: everything about the row currently selected. */
-    private void initTradeDetail(int x, int y, int w) {
-        if (rows.isEmpty()) {
-            return;
-        }
-        Row row = rows.get(Math.max(0, Math.min(selectedRow, rows.size() - 1)));
-        int line = y;
-
-        addLabel("\u00a77Articulo que vende", x, line, FSGui.TEXT_DIM);
-        line += 10;
-        addRenderableWidget(new FSButton(x + 20, line, w - 20, CONTROL_HEIGHT,
-                Component.literal(row.result.isEmpty() ? "\u00a78Elegir articulo..."
-                        : "\u00a7f" + row.result.getHoverName().getString()),
-                FSGui.ACCENT_BLUE, () -> minecraft.setScreen(new ItemPickerScreen(this, chosen -> {
+    private void initTradeDetail(Row row) {
+        addLabel("\u00a77Articulo que vende", geo.detailLabel(BLOCK_ITEM));
+        button(geo.detailControlAfterIcon(BLOCK_ITEM),
+                row.result.isEmpty() ? "\u00a78Elegir articulo..." : row.result.getHoverName().getString(),
+                () -> pickItem(chosen -> {
+                    // A new item keeps the count the admin already chose, so picking again is not a reset.
+                    int keep = row.result.isEmpty() ? 1 : row.result.getCount();
+                    chosen.setCount(Math.max(1, Math.min(keep, chosen.getMaxStackSize())));
                     row.result = chosen;
-                    rebuildWidgets();
-                }))));
-        addTooltip(x + 20, line, w - 20, CONTROL_HEIGHT,
-                "\u00a7fArticulo que el cliente recibe.",
-                "\u00a77Puedes elegirlo de todo el juego o de tu inventario.");
-        line += ROW_PITCH;
-
-        addLabel("\u00a77Cantidad por compra", x, line + 5, FSGui.TEXT_DIM);
-        int stepX = x + w - 62;
-        addRenderableWidget(new FSButton(stepX, line, 18, CONTROL_HEIGHT, Component.literal("-"),
-                FSGui.PANEL_BORDER, () -> {
-                    if (!row.result.isEmpty()) {
-                        row.result.setCount(Math.max(1, row.result.getCount() - 1));
-                        rebuildWidgets();
-                    }
                 }));
-        addLabel("\u00a7f" + (row.result.isEmpty() ? "-" : String.valueOf(row.result.getCount())),
-                stepX + 26, line + 5, FSGui.TEXT);
-        addRenderableWidget(new FSButton(stepX + 44, line, 18, CONTROL_HEIGHT, Component.literal("+"),
-                FSGui.PANEL_BORDER, () -> {
-                    if (!row.result.isEmpty()) {
-                        row.result.setCount(Math.min(row.result.getMaxStackSize(), row.result.getCount() + 1));
-                        rebuildWidgets();
-                    }
-                }));
-        line += ROW_PITCH;
 
-        addLabel("\u00a77Precio en " + Cash.currencyName(), x, line, FSGui.TEXT_DIM);
-        line += 10;
-        priceBox = new EditBox(font, x + 1, line + 1, w - 2, CONTROL_HEIGHT - 2,
-                Component.literal("Precio"));
-        priceBox.setMaxLength(16);
-        priceBox.setValue(row.priceText);
-        priceBox.setHint(Component.literal("0.00"));
-        // Filtered as typed, so a price field can never hold a letter and the row can never be unsaveable.
-        priceBox.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
-        priceBox.setResponder(text -> row.priceText = text);
-        addRenderableWidget(priceBox);
-        addTooltip(x, line, w, CONTROL_HEIGHT,
-                "\u00a7fLo que paga el cliente.",
-                "\u00a77Admite coma o punto y dos decimales.",
-                "\u00a78Dejalo vacio si solo cobras con articulos.");
-        line += ROW_PITCH;
+        addLabel("\u00a77Cantidad que entrega", geo.detailLabel(BLOCK_AMOUNT));
+        stepper(BLOCK_AMOUNT, row.result, () -> row.result);
 
-        addLabel("\u00a77Pago con articulos \u00a78(opcional)", x, line, FSGui.TEXT_DIM);
-        line += 10;
-        int halfW = (w - 4) / 2;
-        addRenderableWidget(new FSButton(x + 20, line, halfW - 20, CONTROL_HEIGHT,
-                Component.literal(row.cost1.isEmpty() ? "\u00a78vacio"
-                        : "\u00a7f" + row.cost1.getHoverName().getString()),
-                FSGui.PANEL_BORDER, () -> minecraft.setScreen(new ItemPickerScreen(this, chosen -> {
-                    row.cost1 = chosen;
-                    rebuildWidgets();
-                }))));
-        addRenderableWidget(new FSButton(x + halfW + 4 + 20, line, halfW - 20 - 4, CONTROL_HEIGHT,
-                Component.literal(row.cost2.isEmpty() ? "\u00a78vacio"
-                        : "\u00a7f" + row.cost2.getHoverName().getString()),
-                FSGui.PANEL_BORDER, () -> minecraft.setScreen(new ItemPickerScreen(this, chosen -> {
-                    row.cost2 = chosen;
-                    rebuildWidgets();
-                }))));
-        addTooltip(x, line, w, CONTROL_HEIGHT,
-                "\u00a7fArticulos que el cliente entrega ademas del precio.",
-                "\u00a77Clic derecho en el boton para vaciarlo.");
-        line += ROW_PITCH;
+        addLabel("\u00a77Precio en " + Cash.currencyName() + " \u00a78(opcional)",
+                geo.detailLabel(BLOCK_PRICE));
+        Rect priceRect = geo.detailControl(BLOCK_PRICE);
+        if (!priceRect.isEmpty()) {
+            EditBox price = field(priceRect, row.priceText, "0.00", 16);
+            price.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
+            price.setResponder(text -> row.priceText = text);
+        }
+
+        payBlock(BLOCK_PAY_1, "Pago 1", row.cost1, chosen -> row.cost1 = chosen,
+                () -> row.cost1, cleared -> row.cost1 = cleared);
+        payBlock(BLOCK_PAY_2, "Pago 2", row.cost2, chosen -> row.cost2 = chosen,
+                () -> row.cost2, cleared -> row.cost2 = cleared);
 
         String reason = row.toOffer().incompleteReason();
-        addLabel(reason == null ? "\u00a7aEsta fila esta lista." : "\u00a7e" + reason, x, line + 4,
-                FSGui.TEXT_DIM);
+        addLabel(reason == null ? "\u00a7aEsta fila esta lista." : "\u00a7e" + reason,
+                geo.detailStatus(BLOCK_COUNT));
     }
 
-    // ---------------------------------------------------------------- appearance tab
+    /**
+     * A payment block: the item, a button to choose it, and a stepper for how many.
+     *
+     * <p>The stepper is the thing that was missing. A shop that barters wants "five silver coins for a log", and without
+     * a quantity control the only expressible price was one of something.</p>
+     */
+    private void payBlock(int block, String title, ItemStack current,
+            java.util.function.Consumer<ItemStack> setter,
+            java.util.function.Supplier<ItemStack> getter,
+            java.util.function.Consumer<ItemStack> clearer) {
+        addLabel("\u00a77" + title + " \u00a78(articulo, opcional)", geo.detailLabel(block));
+        Rect buttonRect = geo.detailControlAfterIconBeforeStepper(block);
+        button(buttonRect, current.isEmpty() ? "\u00a78vacio" : current.getHoverName().getString(), () -> {
+            if (getter.get().isEmpty()) {
+                pickItem(chosen -> setter.accept(chosen));
+            } else {
+                // Clicking a filled slot empties it, which is the obvious way to undo a wrong pick.
+                clearer.accept(ItemStack.EMPTY);
+                rebuildWidgets();
+            }
+        });
+        stepper(block, current, getter);
+    }
+
+    /** A minus/count/plus stepper acting on whatever stack the supplier returns. */
+    private void stepper(int block, ItemStack shown, java.util.function.Supplier<ItemStack> target) {
+        button(geo.stepperMinus(block), "-", () -> {
+            ItemStack stack = target.get();
+            if (!stack.isEmpty()) {
+                stack.setCount(Math.max(1, stack.getCount() - 1));
+                rebuildWidgets();
+            }
+        });
+        addCentredLabel(shown.isEmpty() ? "\u00a78-" : "\u00a7f" + shown.getCount(),
+                geo.stepperCount(block));
+        button(geo.stepperPlus(block), "+", () -> {
+            ItemStack stack = target.get();
+            if (!stack.isEmpty()) {
+                stack.setCount(Math.min(stack.getMaxStackSize(), stack.getCount() + 1));
+                rebuildWidgets();
+            }
+        });
+    }
+
+    private void pickItem(java.util.function.Consumer<ItemStack> onChosen) {
+        minecraft.setScreen(new ItemPickerScreen(this, chosen -> {
+            onChosen.accept(chosen);
+            rebuildWidgets();
+        }));
+    }
+
+    // ------------------------------------------------------------ appearance tab
 
     private List<ResourceLocation> mobChoices() {
         List<ResourceLocation> out = new ArrayList<>();
@@ -442,65 +377,41 @@ public final class ShopEditorScreen extends Screen {
     }
 
     private void initAppearance() {
-        helpLine = "Cuerpo del tendero. Busca el mob por nombre y ajusta sus variantes.";
-        int x = bodyX();
-        int y = bodyY();
-        int w = bodyW();
-
-        addLabel("\u00a77Nombre de la tienda", x, y, FSGui.TEXT_DIM);
-        nameBox = new EditBox(font, x + 1, y + 11, w - 2, CONTROL_HEIGHT - 2, Component.literal("Nombre"));
-        nameBox.setMaxLength(SaveShopPacket.MAX_NAME);
-        nameBox.setValue(shopName);
-        nameBox.setHint(Component.literal("sin nombre"));
-        nameBox.setResponder(text -> shopName = text);
-        addRenderableWidget(nameBox);
-        y += 32;
+        addLabel("\u00a77Nombre de la tienda", geo.nameLabel());
+        EditBox name = field(geo.nameField(), shopName, "sin nombre", SaveShopPacket.MAX_NAME);
+        name.setResponder(text -> shopName = text);
 
         ShopObjectKind[] kinds = ShopObjectKind.values();
-        int each = (w - 2 * (kinds.length - 1)) / kinds.length;
         for (int i = 0; i < kinds.length; i++) {
             ShopObjectKind option = kinds[i];
             boolean current = option == kind;
-            int bx = x + i * (each + 2);
-            addRenderableWidget(new FSButton(bx, y, i == kinds.length - 1 ? x + w - bx : each, CONTROL_HEIGHT,
-                    Component.literal((current ? "\u00a7f\u00a7l" : "\u00a77") + option.title()),
-                    current ? FSGui.ACCENT_BLUE : FSGui.PANEL_BORDER, () -> {
+            button(geo.kindButton(i, kinds.length),
+                    (current ? "\u00a7f\u00a7l" : "\u00a77") + option.title(), () -> {
                         kind = option;
                         rebuildWidgets();
-                    }));
-            addTooltip(bx, y, each, CONTROL_HEIGHT, "\u00a7f" + option.title(), "\u00a77" + option.description());
+                    });
         }
-        y += ROW_PITCH;
 
         if (kind != ShopObjectKind.LIVING) {
             addLabel(kind == ShopObjectKind.SIGN
                     ? "\u00a77Una tienda de cartel no tiene mob que configurar."
-                    : "\u00a77Una tienda virtual no tiene cuerpo. Se abre por comando.", x, y + 4,
-                    FSGui.TEXT_DIM);
+                    : "\u00a77Una tienda virtual no tiene cuerpo. Se abre por comando.",
+                    geo.mobSearchField());
             return;
         }
 
-        // Variants sit on the right, the searchable mob list on the left.
-        int listW = Math.max(130, w * 52 / 100);
-        mobSearchBox = new EditBox(font, x + 1, y + 1, listW - 2, CONTROL_HEIGHT - 2,
-                Component.literal("Buscar"));
-        mobSearchBox.setValue(mobSearch);
-        mobSearchBox.setHint(Component.literal("buscar mob..."));
-        mobSearchBox.setResponder(text -> {
+        EditBox search = field(geo.mobSearchField(), mobSearch, "buscar mob...", 32);
+        search.setResponder(text -> {
             if (!text.equals(mobSearch)) {
                 mobSearch = text;
                 mobScroll = 0;
                 rebuildWidgets();
             }
         });
-        addRenderableWidget(mobSearchBox);
 
         List<ResourceLocation> choices = mobChoices();
-        int listTop = y + ROW_PITCH;
-        int listBottom = bodyY() + bodyH();
-        int visible = Math.max(1, (listBottom - listTop) / ROW_PITCH);
-        int maxScroll = Math.max(0, choices.size() - visible);
-        mobScroll = Math.max(0, Math.min(mobScroll, maxScroll));
+        int visible = geo.mobVisibleRows();
+        mobScroll = Math.max(0, Math.min(mobScroll, Math.max(0, choices.size() - visible)));
         for (int slot = 0; slot < visible; slot++) {
             int index = mobScroll + slot;
             if (index >= choices.size()) {
@@ -510,116 +421,87 @@ public final class ShopEditorScreen extends Screen {
             boolean current = id.equals(entityType);
             String label = EntityType.byString(id.toString())
                     .map(type -> type.getDescription().getString()).orElse(id.getPath());
-            addRenderableWidget(new FSButton(x, listTop + slot * ROW_PITCH, listW - 8, CONTROL_HEIGHT,
-                    Component.literal((current ? "\u00a7a\u2714 " : "\u00a7f") + label),
-                    current ? FSGui.ACCENT_GREEN : FSGui.PANEL_BORDER, () -> {
-                        if (!id.equals(entityType)) {
-                            entityType = id;
-                            // Variant data belonged to the old species and means nothing on the new one.
-                            entityData = new CompoundTag();
-                            rebuildWidgets();
-                        }
-                    }).leftAligned());
+            button(geo.mobRow(slot), (current ? "\u00a7a\u2714 " : "\u00a7f") + label, () -> {
+                if (!id.equals(entityType)) {
+                    entityType = id;
+                    // Variant data belonged to the old species and means nothing on the new one.
+                    entityData = new CompoundTag();
+                    rebuildWidgets();
+                }
+            });
         }
 
-        int rightX = x + listW + GUTTER;
-        int rightW = w - listW - GUTTER;
-        int line = y;
-        addLabel("\u00a77Variantes", rightX, line, FSGui.TEXT_DIM);
-        line += 12;
+        addLabel("\u00a77Variantes", geo.variantsHeader());
         List<MobVariants.Option> options = MobVariants.optionsFor(entityType);
         if (options.isEmpty()) {
-            addLabel("\u00a78Este mob no tiene variantes.", rightX, line + 4, FSGui.TEXT_DIM);
+            addLabel("\u00a78Este mob no tiene variantes.", geo.variantRow(0));
             return;
         }
-        for (MobVariants.Option option : options) {
-            if (line + CONTROL_HEIGHT > bodyY() + bodyH()) {
-                break;
-            }
-            addRenderableWidget(new FSButton(rightX, line, rightW, CONTROL_HEIGHT,
-                    Component.literal("\u00a77" + option.label() + ": \u00a7f"
-                            + option.currentLabel(entityData)),
-                    FSGui.PANEL_BORDER, () -> {
+        int rowsAvailable = geo.variantVisibleRows();
+        for (int i = 0; i < options.size() && i < rowsAvailable; i++) {
+            MobVariants.Option option = options.get(i);
+            button(geo.variantRow(i), "\u00a77" + option.label() + ": \u00a7f"
+                    + option.currentLabel(entityData), () -> {
                         option.cycle(entityData);
                         rebuildWidgets();
-                    }));
-            line += ROW_PITCH;
+                    });
         }
     }
 
-    // ---------------------------------------------------------------- settings tab
+    // ------------------------------------------------------------ settings tab
 
     private void initSettings() {
-        helpLine = "Ajustes de la tienda. Los permisos solo los ve el staff.";
-        int x = bodyX();
-        int y = bodyY();
-        int w = bodyW();
-
-        addLabel("\u00a77Cuenta bancaria donde cobrar", x, y, FSGui.TEXT_DIM);
-        accountBox = new EditBox(font, x + 1, y + 11, w - 2, CONTROL_HEIGHT - 2, Component.literal("Cuenta"));
-        accountBox.setMaxLength(10);
-        accountBox.setValue(linkedAccount > 0 ? String.valueOf(linkedAccount) : "");
-        accountBox.setHint(Component.literal("tu cuenta por defecto"));
-        accountBox.setFilter(text -> text.matches("[0-9]{0,10}"));
-        accountBox.setResponder(text -> {
+        addLabel("\u00a77Cuenta bancaria donde cobrar", geo.settingLabel(0));
+        EditBox account = field(geo.settingControl(0),
+                linkedAccount > 0 ? String.valueOf(linkedAccount) : "", "tu cuenta por defecto", 10);
+        account.setFilter(text -> text.matches("[0-9]{0,10}"));
+        account.setResponder(text -> {
             try {
                 linkedAccount = text.isBlank() ? 0 : Math.max(0, Integer.parseInt(text));
             } catch (NumberFormatException tooBig) {
                 linkedAccount = 0;
             }
         });
-        addRenderableWidget(accountBox);
-        addTooltip(x, y + 11, w, CONTROL_HEIGHT, "\u00a7fNumero de cuenta donde entran las ventas.",
-                "\u00a77Vacio usa la que tengas por defecto.");
-        y += 32;
 
-        addRenderableWidget(new FSButton(x, y, w, CONTROL_HEIGHT,
-                Component.literal(forHire ? "\u00a7aEn traspaso: se vende" : "\u00a77En traspaso: no"),
-                forHire ? FSGui.ACCENT_GREEN : FSGui.PANEL_BORDER, () -> {
-                    forHire = !forHire;
-                    rebuildWidgets();
-                }));
-        addTooltip(x, y, w, CONTROL_HEIGHT, "\u00a7fSi esta activo, otro jugador puede comprar la tienda.");
-        y += ROW_PITCH;
+        addLabel("\u00a77Traspaso de la tienda", geo.settingLabel(1));
+        button(geo.settingControl(1), forHire ? "\u00a7aSe vende a otro jugador" : "\u00a77No se vende", () -> {
+            forHire = !forHire;
+            rebuildWidgets();
+        });
 
-        addLabel(forHire ? "\u00a77Precio de traspaso" : "\u00a78Precio de traspaso", x, y, FSGui.TEXT_DIM);
-        hireBox = new EditBox(font, x + 1, y + 11, w - 2, CONTROL_HEIGHT - 2, Component.literal("Traspaso"));
-        hireBox.setMaxLength(16);
-        hireBox.setValue(hireCostText);
-        hireBox.setHint(Component.literal(forHire ? "0.00" : "activa el traspaso primero"));
-        hireBox.setEditable(forHire);
-        hireBox.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
-        hireBox.setResponder(text -> hireCostText = text);
-        addRenderableWidget(hireBox);
-        y += 32;
+        addLabel(forHire ? "\u00a77Precio de traspaso" : "\u00a78Precio de traspaso", geo.settingLabel(2));
+        EditBox hire = field(geo.settingControl(2), hireCostText,
+                forHire ? "0.00" : "activa el traspaso primero", 16);
+        hire.setEditable(forHire);
+        hire.setFilter(text -> text.isEmpty() || text.matches("[0-9]{0,10}([.,][0-9]{0,2})?"));
+        hire.setResponder(text -> hireCostText = text);
 
-        addLabel("\u00a77Permiso para comerciar \u00a78(solo staff)", x, y, FSGui.TEXT_DIM);
-        permissionBox = new EditBox(font, x + 1, y + 11, w - 2, CONTROL_HEIGHT - 2,
-                Component.literal("Permiso"));
-        permissionBox.setMaxLength(128);
-        permissionBox.setValue(permission);
-        permissionBox.setHint(Component.literal("cualquiera puede comprar"));
-        permissionBox.setResponder(text -> permission = text);
-        addRenderableWidget(permissionBox);
-        y += 32;
+        addLabel("\u00a77Permiso para comerciar \u00a78(solo staff)", geo.settingLabel(3));
+        EditBox perms = field(geo.settingControl(3), permission, "cualquiera puede comprar", 128);
+        perms.setResponder(text -> permission = text);
 
         addLabel(Cash.available()
                 ? "\u00a7aFantastic Currency detectado: se cobra en " + Cash.currencyName() + "."
                 : "\u00a7cFantastic Currency no esta instalado: solo pagos con articulos.",
-                x, y, FSGui.TEXT_DIM);
+                geo.settingLabel(4));
     }
 
-    // ---------------------------------------------------------------- drawing
+    // ------------------------------------------------------------ drawing
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics);
 
+        int leftPos = geo.leftPos();
+        int topPos = geo.topPos();
+        int panelWidth = geo.panelWidth();
+        int panelHeight = geo.panelHeight();
+
         graphics.fill(leftPos, topPos, leftPos + panelWidth, topPos + panelHeight, FSGui.WINDOW_BG);
         graphics.fill(leftPos, topPos, leftPos + panelWidth, topPos + TITLE_HEIGHT, FSGui.TITLE_BAR);
         graphics.fill(leftPos, topPos + panelHeight - 1, leftPos + panelWidth, topPos + panelHeight,
                 FSGui.RULE);
-        int separatorY = separatorY();
+        int separatorY = geo.separatorY();
         graphics.fill(leftPos + 6, separatorY, leftPos + panelWidth - 6, separatorY + 1, FSGui.RULE);
 
         String owner = source.ownerName().isBlank() ? "" : " \u00a77- \u00a7f" + source.ownerName();
@@ -627,129 +509,100 @@ public final class ShopEditorScreen extends Screen {
                 + source.type().title() + owner, leftPos + GUTTER, topPos + 6, 0xFFFFFF, false);
 
         if (!helpLine.isEmpty()) {
-            String trimmed = font.plainSubstrByWidth("\u00a77" + helpLine, panelWidth - GUTTER * 2);
-            graphics.drawString(font, trimmed, leftPos + GUTTER, separatorY + 4, FSGui.HELP_TEXT, false);
-        }
-
-        if (activeTab == Tab.TRADES) {
-            drawTradeIcons(graphics);
+            graphics.drawString(font, font.plainSubstrByWidth("\u00a77" + helpLine, panelWidth - GUTTER * 2),
+                    leftPos + GUTTER, separatorY + 4, FSGui.HELP_TEXT, false);
         }
 
         super.render(graphics, mouseX, mouseY, partialTick);
 
+        // Labels and icons go over the widgets, from the same geometry the widgets came from.
         for (Label label : labels) {
-            graphics.drawString(font, label.text(), label.x(), label.y(), label.colour(), false);
+            int x = label.centreWidth() <= 0 ? label.x()
+                    : label.x() + (label.centreWidth() - font.width(label.text())) / 2;
+            graphics.drawString(font, label.text(), x, label.y(), FSGui.TEXT, false);
         }
-        drawScrollbars(graphics, mouseX, mouseY);
-
-        for (TooltipZone zone : tooltipZones) {
-            if (mouseX >= zone.x() && mouseX < zone.x() + zone.width()
-                    && mouseY >= zone.y() && mouseY < zone.y() + zone.height()) {
-                graphics.renderComponentTooltip(font, zone.lines(), mouseX, mouseY);
-                break;
-            }
+        if (activeTab == Tab.TRADES) {
+            drawTradeIcons(graphics);
+            drawTradeScrollbar(graphics, mouseX, mouseY);
+        } else if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
+            drawMobScrollbar(graphics, mouseX, mouseY);
         }
     }
 
-    /**
-     * The item icons beside the trade rows, and the one in the detail column.
-     *
-     * <p>Drawn by the screen rather than by the row buttons: a button renders its own label and nothing else, and the
-     * space for the icon was reserved to the left of each button precisely so this pass has somewhere to put it.</p>
-     */
     private void drawTradeIcons(GuiGraphics graphics) {
-        int x = bodyX();
-        int y = bodyY();
-        int visible = tradeVisibleRows();
+        int visible = geo.tradeVisibleRows();
         for (int slot = 0; slot < visible; slot++) {
             int index = tradeScroll + slot;
             if (index >= rows.size()) {
                 break;
             }
-            Rect icon = geo.tradeRowIcon(slot);
-            ItemStack stack = rows.get(index).result;
-            if (!stack.isEmpty()) {
-                graphics.renderItem(stack, icon.x(), icon.y());
-                graphics.renderItemDecorations(font, stack, icon.x(), icon.y());
-            } else {
-                FSGui.inset(graphics, icon.x(), icon.y(), icon.width(), icon.height());
-            }
+            drawIcon(graphics, geo.tradeRowIcon(slot), rows.get(index).result);
         }
-
         if (rows.isEmpty()) {
             return;
         }
         Row selected = rows.get(Math.max(0, Math.min(selectedRow, rows.size() - 1)));
-        int detailX = bodyX() + tradeListWidth() + GUTTER;
-        drawSlotIcon(graphics, detailX, bodyY() + 10, selected.result);
-        int payLine = bodyY() + 10 + ROW_PITCH * 3 + 10;
-        int halfW = (bodyW() - tradeListWidth() - GUTTER - 4) / 2;
-        drawSlotIcon(graphics, detailX, payLine, selected.cost1);
-        drawSlotIcon(graphics, detailX + halfW + 4, payLine, selected.cost2);
+        drawIcon(graphics, geo.detailIcon(BLOCK_ITEM), selected.result);
+        drawIcon(graphics, geo.detailIcon(BLOCK_PAY_1), selected.cost1);
+        drawIcon(graphics, geo.detailIcon(BLOCK_PAY_2), selected.cost2);
     }
 
-    private void drawSlotIcon(GuiGraphics graphics, int x, int y, ItemStack stack) {
+    private void drawIcon(GuiGraphics graphics, Rect where, ItemStack stack) {
+        if (where.isEmpty()) {
+            return;
+        }
         if (stack.isEmpty()) {
-            FSGui.inset(graphics, x, y, 18, 18);
+            FSGui.inset(graphics, where.x(), where.y(), where.width(), where.height());
             return;
         }
-        graphics.renderItem(stack, x + 1, y + 1);
-        graphics.renderItemDecorations(font, stack, x + 1, y + 1);
+        graphics.renderItem(stack, where.x() + 1, where.y() + 1);
+        graphics.renderItemDecorations(font, stack, where.x() + 1, where.y() + 1);
     }
 
-    private void drawScrollbars(GuiGraphics graphics, int mouseX, int mouseY) {
-        if (activeTab == Tab.TRADES) {
-            int visible = tradeVisibleRows();
-            if (rows.size() > visible) {
-                int trackX = bodyX() + tradeListWidth() - 6;
-                int trackTop = bodyY();
-                int trackHeight = visible * ROW_PITCH;
-                int maxScroll = rows.size() - visible;
-                int thumbHeight = FSGui.thumbHeight(trackHeight, visible, rows.size());
-                boolean hot = mouseX >= trackX && mouseX < trackX + 5
-                        && mouseY >= trackTop && mouseY < trackTop + trackHeight;
-                FSGui.scrollbar(graphics, trackX, trackTop, 5, trackHeight,
-                        FSGui.thumbTop(trackTop, trackHeight, thumbHeight, tradeScroll, maxScroll),
-                        thumbHeight, hot);
-            }
+    private void drawTradeScrollbar(GuiGraphics graphics, int mouseX, int mouseY) {
+        int visible = geo.tradeVisibleRows();
+        if (rows.size() <= visible) {
             return;
         }
-        if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
-            List<ResourceLocation> choices = mobChoices();
-            int listW = Math.max(130, bodyW() * 52 / 100);
-            int listTop = bodyY() + 32 + ROW_PITCH * 2;
-            int listBottom = bodyY() + bodyH();
-            int visible = Math.max(1, (listBottom - listTop) / ROW_PITCH);
-            if (choices.size() > visible) {
-                int trackX = bodyX() + listW - 6;
-                int trackHeight = visible * ROW_PITCH;
-                int maxScroll = choices.size() - visible;
-                int thumbHeight = FSGui.thumbHeight(trackHeight, visible, choices.size());
-                boolean hot = mouseX >= trackX && mouseX < trackX + 5
-                        && mouseY >= listTop && mouseY < listTop + trackHeight;
-                FSGui.scrollbar(graphics, trackX, listTop, 5, trackHeight,
-                        FSGui.thumbTop(listTop, trackHeight, thumbHeight, mobScroll, maxScroll),
-                        thumbHeight, hot);
-            }
-        }
+        Rect track = geo.tradeScrollbar();
+        int maxScroll = rows.size() - visible;
+        int thumb = FSGui.thumbHeight(track.height(), visible, rows.size());
+        boolean hot = track.contains(mouseX, mouseY);
+        FSGui.scrollbar(graphics, track.x(), track.y(), track.width(), track.height(),
+                FSGui.thumbTop(track.y(), track.height(), thumb, tradeScroll, maxScroll), thumb, hot);
     }
 
-    // ---------------------------------------------------------------- input
+    private void drawMobScrollbar(GuiGraphics graphics, int mouseX, int mouseY) {
+        int total = mobChoices().size();
+        int visible = geo.mobVisibleRows();
+        if (total <= visible || visible <= 0) {
+            return;
+        }
+        Rect track = geo.mobScrollbar();
+        int thumb = FSGui.thumbHeight(track.height(), visible, total);
+        boolean hot = track.contains(mouseX, mouseY);
+        FSGui.scrollbar(graphics, track.x(), track.y(), track.width(), track.height(),
+                FSGui.thumbTop(track.y(), track.height(), thumb, mobScroll, total - visible), thumb, hot);
+    }
+
+    // ------------------------------------------------------------ input
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         int step = (int) -Math.signum(delta);
-        if (activeTab == Tab.TRADES) {
-            int maxScroll = Math.max(0, rows.size() - tradeVisibleRows());
-            int next = Math.max(0, Math.min(tradeScroll + step, maxScroll));
+        if (activeTab == Tab.TRADES && geo.tradeListColumn().contains(mouseX, mouseY)) {
+            int next = Math.max(0, Math.min(tradeScroll + step,
+                    Math.max(0, rows.size() - geo.tradeVisibleRows())));
             if (next != tradeScroll) {
                 tradeScroll = next;
                 rebuildWidgets();
             }
             return true;
         }
-        if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
-            int next = Math.max(0, mobScroll + step);
+        if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING
+                && geo.mobListColumn().contains(mouseX, mouseY)) {
+            int next = Math.max(0, Math.min(mobScroll + step,
+                    Math.max(0, mobChoices().size() - geo.mobVisibleRows())));
             if (next != mobScroll) {
                 mobScroll = next;
                 rebuildWidgets();
@@ -759,37 +612,7 @@ public final class ShopEditorScreen extends Screen {
         return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
-    /**
-     * Right-clicking a payment button clears it.
-     *
-     * <p>Handled before the widgets get the click, because a button only reports being pressed and cannot tell the
-     * screen which mouse button did it.</p>
-     */
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 1 && activeTab == Tab.TRADES && !rows.isEmpty()) {
-            Row row = rows.get(Math.max(0, Math.min(selectedRow, rows.size() - 1)));
-            int detailX = bodyX() + tradeListWidth() + GUTTER;
-            int detailW = bodyW() - tradeListWidth() - GUTTER;
-            int payLine = bodyY() + 10 + ROW_PITCH * 3 + 10;
-            int halfW = (detailW - 4) / 2;
-            if (mouseY >= payLine && mouseY < payLine + CONTROL_HEIGHT) {
-                if (mouseX >= detailX && mouseX < detailX + halfW) {
-                    row.cost1 = ItemStack.EMPTY;
-                    rebuildWidgets();
-                    return true;
-                }
-                if (mouseX >= detailX + halfW + 4 && mouseX < detailX + detailW) {
-                    row.cost2 = ItemStack.EMPTY;
-                    rebuildWidgets();
-                    return true;
-                }
-            }
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    // ---------------------------------------------------------------- saving
+    // ------------------------------------------------------------ saving
 
     private void save() {
         List<TradeOffer> offers = new ArrayList<>(rows.size());

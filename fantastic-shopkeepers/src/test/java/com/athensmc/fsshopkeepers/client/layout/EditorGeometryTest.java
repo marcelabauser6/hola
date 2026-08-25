@@ -153,6 +153,105 @@ public final class EditorGeometryTest {
         if (!variants.isEmpty() && !variants.within(geometry.body())) {
             failures.add(at + ": la columna de variantes se sale del cuerpo");
         }
+        Rect nameField = geometry.nameField();
+        Rect firstKind = geometry.kindButton(0, 3);
+        if (nameField.overlaps(firstKind)) {
+            failures.add(at + ": el campo de nombre se solapa con los botones de cuerpo");
+        }
+        if (firstKind.overlaps(mobs) || firstKind.overlaps(variants)) {
+            failures.add(at + ": los botones de cuerpo invaden las columnas");
+        }
+        Map<String, Rect> kinds = new LinkedHashMap<>();
+        for (int i = 0; i < 3; i++) {
+            kinds.put("cuerpo" + i, geometry.kindButton(i, 3));
+        }
+        assertNoOverlaps(kinds, at + " botones de cuerpo");
+        Map<String, Rect> mobRows = new LinkedHashMap<>();
+        for (int slot = 0; slot < geometry.mobVisibleRows(); slot++) {
+            mobRows.put("mob" + slot, geometry.mobRow(slot));
+        }
+        assertNoOverlaps(mobRows, at + " filas de mobs");
+        for (Map.Entry<String, Rect> row : mobRows.entrySet()) {
+            if (!row.getValue().within(mobs)) {
+                failures.add(at + ": " + row.getKey() + " se sale de su columna");
+            }
+            if (row.getValue().overlaps(geometry.mobScrollbar())) {
+                failures.add(at + ": " + row.getKey() + " queda bajo la barra de desplazamiento");
+            }
+        }
+        Map<String, Rect> variantRows = new LinkedHashMap<>();
+        variantRows.put("cabecera", geometry.variantsHeader());
+        for (int slot = 0; slot < geometry.variantVisibleRows(); slot++) {
+            variantRows.put("variante" + slot, geometry.variantRow(slot));
+        }
+        assertNoOverlaps(variantRows, at + " filas de variantes");
+
+        checkDetailBlocks(at, geometry);
+        checkSettingBlocks(at, geometry);
+    }
+
+    /**
+     * The detail column, block by block.
+     *
+     * <p>This is the part that was actually broken: the item icons, the choose buttons and the quantity steppers were
+     * positioned by three different formulas and ended up on top of each other. Every piece of every block is checked
+     * against every other piece here.</p>
+     */
+    private static void checkDetailBlocks(String at, EditorGeometry geometry) {
+        Rect column = geometry.tradeDetailColumn();
+        Map<String, Rect> pieces = new LinkedHashMap<>();
+        for (int block = 0; block < 5; block++) {
+            Rect label = geometry.detailLabel(block);
+            Rect control = geometry.detailControl(block);
+            if (label.overlaps(control)) {
+                failures.add(at + ": en el bloque " + block + " la etiqueta se solapa con su control");
+            }
+            pieces.put("etiqueta" + block, label);
+            pieces.put("icono" + block, geometry.detailIcon(block));
+            pieces.put("boton" + block, geometry.detailControlAfterIconBeforeStepper(block));
+            pieces.put("menos" + block, geometry.stepperMinus(block));
+            pieces.put("cuenta" + block, geometry.stepperCount(block));
+            pieces.put("mas" + block, geometry.stepperPlus(block));
+
+            for (Rect piece : List.of(label, control, geometry.detailIcon(block),
+                    geometry.detailControlAfterIcon(block), geometry.stepperPlus(block))) {
+                if (!piece.isEmpty() && !piece.within(column)) {
+                    failures.add(at + ": una pieza del bloque " + block + " se sale de la columna " + piece);
+                }
+            }
+            // The choose button must survive: without it an admin cannot pick an item at all.
+            if (!control.isEmpty() && geometry.detailControlAfterIconBeforeStepper(block).isEmpty()) {
+                failures.add(at + ": el boton del bloque " + block + " no cabe junto a su stepper");
+            }
+        }
+        assertNoOverlaps(pieces, at + " piezas de los bloques de detalle");
+
+        Rect status = geometry.detailStatus(5);
+        if (!status.isEmpty() && !status.within(column)) {
+            failures.add(at + ": la linea de estado se sale de la columna");
+        }
+        if (status.overlaps(geometry.detailControl(4))) {
+            failures.add(at + ": la linea de estado se solapa con el ultimo bloque");
+        }
+    }
+
+    private static void checkSettingBlocks(String at, EditorGeometry geometry) {
+        Map<String, Rect> pieces = new LinkedHashMap<>();
+        for (int block = 0; block < 5; block++) {
+            Rect label = geometry.settingLabel(block);
+            Rect control = geometry.settingControl(block);
+            if (label.overlaps(control)) {
+                failures.add(at + ": en el ajuste " + block + " la etiqueta se solapa con su control");
+            }
+            pieces.put("etiqueta" + block, label);
+            pieces.put("control" + block, control);
+            for (Rect piece : List.of(label, control)) {
+                if (!piece.isEmpty() && !piece.within(geometry.body())) {
+                    failures.add(at + ": una pieza del ajuste " + block + " se sale del cuerpo");
+                }
+            }
+        }
+        assertNoOverlaps(pieces, at + " piezas de los ajustes");
     }
 
     /** Tabs should finish flush with their band, so the row does not look ragged. */

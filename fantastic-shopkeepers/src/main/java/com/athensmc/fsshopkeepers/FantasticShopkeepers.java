@@ -67,6 +67,7 @@ public final class FantasticShopkeepers {
                 FMLJavaModLoadingContext.get().getModEventBus();
         modEventBus.addListener(this::setup);
         com.athensmc.fsshopkeepers.menu.ModMenus.register(modEventBus);
+        com.athensmc.fsshopkeepers.item.ModItems.register(modEventBus);
         // Registered in the constructor rather than in setup: the channel must exist before any client can
         // negotiate its version, and setup runs after that negotiation for a client joining a live server.
         com.athensmc.fsshopkeepers.net.Net.register();

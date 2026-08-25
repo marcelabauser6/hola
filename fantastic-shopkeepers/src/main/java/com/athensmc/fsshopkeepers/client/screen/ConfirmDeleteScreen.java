@@ -1,9 +1,9 @@
 package com.athensmc.fsshopkeepers.client.screen;
 
 import com.athensmc.fsshopkeepers.client.theme.FSGui;
-import com.athensmc.fsshopkeepers.client.widget.FSButton;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -52,11 +52,12 @@ public final class ConfirmDeleteScreen extends Screen {
         topPos = (height - PANEL_HEIGHT) / 2;
         int buttonY = topPos + PANEL_HEIGHT - 26;
 
-        addRenderableWidget(new FSButton(leftPos + GUTTER, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT,
-                Component.literal("Cancelar"), FSGui.PANEL_BORDER, this::onClose));
-        addRenderableWidget(new FSButton(leftPos + PANEL_WIDTH - GUTTER - BUTTON_WIDTH, buttonY, BUTTON_WIDTH,
-                BUTTON_HEIGHT, Component.literal("\u00a7cSi, borrarla"), FSGui.ACCENT_RED,
-                parent::confirmDelete));
+        addRenderableWidget(Button.builder(Component.literal("Cancelar"), pressed -> onClose())
+                .bounds(leftPos + GUTTER, buttonY, BUTTON_WIDTH, BUTTON_HEIGHT).build());
+        addRenderableWidget(Button.builder(Component.literal("\u00a7cSi, borrarla"),
+                pressed -> parent.confirmDelete())
+                .bounds(leftPos + PANEL_WIDTH - GUTTER - BUTTON_WIDTH, buttonY, BUTTON_WIDTH,
+                        BUTTON_HEIGHT).build());
     }
 
     @Override

@@ -1,9 +1,9 @@
 package com.athensmc.fsshopkeepers.client.screen;
 
 import com.athensmc.fsshopkeepers.client.theme.FSGui;
-import com.athensmc.fsshopkeepers.client.widget.FSButton;
 
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -86,16 +86,17 @@ public final class ItemPickerScreen extends Screen {
         addRenderableWidget(searchBox);
         setInitialFocus(searchBox);
 
-        addRenderableWidget(new FSButton(leftPos + panelWidth - GUTTER - toggleWidth, topPos + 24, toggleWidth,
-                CONTROL_HEIGHT, Component.literal(inventoryOnly ? "\u00a7aMi inventario" : "\u00a7fTodo el juego"),
-                inventoryOnly ? FSGui.ACCENT_GREEN : FSGui.ACCENT_BLUE, () -> {
+        addRenderableWidget(Button.builder(
+                Component.literal(inventoryOnly ? "\u00a7f\u00a7lMi inventario" : "\u00a77Todo el juego"),
+                pressed -> {
                     inventoryOnly = !inventoryOnly;
                     rebuild();
                     rebuildWidgets();
-                }));
+                }).bounds(leftPos + panelWidth - GUTTER - toggleWidth, topPos + 24, toggleWidth,
+                        CONTROL_HEIGHT).build());
 
-        addRenderableWidget(new FSButton(leftPos + GUTTER, topPos + panelHeight - 24, 80, CONTROL_HEIGHT,
-                Component.literal("Cerrar"), FSGui.PANEL_BORDER, this::onClose));
+        addRenderableWidget(Button.builder(Component.literal("Cerrar"), pressed -> onClose())
+                .bounds(leftPos + GUTTER, topPos + panelHeight - 24, 80, CONTROL_HEIGHT).build());
 
         rebuild();
     }
