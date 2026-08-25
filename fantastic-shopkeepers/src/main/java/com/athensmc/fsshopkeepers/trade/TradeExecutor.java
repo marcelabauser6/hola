@@ -55,15 +55,13 @@ public final class TradeExecutor {
      * none of which tolerate concurrent access.</p>
      */
     public static Result trade(ServerPlayer buyer, Shopkeeper shop, TradeOffer offer, int times) {
-        ShopConfig config = ShopConfig.get();
+        // Nothing stops an owner buying from their own shop. Changing the default was not enough: a server that had
+        // already written its config file kept the old value, so the refusal has been taken out altogether.
         if (times <= 0) {
             return Result.no("Cantidad invalida.");
         }
         if (!offer.isComplete()) {
             return Result.no("Ese trato esta incompleto.");
-        }
-        if (config.preventTradingWithOwnShop && shop.isOwner(buyer.getUUID())) {
-            return Result.no("No puedes comerciar con tu propia tienda.");
         }
         if (!shop.tradePermission().isBlank()
                 && !FantasticShopkeepers.hasPermission(buyer, shop.tradePermission())) {

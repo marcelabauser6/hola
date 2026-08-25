@@ -19,12 +19,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -227,29 +225,27 @@ public final class ShopEvents {
     }
 
     /**
-     * Bringing a chunk's shops back when it loads.
+     * Decides what a shop body is when it loads.
      *
-     * <p>A shop's mob is an ordinary entity, so anything that removes entities can remove it: a chunk purge, a crash,
-     * another mod's cleanup. Re-spawning on chunk load means the shop reappears instead of becoming a row in the registry
-     * with nothing to click.</p>
+     * <p>This replaces spawning bodies on chunk load, which was creating duplicates. In 1.20.1 entities live in a store of
+     * their own that loads separately from the chunk, so at {@code ChunkEvent.Load} the shop's mob is usually not registered
+     * yet: {@code level.getEntity} answered null, the shop looked bodyless, and a second one was created. Every chunk reload
+     * could add another.</p>
+     *
+     * <p>Now nothing is created here. A body that loads is either the one the shop expects, one the shop can adopt because it
+     * had lost track of its own, or a leftover that gets removed - which also clears up the duplicates already made.</p>
      */
     @SubscribeEvent
-    public static void onChunkLoad(ChunkEvent.Load event) {
+    public static void onEntityJoin(EntityJoinLevelEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level)) {
             return;
         }
-        if (!(event.getChunk() instanceof LevelChunk chunk)) {
+        if (!ShopSpawner.isShopEntity(event.getEntity())) {
             return;
         }
-        ChunkPos chunkPos = chunk.getPos();
         ShopRegistry registry = ShopRegistry.get(level.getServer());
-        for (Shopkeeper shop : registry.all()) {
-            if (!shop.objectKind().hasEntity() || !shop.level().equals(level.dimension())) {
-                continue;
-            }
-            if (new ChunkPos(shop.pos()).equals(chunkPos)) {
-                ShopSpawner.ensureSpawned(level, shop, registry);
-            }
+        if (ShopSpawner.reconcileLoadedBody(event.getEntity(), registry)) {
+            event.setCanceled(true);
         }
     }
 }

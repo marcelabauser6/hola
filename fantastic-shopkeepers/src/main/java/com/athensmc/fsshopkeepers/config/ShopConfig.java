@@ -77,15 +77,6 @@ public final class ShopConfig {
     /** Whether every trade is written to the server log. */
     public boolean logTrades = false;
 
-    /**
-     * Whether a player is stopped from buying at a shop they own.
-     *
-     * <p>Off by default. On a server where the shops are the server's own, the person who set one up is also a customer of
-     * it, and refusing them is just an obstacle. Turn it on if shops are meant to be private businesses and buying from
-     * yourself would be a way to launder money.</p>
-     */
-    public boolean preventTradingWithOwnShop = false;
-
     /** How many rows of trades one shop may hold. */
     public int maxTradesPerShop = 45;
 

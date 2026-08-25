@@ -215,13 +215,61 @@ public final class ShopSpawner {
         }
     }
 
-    /** Removes a shop's mob from the world, leaving the shop itself registered. */
+    /**
+     * Removes a shop's mob from the world, leaving the shop itself registered.
+     *
+     * <p>The chunk is loaded first. {@link ServerLevel#getEntity} only knows about entities that are loaded, so despawning
+     * a shop nobody is standing near found nothing, cleared the recorded uuid, and left the old body in the world - which is
+     * how moving a shop ended up with two of them.</p>
+     */
     public static void despawn(ServerLevel level, Shopkeeper shop, ShopRegistry registry) {
+        if (shop.entityId() != null) {
+            // Forces the chunk in, so the body is reachable even if no player is nearby.
+            level.getChunk(shop.pos());
+        }
         Entity entity = findEntity(level, shop);
         if (entity != null) {
             entity.discard();
+        } else if (shop.entityId() != null) {
+            FantasticShopkeepers.LOGGER.warn(
+                    "No se encontro el cuerpo {} de la tienda {} para retirarlo; si reaparece se limpiara al cargar.",
+                    shop.entityId(), shop.id());
         }
         shop.setEntityId(null);
         registry.refresh(shop);
+    }
+
+    /**
+     * Decides what to do with a shop body that has just loaded.
+     *
+     * <p>A mob carrying a shop tag whose shop no longer points at it is a leftover: the shop already has another body, so
+     * this one is removed. A tag whose shop points at nothing is adopted instead, which recovers a shop whose body could not
+     * be found when it should have been removed.</p>
+     *
+     * @return true when the entity was discarded.
+     */
+    public static boolean reconcileLoadedBody(Entity entity, ShopRegistry registry) {
+        UUID shopId = shopIdOf(entity);
+        if (shopId == null) {
+            return false;
+        }
+        Shopkeeper shop = registry.byId(shopId);
+        if (shop == null || !shop.objectKind().hasEntity()) {
+            // The shop is gone, so its body has no reason to exist.
+            entity.discard();
+            return true;
+        }
+        UUID recorded = shop.entityId();
+        if (recorded == null) {
+            shop.setEntityId(entity.getUUID());
+            registry.refresh(shop);
+            return false;
+        }
+        if (!recorded.equals(entity.getUUID())) {
+            FantasticShopkeepers.LOGGER.info("Retirado un tendero duplicado de la tienda {}.", shop.id());
+            entity.discard();
+            return true;
+        }
+        return false;
     }
 }
