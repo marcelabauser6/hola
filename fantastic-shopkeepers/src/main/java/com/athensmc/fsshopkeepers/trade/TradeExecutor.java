@@ -118,9 +118,10 @@ public final class TradeExecutor {
             if (!Cash.available()) {
                 return Result.no("El sistema de dinero no esta disponible ahora mismo.");
             }
-            if (Cash.balance(buyer.server, buyer.getUUID()) < price) {
-                return Result.no("No tienes suficiente " + Cash.currencyName() + ". Cuesta "
-                        + Cash.format(price) + ".");
+            long available = Cash.spendable(buyer.server, buyer.getUUID());
+            if (available < price) {
+                return Result.no("Cuesta " + Cash.format(price) + " y solo tienes "
+                        + Cash.format(available) + ".");
             }
             if (!Cash.charge(buyer.server, buyer.getUUID(), price)) {
                 return Result.no("No se pudo cobrar el importe. Revisa tu cuenta bancaria.");
@@ -181,7 +182,7 @@ public final class TradeExecutor {
         if (shop.owner() == null) {
             return Result.no("Esta tienda no tiene dueño que pague.");
         }
-        if (Cash.balance(buyer.server, shop.owner()) < payout) {
+        if (Cash.spendable(buyer.server, shop.owner()) < payout) {
             return Result.no("El dueño no tiene saldo para pagarte.");
         }
         // The owner pays first: if that fails there is nothing to undo.

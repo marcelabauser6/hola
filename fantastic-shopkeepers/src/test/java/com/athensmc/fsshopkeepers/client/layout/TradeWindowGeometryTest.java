@@ -118,6 +118,32 @@ public final class TradeWindowGeometryTest {
         if (slotPlus.isEmpty()) {
             failures.add(at + ": no hay sitio para el mas entre los dos huecos de pago");
         }
+
+        // The lone payment must sit between the two vanilla positions, closer to the arrow than the first one, and
+        // its well must stay inside the window.
+        Rect single = TradeWindowGeometry.slotPaymentSingle(leftPos, topPos);
+        Rect slotA = TradeWindowGeometry.slotPaymentA(leftPos, topPos);
+        Rect slotB = TradeWindowGeometry.slotPaymentB(leftPos, topPos);
+        Rect result = TradeWindowGeometry.slotResult(leftPos, topPos);
+        if (single.x() <= slotA.x() || single.x() >= slotB.x()) {
+            failures.add(at + ": el hueco unico no queda entre los dos de vanilla");
+        }
+        if (single.x() - slotA.x() != slotB.x() - single.x()) {
+            failures.add(at + ": el hueco unico no queda centrado entre los dos");
+        }
+        if (single.overlaps(result)) {
+            failures.add(at + ": el hueco unico se solapa con el resultado");
+        }
+        if (single.width() != TradeWindowGeometry.ITEM || single.height() != TradeWindowGeometry.ITEM) {
+            failures.add(at + ": el hueco unico no mide 16x16");
+        }
+        Rect well = TradeWindowGeometry.wellAround(single);
+        if (!well.within(window)) {
+            failures.add(at + ": el marco del hueco unico se sale de la ventana");
+        }
+        if (well.width() != TradeWindowGeometry.ITEM + 2) {
+            failures.add(at + ": el marco del hueco no rodea al item por un pixel");
+        }
         for (Map.Entry<String, Rect> slot : slots.entrySet()) {
             if (!slot.getValue().within(window)) {
                 failures.add(at + ": " + slot.getKey() + " se sale de la ventana");

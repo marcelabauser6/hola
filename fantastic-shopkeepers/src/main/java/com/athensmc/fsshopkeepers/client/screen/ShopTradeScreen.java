@@ -65,6 +65,17 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
 
     private static final int VANILLA_TEXT = 0x404040;
 
+    /**
+     * Vanilla's container background and the three tones it shades a slot well with.
+     *
+     * <p>Needed because a well has to be hidden and another drawn somewhere vanilla never put one, and the texture only
+     * contains wells at vanilla's own positions.</p>
+     */
+    private static final int GUI_BACKGROUND = 0xFFC6C6C6;
+    private static final int SLOT_FILL = 0xFF8B8B8B;
+    private static final int SLOT_SHADOW = 0xFF373737;
+    private static final int SLOT_HIGHLIGHT = 0xFFFFFFFF;
+
     private final Button[] tradeButtons = new Button[NUMBER_OF_OFFER_BUTTONS];
 
     private int selected;
@@ -245,14 +256,29 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
     }
 
     private void renderSelectedTrade(GuiGraphics graphics, ShopTradeMenu.OfferView offer) {
-        graphics.pose().pushPose();
-        graphics.pose().translate(0.0F, 0.0F, 100.0F);
         Payment costA = paymentA(offer);
         Payment costB = paymentB(offer);
-        drawPayment(graphics, costA, slotPaymentARect());
-        drawPayment(graphics, costB, slotPaymentBRect());
-        if (!costA.isEmpty() && !costB.isEmpty()) {
+        boolean bothPayments = !costA.isEmpty() && !costB.isEmpty();
+
+        // With a single payment, vanilla's two baked-in wells are painted over and one well is drawn between them.
+        // An empty second well reads as a slot that failed to fill, and it stranded the price at the far left,
+        // away from the arrow.
+        if (!bothPayments) {
+            paintOverWell(graphics, TradeWindowGeometry.wellAround(slotPaymentARect()));
+            paintOverWell(graphics, TradeWindowGeometry.wellAround(slotPaymentBRect()));
+            drawWell(graphics, TradeWindowGeometry.wellAround(
+                    TradeWindowGeometry.slotPaymentSingle(leftPos, topPos)));
+        }
+
+        graphics.pose().pushPose();
+        graphics.pose().translate(0.0F, 0.0F, 100.0F);
+        if (bothPayments) {
+            drawPayment(graphics, costA, slotPaymentARect());
+            drawPayment(graphics, costB, slotPaymentBRect());
             drawPlus(graphics, TradeWindowGeometry.slotPaymentPlus(leftPos, topPos));
+        } else {
+            Payment only = costA.isEmpty() ? costB : costA;
+            drawPayment(graphics, only, TradeWindowGeometry.slotPaymentSingle(leftPos, topPos));
         }
         Rect result = slotResultRect();
         if (!offer.result().isEmpty()) {
@@ -273,6 +299,30 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             graphics.renderItemDecorations(font, payment.stack(), where.x(), where.y(),
                     payment.countOverride());
         }
+    }
+
+    /** Paints vanilla's container grey over a slot well, to hide one this trade does not use. */
+    private void paintOverWell(GuiGraphics graphics, Rect well) {
+        if (!well.isEmpty()) {
+            graphics.fill(well.x(), well.y(), well.right(), well.bottom(), GUI_BACKGROUND);
+        }
+    }
+
+    /**
+     * Draws a slot well the way vanilla shades one.
+     *
+     * <p>Dark along the top and left, light along the bottom and right, mid grey inside. Redrawn rather than blitted from
+     * the texture because the well is being moved, and the texture only has wells where vanilla put them.</p>
+     */
+    private void drawWell(GuiGraphics graphics, Rect well) {
+        if (well.isEmpty()) {
+            return;
+        }
+        graphics.fill(well.x(), well.y(), well.right(), well.bottom(), SLOT_FILL);
+        graphics.fill(well.x(), well.y(), well.right() - 1, well.y() + 1, SLOT_SHADOW);
+        graphics.fill(well.x(), well.y(), well.x() + 1, well.bottom() - 1, SLOT_SHADOW);
+        graphics.fill(well.x() + 1, well.bottom() - 1, well.right(), well.bottom(), SLOT_HIGHLIGHT);
+        graphics.fill(well.right() - 1, well.y() + 1, well.right(), well.bottom(), SLOT_HIGHLIGHT);
     }
 
     /**
@@ -327,9 +377,19 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         }
 
         ShopTradeMenu.OfferView offer = offers.get(selected);
-        if (showTooltip(graphics, mouseX, mouseY, slotPaymentARect(), paymentA(offer).stack())
-                || showTooltip(graphics, mouseX, mouseY, slotPaymentBRect(), paymentB(offer).stack())) {
-            return;
+        Payment costA = paymentA(offer);
+        Payment costB = paymentB(offer);
+        if (!costA.isEmpty() && !costB.isEmpty()) {
+            if (showTooltip(graphics, mouseX, mouseY, slotPaymentARect(), costA.stack())
+                    || showTooltip(graphics, mouseX, mouseY, slotPaymentBRect(), costB.stack())) {
+                return;
+            }
+        } else {
+            Payment only = costA.isEmpty() ? costB : costA;
+            if (showTooltip(graphics, mouseX, mouseY,
+                    TradeWindowGeometry.slotPaymentSingle(leftPos, topPos), only.stack())) {
+                return;
+            }
         }
         showTooltip(graphics, mouseX, mouseY, slotResultRect(), offer.result());
     }

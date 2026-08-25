@@ -31,7 +31,7 @@ import java.util.List;
 /**
  * The {@code /fskeepers} command.
  *
- * <p>One command with six subcommands, and that is the whole surface. Shopkeepers had twenty-five, most of which
+ * <p>One command with seven subcommands, and that is the whole surface. Shopkeepers had twenty-five, most of which
  * existed to work around not having an editor - {@code setforhire}, {@code settradeperm}, {@code setcurrency} and the
  * rest are all fields on a form here, and a command that duplicates a field is a second place for the same setting to be
  * wrong. What is left is the five things a command is genuinely better at than a screen: making a shop, opening one,
@@ -67,6 +67,7 @@ public final class ShopCommands {
                                 .executes(context -> create(context, ShopType.ADMIN))))
                 .then(Commands.literal("editor").executes(ShopCommands::giveWand))
                 .then(Commands.literal("editar").executes(ShopCommands::edit))
+                .then(Commands.literal("mover").executes(ShopCommands::move))
                 .then(Commands.literal("borrar").executes(ShopCommands::remove))
                 .then(Commands.literal("lista").executes(ShopCommands::list))
                 .then(Commands.literal("recargar").executes(ShopCommands::reload));
@@ -86,6 +87,7 @@ public final class ShopCommands {
         line(source, LABEL + " crear admin", "Crea una tienda de staff con existencias infinitas.");
         line(source, LABEL + " editor", "Te da la varita del editor.");
         line(source, LABEL + " editar", "Abre el editor de la tienda que tengas delante.");
+        line(source, LABEL + " mover", "Trae la tienda que tengas delante a donde estas.");
         line(source, LABEL + " borrar", "Borra la tienda que tengas delante.");
         line(source, LABEL + " lista", "Lista tus tiendas y donde estan.");
         line(source, LABEL + " recargar", "Vuelve a leer la configuracion.");
@@ -185,6 +187,71 @@ public final class ShopCommands {
             return 0;
         }
         Net.openEditor(player, shop);
+        return 1;
+    }
+
+    /**
+     * Moves the nearest shop to where the player is standing.
+     *
+     * <p>The body is removed and re-created at the new place rather than teleported, so the mob arrives with its variant and
+     * its flags applied the same way a fresh one would. The registry is re-indexed too: a shop found at its old position
+     * would still be protected there and unprotected where it now stands.</p>
+     *
+     * <p>A shop with a chest may not be moved out of reach of it. Allowing that would leave a shop that looks fine and
+     * refuses every trade, which is harder to diagnose than being told no.</p>
+     */
+    private static int move(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        Shopkeeper shop = nearestShop(player);
+        if (shop == null) {
+            context.getSource().sendFailure(Component.literal(
+                    "No hay ninguna tienda cerca. Acercate a la que quieras mover."));
+            return 0;
+        }
+        if (!EditorAccess.mayEdit(player, shop)) {
+            context.getSource().sendFailure(Component.literal("Esa tienda no es tuya."));
+            return 0;
+        }
+        if (!shop.objectKind().isPlaced()) {
+            context.getSource().sendFailure(Component.literal(
+                    "Una tienda virtual no esta en ningun sitio, asi que no se puede mover."));
+            return 0;
+        }
+
+        BlockPos target = player.blockPosition();
+        if (target.equals(shop.pos())) {
+            context.getSource().sendFailure(Component.literal("La tienda ya esta justo ahi."));
+            return 0;
+        }
+
+        ShopRegistry registry = ShopRegistry.get(player.server);
+        if (registry.byPosition(player.level().dimension(), target) != null) {
+            context.getSource().sendFailure(Component.literal("Ya hay otra tienda en ese sitio."));
+            return 0;
+        }
+        if (shop.containerPos() != null) {
+            double distance = Math.sqrt(shop.containerPos().distSqr(target));
+            int max = ShopConfig.get().maxContainerDistance;
+            if (distance > max) {
+                context.getSource().sendFailure(Component.literal("Ahi quedaria a " + (int) distance
+                        + " bloques de su cofre y el maximo es " + max
+                        + ". Muevete mas cerca del cofre."));
+                return 0;
+            }
+        }
+
+        ServerLevel level = player.serverLevel();
+        ShopSpawner.despawn(level, shop, registry);
+        shop.setLevel(level.dimension());
+        shop.setPos(target);
+        registry.refresh(shop);
+        ShopSpawner.ensureSpawned(level, shop, registry);
+
+        context.getSource().sendSuccess(() -> Component.literal("Tienda movida a "
+                + target.toShortString() + ".").withStyle(ChatFormatting.GREEN), false);
         return 1;
     }
 

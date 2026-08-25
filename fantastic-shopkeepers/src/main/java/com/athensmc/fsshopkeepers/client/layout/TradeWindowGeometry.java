@@ -116,6 +116,24 @@ public final class TradeWindowGeometry {
         return new Rect(leftPos + SLOT_PAYMENT_A_X, topPos + SLOT_Y, ITEM, ITEM);
     }
 
+    /**
+     * Where a lone payment goes: centred between the two slot positions.
+     *
+     * <p>Vanilla always draws two input wells because a villager trade can want two stacks. Most shop trades want one, and
+     * leaving the second well empty looked like a slot that had failed to fill. With one payment the well is drawn once,
+     * midway between the two, which also brings it nearer the arrow instead of stranding it at the far left.</p>
+     */
+    public static Rect slotPaymentSingle(int leftPos, int topPos) {
+        int x = leftPos + (SLOT_PAYMENT_A_X + SLOT_PAYMENT_B_X) / 2;
+        return new Rect(x, topPos + SLOT_Y, ITEM, ITEM);
+    }
+
+    /** The 18x18 well behind a slot, one pixel out from the item on every side. */
+    public static Rect wellAround(Rect item) {
+        return item.isEmpty() ? Rect.EMPTY
+                : new Rect(item.x() - 1, item.y() - 1, item.width() + 2, item.height() + 2);
+    }
+
     public static Rect slotPaymentB(int leftPos, int topPos) {
         return new Rect(leftPos + SLOT_PAYMENT_B_X, topPos + SLOT_Y, ITEM, ITEM);
     }

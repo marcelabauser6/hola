@@ -31,6 +31,17 @@ public final class Cash {
 
     private static final String API_CLASS = "com.athensmc.athenscoins.api.FantasticCurrencyAPI";
 
+    /**
+     * The bank's own manager, for the one thing the public API does not offer.
+     *
+     * <p>Fantastic Currency keeps a player's money as a bank principal and lends a small spendable float to their wallet.
+     * {@code FantasticCurrencyAPI.charge} only ever debits that float, so a player with eighteen thousand on their card and
+     * an empty wallet was told they could not afford anything. {@code BankManager.debitAccount} takes it from the principal,
+     * which is what a shop should do, and it is public even though the API does not re-export it.</p>
+     */
+    private static final String BANK_MANAGER_CLASS = "com.athensmc.athenscoins.bank.BankManager";
+    private static final String LEDGER_KIND_CLASS = "com.athensmc.athenscoins.bank.LedgerEntry$Kind";
+
     /** The currency mod's id, for the dependency notice in the logs. */
     public static final String CURRENCY_MOD_ID = "athens_coins";
 
@@ -44,6 +55,11 @@ public final class Cash {
     private static MethodHandle currencyName;
     private static MethodHandle formatCents;
     private static MethodHandle displayBalance;
+    private static MethodHandle getAccountBalance;
+
+    /** {@code BankManager.debitAccount}, and the ledger reason to record against it. */
+    private static MethodHandle debitAccount;
+    private static Object shopPurchaseKind;
 
     private static boolean available;
 
@@ -93,7 +109,10 @@ public final class Cash {
                     MethodType.methodType(String.class, long.class));
             displayBalance = lookup.findStatic(api, "getDisplayBalance",
                     MethodType.methodType(long.class, Player.class));
+            getAccountBalance = lookup.findStatic(api, "getAccountBalance",
+                    MethodType.methodType(long.class, MinecraftServer.class, UUID.class));
             available = true;
+            bindBankManager(lookup);
             FantasticShopkeepers.LOGGER.info("Fantastic Currency detectado: precios en {} activados.",
                     currencyName());
         } catch (ReflectiveOperationException apiChanged) {
@@ -102,6 +121,33 @@ public final class Cash {
                     "Fantastic Currency esta instalado pero su API no coincide con la esperada ({}). "
                             + "Los precios en Fantastic Cash quedan desactivados para no cobrar de forma "
                             + "inconsistente.", apiChanged.toString());
+        }
+    }
+
+    /**
+     * Binds the bank manager, which is optional.
+     *
+     * <p>Failure here is not fatal: without it the shops fall back to spending only the wallet float, which is what they did
+     * before. It is logged as a warning because that fallback is a worse experience, not a broken one.</p>
+     */
+    private static void bindBankManager(MethodHandles.Lookup lookup) {
+        try {
+            Class<?> bankManager = Class.forName(BANK_MANAGER_CLASS);
+            Class<?> kindClass = Class.forName(LEDGER_KIND_CLASS);
+            debitAccount = lookup.findStatic(bankManager, "debitAccount",
+                    MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, long.class,
+                            kindClass, String.class, String.class));
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            Object kind = Enum.valueOf((Class<Enum>) kindClass, "SHOP_PURCHASE");
+            shopPurchaseKind = kind;
+            FantasticShopkeepers.LOGGER.info(
+                    "Fantastic Currency: las compras podran cobrarse de la cuenta del banco y no solo de la cartera.");
+        } catch (ReflectiveOperationException | RuntimeException notThere) {
+            debitAccount = null;
+            shopPurchaseKind = null;
+            FantasticShopkeepers.LOGGER.warn(
+                    "Fantastic Currency: no se encontro BankManager.debitAccount ({}), asi que las compras solo "
+                            + "podran gastar el saldo de la cartera.", notThere.toString());
         }
     }
 
@@ -168,6 +214,38 @@ public final class Cash {
         return player == null ? 0L : balance(player.server, player.getUUID());
     }
 
+    /** The principal held in the player's bank account: the money on their card. */
+    public static long accountBalance(MinecraftServer server, UUID player) {
+        if (!available || server == null || player == null) {
+            return 0L;
+        }
+        try {
+            return (long) getAccountBalance.invokeExact(server, player);
+        } catch (Throwable failed) {
+            logCallFailure("consultar la cuenta", failed);
+            return 0L;
+        }
+    }
+
+    /**
+     * Everything a player can actually spend: the wallet float plus the bank principal.
+     *
+     * <p>This is the figure a shop must compare a price against. The wallet alone is a small withdrawal limit, and judging
+     * affordability by it tells a player with a full account that they are broke.</p>
+     */
+    public static long spendable(MinecraftServer server, UUID player) {
+        long wallet = balance(server, player);
+        if (debitAccount == null) {
+            return wallet;
+        }
+        long account = accountBalance(server, player);
+        return Money.canAdd(wallet, account) ? wallet + account : Money.MAX_CENTS;
+    }
+
+    public static long spendable(ServerPlayer player) {
+        return player == null ? 0L : spendable(player.server, player.getUUID());
+    }
+
     /**
      * Takes money from a buyer.
      *
@@ -179,12 +257,60 @@ public final class Cash {
         if (!available || server == null || player == null || cents <= 0L) {
             return false;
         }
+        long wallet = balance(server, player);
+        if (wallet >= cents) {
+            return chargeWallet(server, player, cents);
+        }
+        if (debitAccount == null) {
+            // No way to reach the principal, so the wallet is all there is.
+            return chargeWallet(server, player, cents);
+        }
+        if (wallet <= 0L) {
+            return chargeAccount(server, player, cents);
+        }
+        // Split across both. The wallet goes first because it is the smaller pot, and if the account refuses the
+        // remainder the wallet is put back rather than leaving the player short of goods and money.
+        if (!chargeWallet(server, player, wallet)) {
+            return chargeAccount(server, player, cents);
+        }
+        if (chargeAccount(server, player, cents - wallet)) {
+            return true;
+        }
+        if (!depositToWalletOrAccount(server, player, wallet)) {
+            FantasticShopkeepers.LOGGER.error(
+                    "Se cobraron {} de la cartera de {} y el resto fallo, y la devolucion tambien. Revisar a mano.",
+                    wallet, player);
+        }
+        return false;
+    }
+
+    private static boolean chargeWallet(MinecraftServer server, UUID player, long cents) {
         try {
             return (boolean) charge.invokeExact(server, player, cents);
         } catch (Throwable failed) {
-            logCallFailure("cobrar", failed);
+            logCallFailure("cobrar de la cartera", failed);
             return false;
         }
+    }
+
+    /** Takes money straight from the bank principal, which is where a player's savings live. */
+    private static boolean chargeAccount(MinecraftServer server, UUID player, long cents) {
+        if (debitAccount == null || cents <= 0L) {
+            return false;
+        }
+        try {
+            Object result = debitAccount.invoke(server, player, cents, shopPurchaseKind,
+                    "compra en tienda", "fsshopkeepers");
+            return result instanceof Boolean ok && ok;
+        } catch (Throwable failed) {
+            logCallFailure("cobrar de la cuenta", failed);
+            return false;
+        }
+    }
+
+    /** Puts money back after a half-completed charge, preferring the account so no ceiling can refuse it. */
+    private static boolean depositToWalletOrAccount(MinecraftServer server, UUID player, long cents) {
+        return deposit(server, player, cents);
     }
 
     /** Pays money to a player's bank account, used for admin payouts and refunds. */

@@ -691,12 +691,16 @@ public final class ShopEditorScreen extends Screen {
             return;
         }
         if (selected) {
-            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x66E8A33D);
+            // A faint wash plus a bar down the left edge. The first version filled the row with 40% amber, which
+            // came out as a solid brown slab that fought with the text on top of it.
+            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x1AE8A33D);
+            graphics.fill(where.x(), where.y(), where.x() + 2, where.bottom(), 0xCCE8A33D);
         } else if (hovered) {
-            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x33FFFFFF);
+            graphics.fill(where.x(), where.y(), where.right(), where.bottom(), 0x14FFFFFF);
         }
         int textY = where.y() + (where.height() - font.lineHeight) / 2 + 1;
-        graphics.drawString(font, fit(text, where.width() - 6), where.x() + 3, textY, FSGui.TEXT, false);
+        // Indented past the selection bar so the two never touch.
+        graphics.drawString(font, fit(text, where.width() - 10), where.x() + 6, textY, FSGui.TEXT, false);
     }
 
     private void drawTradeRows(GuiGraphics graphics, int mouseX, int mouseY) {
