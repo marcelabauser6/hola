@@ -82,12 +82,12 @@ jar.finalizedBy('reobfJar')
  * <p>Runs on a plain JVM as part of `check`, so a screen that would draw one control over another, or push the
  * footer off the bottom of the window, fails the build rather than being found by looking at it.</p>
  */
-tasks.register('verifyEditorLayout', JavaExec) {
+tasks.register('verifyEditorGeometry', JavaExec) {
     group = 'verification'
     description = 'Comprueba que el editor no solapa controles a ningun tamano de ventana.'
     dependsOn tasks.named('testClasses')
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.athensmc.fsshopkeepers.client.layout.EditorLayoutTest'
+    mainClass = 'com.athensmc.fsshopkeepers.client.layout.EditorGeometryTest'
 }
 
 /** The guard on prices: what an admin types becoming what a buyer is charged. */
@@ -100,6 +100,6 @@ tasks.register('verifyMoney', JavaExec) {
 }
 
 tasks.named('check') {
-    dependsOn tasks.named('verifyEditorLayout')
+    dependsOn tasks.named('verifyEditorGeometry')
     dependsOn tasks.named('verifyMoney')
 }

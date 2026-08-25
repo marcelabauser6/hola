@@ -2,8 +2,6 @@ package com.athensmc.fsshopkeepers.command;
 
 import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.config.ShopConfig;
-import com.athensmc.fsshopkeepers.menu.ShopMenus;
-import com.athensmc.fsshopkeepers.money.Cash;
 import com.athensmc.fsshopkeepers.net.EditorAccess;
 import com.athensmc.fsshopkeepers.net.Net;
 import com.athensmc.fsshopkeepers.shop.ShopCreation;
@@ -12,22 +10,16 @@ import com.athensmc.fsshopkeepers.shop.ShopRegistry;
 import com.athensmc.fsshopkeepers.shop.ShopSpawner;
 import com.athensmc.fsshopkeepers.shop.ShopType;
 import com.athensmc.fsshopkeepers.shop.Shopkeeper;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -35,100 +27,66 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.List;
 
 /**
- * The {@code /Fskeepers} command and its subcommands.
+ * The {@code /fskeepers} command.
  *
- * <p>Registered twice, as {@code Fskeepers} and as {@code fskeepers}. Brigadier matches literals case-sensitively, so a
- * single capitalised registration would accept {@code /Fskeepers} and reject {@code /fskeepers} - and a command that
- * fails depending on whether the shift key was held is a command people report as broken. Both spellings resolve to the
- * same tree, so there is one implementation and no way for the two to drift.</p>
+ * <p>One command with five subcommands, and that is the whole surface. Shopkeepers had twenty-five, most of which
+ * existed to work around not having an editor - {@code setforhire}, {@code settradeperm}, {@code setcurrency} and the
+ * rest are all fields on a form here, and a command that duplicates a field is a second place for the same setting to be
+ * wrong. What is left is the five things a command is genuinely better at than a screen: making a shop, opening one,
+ * deleting one, listing them, and re-reading the config.</p>
  *
- * <p>Deliberately not registered as {@code /shopkeeper}. On a hybrid server the original plugin may still be installed
- * and would be competing for that name, and whichever registered last would silently win.</p>
- *
- * <p>Brigadier's own permission hook is not used for the staff checks: those go through
- * {@link FantasticShopkeepers#hasPermission}, which can answer from a permissions plugin, whereas Brigadier only knows
- * operator levels.</p>
- *
- * <p>Every subcommand that acts on "the shop in front of you" resolves it the same way, through
- * {@link #nearestShop}, so there is one definition of which shop is meant.</p>
+ * <p>Registered once, in lowercase. Brigadier matches literals case-sensitively, so registering both spellings would put
+ * two entries in the completion popup for what players think of as one command.</p>
  */
 @Mod.EventBusSubscriber(modid = FantasticShopkeepers.MOD_ID)
 public final class ShopCommands {
 
+    /** The command, as players type it and as help text writes it. */
+    public static final String NAME = "fskeepers";
+    public static final String LABEL = "/" + NAME;
+
     /** How far away a shop may be to count as the one the player means. */
     private static final double PICK_RANGE = 8.0D;
-
-    /** The command as it is written in help text and log messages. */
-    public static final String LABEL = "/Fskeepers";
 
     private ShopCommands() {
     }
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(build("Fskeepers"));
-        // The same tree under the lowercase spelling, because Brigadier will not match it otherwise.
-        event.getDispatcher().register(build("fskeepers"));
+        event.getDispatcher().register(build());
     }
 
-    private static LiteralArgumentBuilder<CommandSourceStack> build(String name) {
-        return Commands.literal(name)
+    private static LiteralArgumentBuilder<CommandSourceStack> build() {
+        return Commands.literal(NAME)
                 .executes(ShopCommands::help)
-                .then(Commands.literal("ayuda").executes(ShopCommands::help))
-                .then(Commands.literal("editar").executes(ShopCommands::edit))
-                .then(Commands.literal("info").executes(ShopCommands::info))
-                .then(Commands.literal("borrar").executes(ShopCommands::remove))
-                .then(Commands.literal("lista")
-                        .executes(context -> list(context, null))
-                        .then(Commands.argument("jugador", EntityArgument.player())
-                                .executes(context -> list(context,
-                                        EntityArgument.getPlayer(context, "jugador")))))
-                .then(Commands.literal("dar")
-                        .executes(context -> give(context, null))
-                        .then(Commands.argument("jugador", EntityArgument.player())
-                                .executes(context -> give(context,
-                                        EntityArgument.getPlayer(context, "jugador")))))
-                .then(Commands.literal("traspasar")
-                        .then(Commands.argument("jugador", EntityArgument.player())
-                                .executes(ShopCommands::transfer)))
-                .then(Commands.literal("recargar").executes(ShopCommands::reload))
-                .then(Commands.literal("arreglar").executes(ShopCommands::respawnAll))
                 .then(Commands.literal("crear")
-                        .then(Commands.argument("tipo", StringArgumentType.word())
-                                .suggests((context, builder) -> {
-                                    for (ShopType type : ShopType.values()) {
-                                        builder.suggest(type.id());
-                                    }
-                                    return builder.buildFuture();
-                                })
-                                .executes(context -> create(context, "mob"))
-                                .then(Commands.argument("cuerpo", StringArgumentType.word())
-                                        .suggests((context, builder) -> {
-                                            for (ShopObjectKind kind : ShopObjectKind.values()) {
-                                                builder.suggest(kind.id());
-                                            }
-                                            return builder.buildFuture();
-                                        })
-                                        .executes(context -> create(context,
-                                                StringArgumentType.getString(context, "cuerpo"))))));
+                        .executes(context -> create(context, ShopType.PLAYER_SELL))
+                        .then(Commands.literal("admin")
+                                .executes(context -> create(context, ShopType.ADMIN))))
+                .then(Commands.literal("editar").executes(ShopCommands::edit))
+                .then(Commands.literal("borrar").executes(ShopCommands::remove))
+                .then(Commands.literal("lista").executes(ShopCommands::list))
+                .then(Commands.literal("recargar").executes(ShopCommands::reload));
     }
 
+    /**
+     * The help, which doubles as what a bare {@code /fskeepers} prints.
+     *
+     * <p>Each line says what the command does in terms of what the player will see happen, not in terms of what it sets.
+     * "Crea una tienda y abre el editor" is checkable; "crea un shopkeeper de tipo venta" is not.</p>
+     */
     private static int help(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal("Fantastic Shopkeepers")
+        source.sendSuccess(() -> Component.literal("\u2726 Fantastic Shopkeepers")
                 .withStyle(ChatFormatting.GOLD), false);
-        line(source, LABEL + " crear <admin|venta|compra|trueque|libros> [mob|cartel|virtual]",
-                "Crea una tienda donde estas.");
+        line(source, LABEL + " crear", "Crea una tienda junto al cofre mas cercano y abre el editor.");
+        line(source, LABEL + " crear admin", "Crea una tienda de staff con existencias infinitas.");
         line(source, LABEL + " editar", "Abre el editor de la tienda que tengas delante.");
-        line(source, LABEL + " info", "Muestra los datos de la tienda que tengas delante.");
         line(source, LABEL + " borrar", "Borra la tienda que tengas delante.");
-        line(source, LABEL + " lista [jugador]", "Lista tus tiendas o las de otro jugador.");
-        line(source, LABEL + " dar [jugador]", "Da el objeto para crear tiendas.");
-        line(source, LABEL + " traspasar <jugador>", "Cambia el dueño de la tienda que tengas delante.");
-        line(source, LABEL + " arreglar", "Vuelve a poner los tenderos que falten.");
-        line(source, LABEL + " recargar", "Recarga la configuracion.");
+        line(source, LABEL + " lista", "Lista tus tiendas y donde estan.");
+        line(source, LABEL + " recargar", "Vuelve a leer la configuracion.");
         source.sendSuccess(() -> Component.literal(
-                "Truco: agachate y haz clic derecho en un tendero para abrir su editor.")
+                "Tambien puedes agacharte y hacer clic derecho en un tendero para editarlo.")
                 .withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
@@ -139,11 +97,135 @@ public final class ShopCommands {
     }
 
     /**
-     * The registered shop nearest the player, within {@link #PICK_RANGE}.
+     * Creates a shop in one step and opens its editor.
      *
-     * <p>Chosen by distance to the shop's recorded position rather than by ray-tracing what the player is looking at.
-     * A shop's mob can be standing behind a block or inside a wall, and an admin trying to fix that shop still needs
-     * to be able to select it.</p>
+     * <p>A selling shop needs a chest, and rather than making the player select one first, the nearest unclaimed
+     * container is found for them. That removes the two-step dance - and the creation item that went with it - which was
+     * the part nobody could guess without being told.</p>
+     */
+    private static int create(CommandContext<CommandSourceStack> context, ShopType type) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        BlockPos where = player.blockPosition();
+        BlockPos container = null;
+        if (type.needsContainer()) {
+            container = findContainerNear(player);
+            if (container == null) {
+                context.getSource().sendFailure(Component.literal(
+                        "No hay ningun cofre libre a menos de " + ShopConfig.get().maxContainerDistance
+                                + " bloques. Pon un cofre cerca y vuelve a intentarlo."));
+                return 0;
+            }
+        }
+
+        ShopCreation.Outcome outcome = ShopCreation.create(player, type, ShopObjectKind.LIVING, where, container);
+        if (!outcome.ok()) {
+            context.getSource().sendFailure(outcome.error());
+            return 0;
+        }
+        Shopkeeper shop = outcome.shop();
+        if (shop.containerPos() != null) {
+            BlockPos chest = shop.containerPos();
+            context.getSource().sendSuccess(() -> Component.literal("Tienda creada usando el cofre en "
+                    + chest.toShortString() + ".").withStyle(ChatFormatting.GREEN), false);
+        } else {
+            context.getSource().sendSuccess(() -> Component.literal(
+                    "Tienda de staff creada con existencias infinitas.").withStyle(ChatFormatting.GREEN), false);
+        }
+        Net.openEditor(player, shop);
+        return 1;
+    }
+
+    private static int edit(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        Shopkeeper shop = nearestShop(player);
+        if (shop == null) {
+            context.getSource().sendFailure(Component.literal(
+                    "No hay ninguna tienda cerca. Acercate al tendero y vuelve a intentarlo."));
+            return 0;
+        }
+        if (!EditorAccess.mayEdit(player, shop)) {
+            context.getSource().sendFailure(Component.literal("Esa tienda no es tuya."));
+            return 0;
+        }
+        Net.openEditor(player, shop);
+        return 1;
+    }
+
+    private static int remove(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        Shopkeeper shop = nearestShop(player);
+        if (shop == null) {
+            context.getSource().sendFailure(Component.literal("No hay ninguna tienda cerca."));
+            return 0;
+        }
+        if (!EditorAccess.mayEdit(player, shop)) {
+            context.getSource().sendFailure(Component.literal("Esa tienda no es tuya."));
+            return 0;
+        }
+        ShopRegistry registry = ShopRegistry.get(player.server);
+        ServerLevel level = player.server.getLevel(shop.level());
+        if (level != null) {
+            ShopSpawner.despawn(level, shop, registry);
+        }
+        registry.remove(shop.id());
+        context.getSource().sendSuccess(() -> Component.literal(
+                "Tienda borrada. El cofre y su contenido siguen ahi.").withStyle(ChatFormatting.YELLOW), false);
+        return 1;
+    }
+
+    private static int list(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = player(context);
+        if (player == null) {
+            return 0;
+        }
+        ShopRegistry registry = ShopRegistry.get(player.server);
+        List<Shopkeeper> shops = registry.shopsOf(player.getUUID());
+        CommandSourceStack source = context.getSource();
+        if (shops.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("No tienes tiendas. Crea una con " + LABEL + " crear.")
+                    .withStyle(ChatFormatting.GRAY), false);
+            return 1;
+        }
+        source.sendSuccess(() -> Component.literal("Tus tiendas (" + shops.size() + "):")
+                .withStyle(ChatFormatting.GOLD), false);
+        for (Shopkeeper shop : shops) {
+            source.sendSuccess(() -> Component.literal("\u00b7 " + shop.displayName())
+                    .withStyle(ChatFormatting.WHITE)
+                    .append(Component.literal("  " + shop.pos().toShortString() + " \u00b7 "
+                            + shop.tradableOffers().size() + " tratos activos")
+                            .withStyle(ChatFormatting.GRAY)), false);
+        }
+        return 1;
+    }
+
+    private static int reload(CommandContext<CommandSourceStack> context) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player != null && !FantasticShopkeepers.hasPermission(player,
+                FantasticShopkeepers.Perms.RELOAD)) {
+            context.getSource().sendFailure(Component.literal("No tienes permiso para esto."));
+            return 0;
+        }
+        ShopConfig.load();
+        context.getSource().sendSuccess(() -> Component.literal("Configuracion recargada.")
+                .withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    /**
+     * The registered shop nearest the player.
+     *
+     * <p>By distance to the shop's recorded position rather than by ray-tracing what the player is looking at. A shop's
+     * mob can be behind a block or stuck in a wall, and an admin trying to fix that shop still has to be able to select
+     * it.</p>
      */
     private static Shopkeeper nearestShop(ServerPlayer player) {
         ShopRegistry registry = ShopRegistry.get(player.server);
@@ -163,268 +245,7 @@ public final class ShopCommands {
         return best;
     }
 
-    private static int edit(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        Shopkeeper shop = nearestShop(player);
-        if (shop == null) {
-            fail(context, "No hay ninguna tienda cerca.");
-            return 0;
-        }
-        if (!EditorAccess.mayEdit(player, shop)) {
-            fail(context, "No tienes permiso para editar esa tienda.");
-            return 0;
-        }
-        Net.openEditor(player, shop);
-        return 1;
-    }
-
-    private static int info(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        Shopkeeper shop = nearestShop(player);
-        if (shop == null) {
-            fail(context, "No hay ninguna tienda cerca.");
-            return 0;
-        }
-        CommandSourceStack source = context.getSource();
-        source.sendSuccess(() -> Component.literal(shop.displayName()).withStyle(ChatFormatting.GOLD), false);
-        detail(source, "Tipo", shop.type().title());
-        detail(source, "Cuerpo", shop.objectKind().title()
-                + (shop.objectKind().hasEntity() ? " (" + shop.entityType() + ")" : ""));
-        detail(source, "Dueño", shop.ownerName().isBlank() ? "administrador" : shop.ownerName());
-        detail(source, "Posicion", shop.pos().toShortString());
-        detail(source, "Cofre", shop.containerPos() == null ? "ninguno"
-                : shop.containerPos().toShortString());
-        detail(source, "Tratos", shop.tradableOffers().size() + " activos de " + shop.offers().size());
-        detail(source, "Cuenta", shop.linkedAccount() > 0 ? String.valueOf(shop.linkedAccount())
-                : "por defecto");
-        if (shop.forHire()) {
-            detail(source, "Traspaso", Cash.format(shop.hireCost()));
-        }
-        if (!shop.tradePermission().isBlank()) {
-            detail(source, "Permiso", shop.tradePermission());
-        }
-        detail(source, "Id", shop.id().toString());
-        return 1;
-    }
-
-    private static void detail(CommandSourceStack source, String label, String value) {
-        source.sendSuccess(() -> Component.literal(label + ": ").withStyle(ChatFormatting.GRAY)
-                .append(Component.literal(value).withStyle(ChatFormatting.WHITE)), false);
-    }
-
-    private static int remove(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        Shopkeeper shop = nearestShop(player);
-        if (shop == null) {
-            fail(context, "No hay ninguna tienda cerca.");
-            return 0;
-        }
-        if (!EditorAccess.mayEdit(player, shop)) {
-            fail(context, "No tienes permiso para borrar esa tienda.");
-            return 0;
-        }
-        ShopRegistry registry = ShopRegistry.get(player.server);
-        ServerLevel level = player.server.getLevel(shop.level());
-        if (level != null) {
-            ShopSpawner.despawn(level, shop, registry);
-        }
-        registry.remove(shop.id());
-        context.getSource().sendSuccess(() -> Component.literal("Tienda borrada.")
-                .withStyle(ChatFormatting.YELLOW), true);
-        return 1;
-    }
-
-    private static int list(CommandContext<CommandSourceStack> context, ServerPlayer target) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        ServerPlayer subject = target == null ? player : target;
-        boolean others = !subject.getUUID().equals(player.getUUID());
-        String node = others ? FantasticShopkeepers.Perms.LIST_OTHERS : FantasticShopkeepers.Perms.LIST_OWN;
-        if (others && !FantasticShopkeepers.hasPermission(player, node)) {
-            fail(context, "No tienes permiso para ver las tiendas de otros.");
-            return 0;
-        }
-        ShopRegistry registry = ShopRegistry.get(player.server);
-        List<Shopkeeper> shops = registry.shopsOf(subject.getUUID());
-        CommandSourceStack source = context.getSource();
-        if (shops.isEmpty()) {
-            source.sendSuccess(() -> Component.literal(subject.getGameProfile().getName()
-                    + " no tiene tiendas.").withStyle(ChatFormatting.GRAY), false);
-            return 1;
-        }
-        source.sendSuccess(() -> Component.literal("Tiendas de " + subject.getGameProfile().getName()
-                + " (" + shops.size() + "):").withStyle(ChatFormatting.GOLD), false);
-        for (Shopkeeper shop : shops) {
-            source.sendSuccess(() -> Component.literal("· " + shop.displayName())
-                    .withStyle(ChatFormatting.WHITE)
-                    .append(Component.literal("  " + shop.type().title() + " · "
-                            + shop.pos().toShortString() + " · " + shop.tradableOffers().size() + " tratos")
-                            .withStyle(ChatFormatting.GRAY)), false);
-        }
-        return 1;
-    }
-
-    private static int give(CommandContext<CommandSourceStack> context, ServerPlayer target) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        if (!FantasticShopkeepers.hasPermission(player, FantasticShopkeepers.Perms.ADMIN)) {
-            fail(context, "No tienes permiso para dar objetos de creacion.");
-            return 0;
-        }
-        ServerPlayer receiver = target == null ? player : target;
-        ResourceLocation itemId = ResourceLocation.tryParse(ShopConfig.get().shopCreationItem);
-        Item item = itemId == null ? null : BuiltInRegistries.ITEM.get(itemId);
-        if (item == null) {
-            fail(context, "El objeto de creacion configurado (" + ShopConfig.get().shopCreationItem
-                    + ") no existe.");
-            return 0;
-        }
-        ItemStack stack = new ItemStack(item);
-        if (!receiver.getInventory().add(stack)) {
-            receiver.drop(stack, false);
-        }
-        context.getSource().sendSuccess(() -> Component.literal("Objeto de creacion entregado a "
-                + receiver.getGameProfile().getName() + ".").withStyle(ChatFormatting.GREEN), true);
-        return 1;
-    }
-
-    private static int transfer(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        ServerPlayer newOwner;
-        try {
-            newOwner = EntityArgument.getPlayer(context, "jugador");
-        } catch (com.mojang.brigadier.exceptions.CommandSyntaxException notFound) {
-            fail(context, "Ese jugador no esta conectado.");
-            return 0;
-        }
-        Shopkeeper shop = nearestShop(player);
-        if (shop == null) {
-            fail(context, "No hay ninguna tienda cerca.");
-            return 0;
-        }
-        if (!EditorAccess.mayEdit(player, shop)) {
-            fail(context, "No tienes permiso para traspasar esa tienda.");
-            return 0;
-        }
-        if (!shop.type().isPlayerShop()) {
-            fail(context, "Una tienda de administrador no tiene dueño que traspasar.");
-            return 0;
-        }
-        ShopRegistry registry = ShopRegistry.get(player.server);
-        shop.setOwner(newOwner.getUUID(), newOwner.getGameProfile().getName());
-        // The linked account belonged to the previous owner, so it is cleared rather than left pointing at them.
-        shop.setLinkedAccount(0);
-        registry.refresh(shop);
-        context.getSource().sendSuccess(() -> Component.literal("Tienda traspasada a "
-                + newOwner.getGameProfile().getName() + ".").withStyle(ChatFormatting.GREEN), true);
-        newOwner.sendSystemMessage(Component.literal("Ahora eres el dueño de la tienda "
-                + shop.displayName() + ".").withStyle(ChatFormatting.GREEN));
-        return 1;
-    }
-
-    private static int reload(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
-        if (player != null && !FantasticShopkeepers.hasPermission(player,
-                FantasticShopkeepers.Perms.RELOAD)) {
-            fail(context, "No tienes permiso para recargar la configuracion.");
-            return 0;
-        }
-        ShopConfig.load();
-        context.getSource().sendSuccess(() -> Component.literal("Configuracion recargada.")
-                .withStyle(ChatFormatting.GREEN), true);
-        return 1;
-    }
-
-    /**
-     * Re-spawns every shop mob that is missing.
-     *
-     * <p>The repair command. A shop whose mob was removed by something outside this mod becomes unclickable, and while
-     * chunk loading fixes that eventually, an admin standing in front of the problem should not have to unload the
-     * chunk to solve it.</p>
-     */
-    private static int respawnAll(CommandContext<CommandSourceStack> context) {
-        ServerPlayer player = context.getSource().getPlayer();
-        if (player != null && !FantasticShopkeepers.hasPermission(player,
-                FantasticShopkeepers.Perms.ADMIN)) {
-            fail(context, "No tienes permiso para eso.");
-            return 0;
-        }
-        ShopRegistry registry = ShopRegistry.get(context.getSource().getServer());
-        int fixed = 0;
-        for (Shopkeeper shop : registry.all()) {
-            if (!shop.objectKind().hasEntity()) {
-                continue;
-            }
-            ServerLevel level = context.getSource().getServer().getLevel(shop.level());
-            if (level == null) {
-                continue;
-            }
-            if (ShopSpawner.ensureSpawned(level, shop, registry)) {
-                fixed++;
-            }
-        }
-        int total = fixed;
-        context.getSource().sendSuccess(() -> Component.literal("Tenderos restaurados: " + total + ".")
-                .withStyle(ChatFormatting.GREEN), true);
-        return 1;
-    }
-
-    private static int create(CommandContext<CommandSourceStack> context, String bodyId) {
-        ServerPlayer player = player(context);
-        if (player == null) {
-            return 0;
-        }
-        ShopType type = ShopType.byId(StringArgumentType.getString(context, "tipo"));
-        ShopObjectKind kind = ShopObjectKind.byId(bodyId);
-        BlockPos where = player.blockPosition();
-
-        BlockPos container = null;
-        if (type.needsContainer()) {
-            container = findContainerNear(player);
-            if (container == null) {
-                fail(context, "No hay ningun cofre libre a menos de "
-                        + ShopConfig.get().maxContainerDistance + " bloques.");
-                return 0;
-            }
-        }
-        ShopCreation.Outcome outcome = ShopCreation.create(player, type, kind, where, container);
-        if (!outcome.ok()) {
-            context.getSource().sendFailure(outcome.error());
-            return 0;
-        }
-        Shopkeeper shop = outcome.shop();
-        context.getSource().sendSuccess(() -> Component.literal("Tienda creada: " + shop.type().title()
-                + ". Abriendo el editor...").withStyle(ChatFormatting.GREEN), false);
-        Net.openEditor(player, shop);
-        // A virtual shop has no body to click, so its window is opened once here to prove it works.
-        if (kind == ShopObjectKind.VIRTUAL) {
-            ShopMenus.openTrade(player, shop);
-        }
-        return 1;
-    }
-
-    /**
-     * The nearest unclaimed container, for creating a shop by command.
-     *
-     * <p>Searched in a cube around the player rather than asked for as an argument, because the alternative is typing
-     * three coordinates for a chest you are standing next to.</p>
-     */
+    /** The nearest container that is not already another shop's, or null when there is none in range. */
     private static BlockPos findContainerNear(ServerPlayer player) {
         ServerLevel level = player.serverLevel();
         ShopRegistry registry = ShopRegistry.get(player.server);
@@ -456,9 +277,5 @@ public final class ShopCommands {
                     "Este comando lo tiene que usar un jugador dentro del mundo."));
         }
         return player;
-    }
-
-    private static void fail(CommandContext<CommandSourceStack> context, String message) {
-        context.getSource().sendFailure(Component.literal(message));
     }
 }

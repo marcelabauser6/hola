@@ -12,16 +12,16 @@ description='''
 Tiendas atendidas por NPC, con precios en Fantastic Cash.
 
 Un mod de Forge para cliente y servidor, pensado para Mohist. El servidor manda: guarda las tiendas con el mundo,
-cobra el dinero y decide si un trato puede ocurrir. El cliente aporta el editor a pantalla completa con el que un
-administrador monta la tienda.
+cobra el dinero y decide si un trato puede ocurrir. El cliente aporta el editor con el que un administrador monta
+la tienda, con el mismo aspecto que el resto de mods Fantastic.
 
-  Objeto de creacion  - clic derecho en un cofre para elegir el almacen, luego clic derecho en el suelo.
-  Agachate + clic     - abre el editor del tendero que tengas delante.
-  Clic normal         - abre la ventana de compra.
-  /Fskeepers ayuda    - todos los comandos.
+  /fskeepers crear   - crea la tienda junto al cofre mas cercano y abre el editor.
+  Agachate + clic    - abre el editor del tendero que tengas delante.
+  Clic normal        - abre la ventana de compra, la de comercio con aldeanos de siempre.
+  /fskeepers         - la lista de comandos.
 
 Tipos de tienda: administrador (existencias infinitas), venta, compra, trueque y libros.
-Cuerpos: cualquier mob que el servidor conozca, un cartel, o ninguno (tienda virtual por comando).
+Cuerpos: cualquier mob que el servidor conozca, un cartel, o ninguno (tienda virtual).
 
 Fantastic Currency es opcional. Si esta instalado, los precios se cobran en Fantastic Cash; si no, las tiendas
 siguen funcionando con pagos en articulos.

@@ -32,9 +32,6 @@ public final class ShopConfig {
 
     private static ShopConfig current = new ShopConfig();
 
-    /** The item a player holds and right-clicks to create a shop. */
-    public String shopCreationItem = "minecraft:villager_spawn_egg";
-
     /**
      * How many shops one player may own, or {@code -1} for no limit.
      *
