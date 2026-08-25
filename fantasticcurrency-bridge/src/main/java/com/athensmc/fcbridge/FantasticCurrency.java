@@ -3,8 +3,6 @@ package com.athensmc.fcbridge;
 import org.bukkit.Bukkit;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,12 +27,6 @@ import java.util.logging.Logger;
 public final class FantasticCurrency {
 
     private static final String API_CLASS = "com.athensmc.athenscoins.api.FantasticCurrencyAPI";
-    private static final String COIN_TYPE_CLASS = "com.athensmc.athenscoins.wallet.CoinType";
-
-    /** The mod's item ids, in the order they are registered. */
-    private static final String[] COIN_IDS = {"bronze_coin", "silver_coin", "gold_coin"};
-    private static final String[] COIN_ENUMS = {"BRONZE", "SILVER", "GOLD"};
-    private static final String[] COIN_NAMES = {"Moneda de bronce", "Moneda de plata", "Moneda de oro"};
 
     private final Logger logger;
     private final MainThread mainThread;
@@ -46,8 +38,6 @@ public final class FantasticCurrency {
     private Method depositToAccount;
     private Method format;
     private Method currencySymbol;
-    private Method coinValue;
-    private Class<?> coinType;
     private String unavailableReason;
 
     public FantasticCurrency(Logger logger, MainThread mainThread) {
@@ -70,9 +60,6 @@ public final class FantasticCurrency {
                     long.class);
             format = api.getMethod("format", long.class);
             currencySymbol = api.getMethod("currencySymbol");
-
-            coinType = Class.forName(COIN_TYPE_CLASS);
-            coinValue = api.getMethod("coinValue", coinType);
 
             server = nmsServer();
             if (server == null) {
@@ -151,25 +138,6 @@ public final class FantasticCurrency {
     public String symbol() {
         String symbol = call(() -> (String) currencySymbol.invoke(null), "currencySymbol");
         return symbol == null ? "" : symbol;
-    }
-
-    /** The three coins with their configured values, read live from the mod. */
-    public List<Denominations.Coin> coins() {
-        List<Denominations.Coin> coins = new ArrayList<>(COIN_IDS.length);
-        for (int i = 0; i < COIN_IDS.length; i++) {
-            long value = coinValueCents(COIN_ENUMS[i]);
-            coins.add(new Denominations.Coin(COIN_IDS[i], COIN_NAMES[i], value));
-        }
-        return coins;
-    }
-
-    private long coinValueCents(String enumName) {
-        Long value = call(() -> {
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            Object constant = Enum.valueOf((Class<Enum>) coinType.asSubclass(Enum.class), enumName);
-            return (Long) coinValue.invoke(null, constant);
-        }, "coinValue " + enumName);
-        return value == null ? 0L : value;
     }
 
     /** Runs a call on the server thread, logging and swallowing any failure. */

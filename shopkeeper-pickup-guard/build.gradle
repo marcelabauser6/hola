@@ -1,0 +1,99 @@
+plugins {
+    id 'eclipse'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_name
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+    copyIdeResources = true
+}
+
+repositories {
+    mavenCentral()
+}
+
+/**
+ * Easy Villagers, fetched rather than committed.
+ *
+ * <p>The mixin has to compile against its {@code VillagerEvents} class, and checking someone else's mod into
+ * this repository to manage that is the wrong trade: it goes stale and it is their build to distribute. The
+ * version is pinned in gradle.properties and downloaded on demand, so a fresh clone builds the same jar.</p>
+ */
+tasks.register('fetchEasyVillagers') {
+    group = 'build setup'
+    description = 'Downloads the Easy Villagers build this guard is compiled against.'
+    def target = file(easyvillagers_jar)
+    outputs.file(target)
+    doLast {
+        if (!target.exists()) {
+            target.parentFile.mkdirs()
+            println "Descargando ${easyvillagers_url}"
+            target.withOutputStream { out ->
+                new URL(easyvillagers_url).withInputStream { from -> out << from }
+            }
+        }
+    }
+}
+
+tasks.named('compileJava').configure {
+    dependsOn 'fetchEasyVillagers'
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    // Compiled against, never bundled: it is the server owner's own copy.
+    compileOnly files(easyvillagers_jar)
+    runtimeOnly files(easyvillagers_jar)
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_display_name       : mod_display_name,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_license            : mod_license,
+            minecraft_version_range: minecraft_version_range,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Vendor'  : mod_authors,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : mod_id,
+                'Implementation-Version': mod_version,
+                'Implementation-Vendor' : mod_authors,
+                'MixinConfigs'          : 'skpickupguard.mixins.json',
+        ])
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar.finalizedBy('reobfJar')
