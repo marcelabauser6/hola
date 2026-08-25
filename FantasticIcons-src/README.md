@@ -1,4 +1,4 @@
-# Fantastic Icons 1.0.1 — Forge 1.20.1
+# Fantastic Icons 1.0.2 — Forge 1.20.1
 
 90 iconos verificados **al final del nombre** del jugador: `Adim Pewez ✔`
 
@@ -37,15 +37,20 @@ Ejemplos: `visto_azul`, `verificado_placa_dorado`, `moderador_estrella_arcoiris`
 
 Catálogo visual: `FantasticIcons-catalogo.png`
 
-## Alineación del icono
+## Alineación y tamaño del icono
 
-El glifo se dibuja entre `baseline - ascent` y `baseline - ascent + height`. Con
-`ascent 8 / height 9` ocupa `-8..+1`, cuyo centro es `-3.5`; el texto de Minecraft
-ocupa `-7..0`, centro `-3.5` también → **0 px de desvío** en los 90 iconos.
+`ascent 8 / height 8`, y hay motivo para cada número:
+
+- El glifo se dibuja entre `baseline - ascent` y `baseline - ascent + height`, o sea
+  filas `-8..-1`. Las mayúsculas de Minecraft ocupan `-7..-1`: el icono queda
+  **rasante por abajo** con el texto y solo 1 px más alto por arriba.
+- `height 8` es la única medida nítida: el arte es de 16 px y 16 → 8 es una reducción
+  exacta 2:1. Con `height 9` o `7` la escala no es entera, el juego duplica o se come
+  filas sueltas y el icono se ve grumoso y más grande de lo que toca.
 
 Además las texturas se recortan en horizontal al generarlas: 54 de las 90 traían
 1 px transparente a los lados, que en el juego se veía como un hueco entre el
-nombre y el icono.
+nombre y el icono. El alto se deja intacto, que es lo que mantiene el centrado.
 
 ## Instalación
 

@@ -4,7 +4,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue100"
       ]
@@ -13,7 +13,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue101"
       ]
@@ -22,7 +22,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue102"
       ]
@@ -31,7 +31,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue103"
       ]
@@ -40,7 +40,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue104"
       ]
@@ -49,7 +49,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue105"
       ]
@@ -58,7 +58,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue106"
       ]
@@ -67,7 +67,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue107"
       ]
@@ -76,7 +76,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue108"
       ]
@@ -85,7 +85,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue109"
       ]
@@ -94,7 +94,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10a"
       ]
@@ -103,7 +103,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10b"
       ]
@@ -112,7 +112,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10c"
       ]
@@ -121,7 +121,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10d"
       ]
@@ -130,7 +130,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10e"
       ]
@@ -139,7 +139,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue10f"
       ]
@@ -148,7 +148,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue110"
       ]
@@ -157,7 +157,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue111"
       ]
@@ -166,7 +166,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue112"
       ]
@@ -175,7 +175,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue113"
       ]
@@ -184,7 +184,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue114"
       ]
@@ -193,7 +193,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue115"
       ]
@@ -202,7 +202,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue116"
       ]
@@ -211,7 +211,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue117"
       ]
@@ -220,7 +220,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue118"
       ]
@@ -229,7 +229,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue119"
       ]
@@ -238,7 +238,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11a"
       ]
@@ -247,7 +247,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11b"
       ]
@@ -256,7 +256,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11c"
       ]
@@ -265,7 +265,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11d"
       ]
@@ -274,7 +274,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11e"
       ]
@@ -283,7 +283,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue11f"
       ]
@@ -292,7 +292,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue120"
       ]
@@ -301,7 +301,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue121"
       ]
@@ -310,7 +310,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue122"
       ]
@@ -319,7 +319,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue123"
       ]
@@ -328,7 +328,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue124"
       ]
@@ -337,7 +337,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue125"
       ]
@@ -346,7 +346,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue126"
       ]
@@ -355,7 +355,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue127"
       ]
@@ -364,7 +364,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue128"
       ]
@@ -373,7 +373,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mark_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue129"
       ]
@@ -382,7 +382,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12a"
       ]
@@ -391,7 +391,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12b"
       ]
@@ -400,7 +400,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12c"
       ]
@@ -409,7 +409,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12d"
       ]
@@ -418,7 +418,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12e"
       ]
@@ -427,7 +427,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_1.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue12f"
       ]
@@ -436,7 +436,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue130"
       ]
@@ -445,7 +445,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue131"
       ]
@@ -454,7 +454,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue132"
       ]
@@ -463,7 +463,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue133"
       ]
@@ -472,7 +472,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue134"
       ]
@@ -481,7 +481,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_2.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue135"
       ]
@@ -490,7 +490,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue136"
       ]
@@ -499,7 +499,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue137"
       ]
@@ -508,7 +508,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue138"
       ]
@@ -517,7 +517,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue139"
       ]
@@ -526,7 +526,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13a"
       ]
@@ -535,7 +535,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_3.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13b"
       ]
@@ -544,7 +544,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13c"
       ]
@@ -553,7 +553,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13d"
       ]
@@ -562,7 +562,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13e"
       ]
@@ -571,7 +571,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue13f"
       ]
@@ -580,7 +580,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue140"
       ]
@@ -589,7 +589,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_4.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue141"
       ]
@@ -598,7 +598,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue142"
       ]
@@ -607,7 +607,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue143"
       ]
@@ -616,7 +616,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue144"
       ]
@@ -625,7 +625,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue145"
       ]
@@ -634,7 +634,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue146"
       ]
@@ -643,7 +643,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_5.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue147"
       ]
@@ -652,7 +652,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue148"
       ]
@@ -661,7 +661,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue149"
       ]
@@ -670,7 +670,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14a"
       ]
@@ -679,7 +679,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14b"
       ]
@@ -688,7 +688,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14c"
       ]
@@ -697,7 +697,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_mod_6.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14d"
       ]
@@ -706,7 +706,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14e"
       ]
@@ -715,7 +715,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue14f"
       ]
@@ -724,7 +724,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue150"
       ]
@@ -733,7 +733,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue151"
       ]
@@ -742,7 +742,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue152"
       ]
@@ -751,7 +751,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_shield.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue153"
       ]
@@ -760,7 +760,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/blue_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue154"
       ]
@@ -769,7 +769,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/green_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue155"
       ]
@@ -778,7 +778,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/red_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue156"
       ]
@@ -787,7 +787,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/yellow_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue157"
       ]
@@ -796,7 +796,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/silver_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue158"
       ]
@@ -805,7 +805,7 @@
       "type": "bitmap",
       "file": "fantasticicons:font/iconos/rb_star.png",
       "ascent": 8,
-      "height": 9,
+      "height": 8,
       "chars": [
         "\ue159"
       ]

@@ -63,11 +63,17 @@ assert len({i["glyph"] for i in icons}) == 90
 # icono). El alto se deja intacto: el contenido esta centrado en el lienzo de
 # 16px, asi que con ascent 8 / height 9 el icono queda centrado con el texto.
 #
-# Geometria: el glifo se dibuja entre baseline-ascent y baseline-ascent+height,
-# o sea -8..+1, cuyo centro es -3.5; el texto de Minecraft ocupa -7..0, centro
-# -3.5 tambien. Desvio: 0 px exactos (comprobado en los 90).
+# Geometria: el glifo se dibuja entre baseline-ascent y baseline-ascent+height.
+# Con ascent 8 / height 8 ocupa las filas -8..-1; las mayusculas de Minecraft
+# ocupan -7..-1, asi que el icono queda RASANTE por abajo con el texto y solo
+# 1px mas alto por arriba.
+#
+# height 8 ademas es la unica opcion nitida: el arte es de 16px, y 16 -> 8 es una
+# reduccion exacta 2:1. Con height 9 o 7 la escala no es entera y el juego
+# duplica o se come filas y columnas sueltas (el icono se ve grumoso y mas grande
+# de lo que toca).
 ASCENT = 8
-HEIGHT = 9
+HEIGHT = 8
 
 tex_dir = os.path.join(ROOT, "resources/assets", NS, "textures/font/iconos")
 os.makedirs(tex_dir, exist_ok=True)
