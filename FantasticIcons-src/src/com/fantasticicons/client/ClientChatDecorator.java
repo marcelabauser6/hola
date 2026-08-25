@@ -54,15 +54,14 @@ public final class ClientChatDecorator {
       }
 
       // Algunos builds de Mohist convierten el chat Bukkit en mensaje de
-      // sistema y pierden el UUID. Respaldo: busca, entre los jugadores online
-      // que tienen icono, el primer nombre-token dentro del prefijo del chat.
-      // Exigimos contenido antes del nombre para no tocar mensajes vanilla como
-      // "Pewez777 joined the game".
-      if (systemMessage) {
-         Match match = findFormattedSender(plain, connection.getOnlinePlayers(), ClientIconStore.snapshot());
-         if (match != null) {
-            return insertAfter(message, match.index + match.name.length(), match.iconId);
-         }
+      // sistema, otros lo dejan como chat sin UUID y pueden cambiar ese modo
+      // despues de /essentials reload. Por eso el respaldo no depende de
+      // isSystem(): busca, entre los jugadores online que tienen icono, el
+      // primer nombre-token dentro de un componente ya formateado (debe haber
+      // contenido antes del nombre). Esto cubre ambos caminos hibridos.
+      Match match = findFormattedSender(plain, connection.getOnlinePlayers(), ClientIconStore.snapshot());
+      if (match != null) {
+         return insertAfter(message, match.index + match.name.length(), match.iconId);
       }
 
       return message;

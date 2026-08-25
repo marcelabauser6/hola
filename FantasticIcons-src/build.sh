@@ -36,6 +36,6 @@ echo ">> empaquetando"
 rm -rf "$SRC/pack" && mkdir -p "$SRC/pack"
 (cd "$SRC/pack" && unzip -oq "$SRC/classes_srg.jar" && rm -f META-INF/MANIFEST.MF)
 cp -r "$SRC/resources/." "$SRC/pack/"
-(cd "$SRC/pack" && jar --create --file "$WORK/Fantastic Icons-1.0.3.jar" --manifest "$SRC/MANIFEST.MF" .)
+(cd "$SRC/pack" && jar --create --file "$WORK/Fantastic Icons-1.0.4.jar" --manifest "$SRC/MANIFEST.MF" .)
 
-echo ">> listo: $WORK/Fantastic Icons-1.0.3.jar"
+echo ">> listo: $WORK/Fantastic Icons-1.0.4.jar"

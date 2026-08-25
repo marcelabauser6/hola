@@ -22,6 +22,6 @@ public class FantasticIcons {
    public FantasticIcons() {
       IconNetwork.init();
       MinecraftForge.EVENT_BUS.register(new IconEvents());
-      LOGGER.info("[FantasticIcons] v1.0.3 listo con " + IconRegistry.count() + " iconos. Comando: /fsicons");
+      LOGGER.info("[FantasticIcons] v1.0.4 listo con " + IconRegistry.count() + " iconos. Comando: /fsicons");
    }
 }

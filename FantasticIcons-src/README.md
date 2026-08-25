@@ -1,4 +1,4 @@
-# Fantastic Icons 1.0.3 — Forge 1.20.1
+# Fantastic Icons 1.0.4 — Forge 1.20.1
 
 90 iconos verificados **al final del nombre** del jugador: `Adim Pewez ✔`
 
@@ -80,10 +80,26 @@ Icons, el tab y el nombre flotante, pero no en la línea final de EssentialsChat
 
 Desde la 1.0.3, el cliente procesa `ClientChatReceivedEvent` con prioridad `LOWEST`,
 cuando Essentials ya aplicó su formato final. Usa el UUID del emisor para encontrar
-su icono y lo inserta justo después del nombre. Si un build de Mohist convierte el
-chat en mensaje de sistema y pierde el UUID, usa como respaldo los nombres de los
-jugadores online con icono.
+su icono y lo inserta justo después del nombre. Si un build de Mohist pierde el UUID
+o cambia entre chat normal y mensaje de sistema después de `/essentials reload`,
+usa como respaldo los nombres de los jugadores online con icono, sin depender del
+tipo de paquete.
 
 La reescritura se hace sobre `Component.toFlatList()`: preserva el estilo efectivo
 de cada fragmento, incluidos colores, fuente, hover y clic del prefijo de
 LuckPerms/Essentials. También detecta el glifo ya presente para no duplicarlo.
+
+
+## Compatibilidad con el plugin TAB (NEZNAMY)
+
+Cuando `tablist-name-formatting.enabled` está activo, TAB reemplaza desde Bukkit
+el `tabListDisplayName` que Forge había calculado. Fantastic Icons 1.0.4 se
+inyecta al retorno de `PlayerTabOverlay.getNameForDisplay(PlayerInfo)`, el último
+punto común antes de que Minecraft mida y dibuje cada entrada. En ese momento ya
+están aplicados el prefijo, color y formato final de TAB; el mod agrega únicamente
+el glifo del UUID a la derecha.
+
+La decoración ocurre antes del cálculo de anchura de la columna, por lo que el
+icono no se superpone al ping ni al objetivo. Se comprueba el carácter existente
+para impedir iconos duplicados. No hace falta desactivar `tablist-name-formatting`
+ni `scoreboard-teams`, ni modificar `groups.yml`.

@@ -5,13 +5,13 @@ issueTrackerURL="https://github.com"
 
 [[mods]]
 modId="fantasticicons"
-version="1.0.3"
+version="1.0.4"
 displayName="Fantastic Icons"
 authors="Boxpix Studios (iconos)"
 description='''
 Fantastic Icons: 90 iconos verificados que se muestran AL FINAL del nombre del jugador,
 en el nombre flotante sobre la cabeza, en el chat y en la lista de tab. Compatible
-con EssentialsChat en servidores hibridos Mohist. Forge 1.20.1.
+con EssentialsChat y el plugin TAB en servidores hibridos Mohist. Forge 1.20.1.
 
 Comandos (solo OP, nivel 2):
   /fsicons poner <icono> <jugador>    pone el icono (ambos argumentos se autocompletan)
@@ -41,3 +41,7 @@ con servidores offline-mode (UUID offline). Los datos se guardan en
     versionRange="[1.20.1,1.20.2)"
     ordering="NONE"
     side="BOTH"
+
+
+[[mixins]]
+config="fantasticicons.mixins.json"
