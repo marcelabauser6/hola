@@ -66,10 +66,17 @@ public final class ShopSync {
         ticks = 0;
 
         MinecraftServer server = event.getServer();
-        if (server == null || server.getPlayerList().getPlayerCount() == 0) {
+        if (server == null) {
             return;
         }
         ShopRegistry registry = ShopRegistry.get(server);
+        // EntityJoinLevelEvent normally sanitises bodies first. Hybrid loaders can bypass or reorder that notification,
+        // so repeat the idempotent villager-offer guard even with no players, before an entity autosave can generate maps.
+        ShopSpawner.sanitizeLoadedVillagerBodies(server, registry);
+
+        if (server.getPlayerList().getPlayerCount() == 0) {
+            return;
+        }
         restoreMissingBodies(server, registry);
 
         if (registry.bodyVersion() == lastBroadcastVersion) {

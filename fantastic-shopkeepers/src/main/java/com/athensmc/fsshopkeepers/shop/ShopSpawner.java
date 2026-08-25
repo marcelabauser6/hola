@@ -4,14 +4,18 @@ import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.config.ShopConfig;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.item.trading.MerchantOffers;
+import net.minecraft.world.level.entity.EntityTypeTest;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -162,8 +166,8 @@ public final class ShopSpawner {
             entity.setCustomNameVisible(config.alwaysShowNameplates);
         }
 
-        if (entity instanceof AbstractVillager villager) {
-            villager.overrideOffers(new MerchantOffers());
+        if (entity instanceof Villager villager) {
+            neutraliseVillagerOffers(villager);
         }
         if (entity instanceof Mob mob) {
             mob.setNoAi(true);
@@ -174,6 +178,58 @@ public final class ShopSpawner {
         if (entity instanceof ItemEntity item) {
             item.setUnlimitedLifetime();
         }
+    }
+
+    /**
+     * Re-initialises offers on every loaded shop villager without touching normal villagers.
+     *
+     * <p>{@code EntityJoinLevelEvent} is the first defence, but hybrid servers can restore or transfer entities through
+     * paths whose ordering differs from plain Forge. The world entity store later serialises those entities directly;
+     * serialising a cartographer whose offers are still null calls {@code getOffers()}, generates its treasure-map trade,
+     * and performs a synchronous monument search from the autosave thread. This lightweight sweep runs before the mod's
+     * once-per-second body check, comfortably before normal autosaves.</p>
+     *
+     * <p>The registry pass also covers a body whose Forge marker was stripped by another plugin. The level pass covers old
+     * marked bodies whose UUID index is stale, and reconciles actual leftovers. Only bodies identified by this mod are
+     * changed; ordinary and Citizens villagers retain their vanilla offers.</p>
+     */
+    public static void sanitizeLoadedVillagerBodies(MinecraftServer server, ShopRegistry registry) {
+        Set<UUID> handled = new HashSet<>();
+
+        for (Shopkeeper shop : registry.all()) {
+            if (!shop.objectKind().hasEntity()) {
+                continue;
+            }
+            ServerLevel level = server.getLevel(shop.level());
+            if (level == null) {
+                continue;
+            }
+            Entity body = findEntity(level, shop);
+            if (body instanceof Villager) {
+                applyShopFlags(body, shop);
+                handled.add(body.getUUID());
+            }
+        }
+
+        EntityTypeTest<Entity, Villager> villagers = EntityTypeTest.forClass(Villager.class);
+        for (ServerLevel level : server.getAllLevels()) {
+            for (Villager villager : level.getEntities(villagers, ShopSpawner::isShopEntity)) {
+                if (handled.add(villager.getUUID())) {
+                    reconcileLoadedBody(villager, registry);
+                }
+            }
+        }
+    }
+
+    /**
+     * Installs a concrete empty list without asking the villager to generate its vanilla offers.
+     *
+     * <p>Do not use {@code Merchant#overrideOffers} here: {@link Villager} inherits a deliberately empty server-side
+     * implementation from {@code AbstractVillager}. {@link Villager#setOffers(MerchantOffers)} is the real mutator for the
+     * protected offers field and is what prevents {@code getOffers()} from entering {@code updateTrades()} during save.</p>
+     */
+    private static void neutraliseVillagerOffers(Villager villager) {
+        villager.setOffers(new MerchantOffers());
     }
 
     /** Refreshes flags and text only; variant changes replace the body rather than loading NBT into a live mob. */
