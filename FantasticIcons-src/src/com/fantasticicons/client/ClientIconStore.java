@@ -2,6 +2,7 @@ package com.fantasticicons.client;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,6 +19,10 @@ public final class ClientIconStore {
 
    public static String iconOf(UUID player) {
       return player == null ? null : icons.get(player);
+   }
+
+   public static Map<UUID, String> snapshot() {
+      return new LinkedHashMap<>(icons);
    }
 
    public static void clear() {

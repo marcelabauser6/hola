@@ -1,4 +1,4 @@
-# Fantastic Icons 1.0.2 — Forge 1.20.1
+# Fantastic Icons 1.0.3 — Forge 1.20.1
 
 90 iconos verificados **al final del nombre** del jugador: `Adim Pewez ✔`
 
@@ -69,3 +69,21 @@ reobfusca a nombres SRG de producción (`build.sh` documenta los pasos exactos).
 ## Créditos
 
 Iconos: **Verified Mod Icons — Boxpix Studios**.
+
+
+## Compatibilidad con EssentialsChat en Mohist
+
+EssentialsChat reconstruye el componente del chat mediante Bukkit. En Mohist,
+`{DISPLAYNAME}` no incluye necesariamente los cambios que un mod Forge realiza en
+`PlayerEvent.NameFormat`; por eso el icono podía verse en los mensajes de Fantastic
+Icons, el tab y el nombre flotante, pero no en la línea final de EssentialsChat.
+
+Desde la 1.0.3, el cliente procesa `ClientChatReceivedEvent` con prioridad `LOWEST`,
+cuando Essentials ya aplicó su formato final. Usa el UUID del emisor para encontrar
+su icono y lo inserta justo después del nombre. Si un build de Mohist convierte el
+chat en mensaje de sistema y pierde el UUID, usa como respaldo los nombres de los
+jugadores online con icono.
+
+La reescritura se hace sobre `Component.toFlatList()`: preserva el estilo efectivo
+de cada fragmento, incluidos colores, fuente, hover y clic del prefijo de
+LuckPerms/Essentials. También detecta el glifo ya presente para no duplicarlo.

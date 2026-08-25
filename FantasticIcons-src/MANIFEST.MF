@@ -3,5 +3,5 @@ Specification-Title: fantasticicons
 Specification-Vendor: Fantastic Team
 Specification-Version: 1
 Implementation-Title: FantasticIcons
-Implementation-Version: 1.0.2
+Implementation-Version: 1.0.3
 Implementation-Vendor: Fantastic Team
