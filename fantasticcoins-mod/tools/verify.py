@@ -665,6 +665,131 @@ if "WalletData.get(server).account(playerId)" in financial["api"]:
 if "return wallets.computeIfAbsent" in financial["wallet_data"]:
     problems.append("WalletData account creation no longer explicitly marks SavedData dirty")
 
+# ------------------------------------------------- block models: no see-through faces
+#
+# The ATM shipped with a hole in it. Its plinth had no up face, and because the cabinet standing on
+# the plinth is narrower on all four sides, a rim of the plinth's top was permanently exposed - you
+# could see straight through the base of the machine. It renders as air, which is exactly what it is.
+#
+# A missing face is only safe when something else covers it. This checks that directly: for every
+# element of every block model, a face that is absent must be coplanar with, and contained inside,
+# the opposing face of another element in the same model. Anything else is a hole, reported with the
+# element and direction so it can be found without hunting.
+FACE_AXIS = {
+    "north": (2, 0, (0, 1)),   # -Z, so the face sits at from[2]
+    "south": (2, 1, (0, 1)),   # +Z, at to[2]
+    "west": (0, 0, (1, 2)),
+    "east": (0, 1, (1, 2)),
+    "down": (1, 0, (0, 2)),
+    "up": (1, 1, (0, 2)),
+}
+OPPOSITE = {"north": "south", "south": "north", "west": "east", "east": "west",
+            "down": "up", "up": "down"}
+
+def _face_plane(element, direction):
+    """The coordinate the face lies on, and its extent on the other two axes."""
+    axis, end, (u, v) = FACE_AXIS[direction]
+    box = element["from"], element["to"]
+    return box[end][axis], (box[0][u], box[0][v], box[1][u], box[1][v])
+
+# How far a face may stick out beyond whatever covers it before the gap counts.
+#
+# A quarter of a texel. Inset bands are modelled a tenth of a pixel wider than the body they sit on, so
+# a hair of their top and bottom is technically uncovered - at that size it cannot render as a visible
+# gap, and flagging it would bury the real holes in noise. The ATM's plinth, by contrast, was exposed by
+# half a pixel on two sides and a whole pixel on the others.
+FACE_TOLERANCE = 0.25
+
+def _contains(outer, inner, tolerance=FACE_TOLERANCE):
+    return (outer[0] <= inner[0] + tolerance and outer[1] <= inner[1] + tolerance
+            and outer[2] >= inner[2] - tolerance and outer[3] >= inner[3] - tolerance)
+
+def _backed_by(other, plane, extent, direction):
+    """True when solid geometry sits behind an opening, so it shows a surface rather than the sky.
+
+    A missing face is not always a mistake. The machines' brand plates are frames deliberately left open
+    at the front: the face is absent so that the head's own front, sitting a fraction behind it, shows
+    through the opening. Minecraft draws faces one-sided, so what matters is whether some other element
+    presents a face pointing the same way, further in, across the whole opening. If it does, a viewer
+    sees that surface. If nothing does, they see straight through the model.
+    """
+    axis, end, (u, v) = FACE_AXIS[direction]
+    other_plane = (other["from"], other["to"])[end][axis]
+    # "Further in" is +axis for a low face and -axis for a high one.
+    deeper = other_plane > plane + 1e-6 if end == 0 else other_plane < plane - 1e-6
+    if not deeper:
+        return False
+    other_extent = (other["from"][u], other["from"][v], other["to"][u], other["to"][v])
+    return _contains(other_extent, extent)
+
+def _on_block_boundary(plane):
+    """A face flush with the block's own edge.
+
+    Minecraft culls these against the neighbouring block, and for a machine built from two blocks the
+    neighbour is its other half - so an absent face here is not a hole. Counting them would flag every
+    multi-block model in the mod and make the check noise.
+    """
+    return abs(plane) < 1e-6 or abs(plane - 16.0) < 1e-6
+
+def _inside_element(other, element, direction):
+    """True when a face is buried inside another element rather than merely touching it.
+
+    Inset bands are modelled as a slightly larger box overlapping the body, so their top and bottom sit
+    *within* the body's volume and no two faces are ever coplanar. That is perfectly solid, and the
+    coplanar test alone would call it a hole.
+    """
+    axis, end, (u, v) = FACE_AXIS[direction]
+    plane = (element["from"], element["to"])[end][axis]
+    if not (other["from"][axis] - 1e-6 <= plane <= other["to"][axis] + 1e-6):
+        return False
+    extent = _face_plane(element, direction)[1]
+    other_extent = (other["from"][u], other["from"][v], other["to"][u], other["to"][v])
+    return _contains(other_extent, extent)
+
+model_dir = os.path.join(RES, "assets/athens_coins/models/block")
+holes = 0
+models_checked = 0
+for name in sorted(os.listdir(model_dir)) if os.path.isdir(model_dir) else []:
+    if not name.endswith(".json"):
+        continue
+    with open(os.path.join(model_dir, name), encoding="utf-8") as fh:
+        model = json.load(fh)
+    elements = model.get("elements")
+    if not elements:
+        continue
+    models_checked += 1
+    for element in elements:
+        faces = element.get("faces", {})
+        label = element.get("name", "sin nombre")
+        for direction in FACE_AXIS:
+            if direction in faces:
+                continue
+            plane, extent = _face_plane(element, direction)
+            if _on_block_boundary(plane):
+                continue
+            covered = False
+            for other in elements:
+                if other is element:
+                    continue
+                other_plane, other_extent = _face_plane(other, OPPOSITE[direction])
+                # Touching means the two planes coincide; the neighbour must also be wide enough to
+                # cover the whole opening, or part of it is still a hole.
+                if abs(other_plane - plane) < 1e-6 and _contains(other_extent, extent):
+                    covered = True
+                    break
+                if _inside_element(other, element, direction):
+                    covered = True
+                    break
+                if _backed_by(other, plane, extent, direction):
+                    covered = True
+                    break
+            if not covered:
+                holes += 1
+                problems.append(
+                    f"{name}: element '{label}' has no {direction} face and nothing covers it, "
+                    f"so the model is see-through there")
+notes.append(f"{models_checked} block models checked for see-through faces")
+
 # ---------------------------------------------------------------- report
 print("=" * 70)
 for note in notes:

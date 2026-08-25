@@ -92,6 +92,29 @@ public final class BankRules {
         return Math.min(desiredCents, walletRoom(walletCents, limitCents));
     }
 
+    /**
+     * Splits a payout so the spendable card fills first and the account takes the rest.
+     *
+     * <p>Pulled out as its own function precisely because getting it wrong was a real bug: the ATM paid
+     * coin deposits straight into the account while buying coins back charged the card, so the two
+     * directions used different pockets. Handing coins in showed money in the bank and left the card at
+     * zero, and the coins could not be bought back because the card was empty.</p>
+     *
+     * <p>Card first is what makes an exchange symmetric - money arrives where it will later be taken
+     * from. The remainder still goes somewhere rather than being refused, because a card has a ceiling
+     * and a large deposit will not always fit; losing the deposit over that would be a worse answer
+     * than splitting it and saying so.</p>
+     *
+     * @return {@code {toWallet, toAccount}}, always summing to {@code amount} for a positive amount.
+     */
+    public static long[] splitWalletFirst(long amount, long walletCents, long limitCents) {
+        if (amount <= 0L) {
+            return new long[]{0L, 0L};
+        }
+        long toWallet = fitIntoWallet(amount, walletCents, limitCents);
+        return new long[]{toWallet, amount - toWallet};
+    }
+
     /** True when the wallet is already at its ceiling. */
     public static boolean walletFull(long walletCents, long limitCents) {
         return walletRoom(walletCents, limitCents) <= 0L;

@@ -12,7 +12,7 @@
   "elements": [
     {
       "name": "plinth",
-      "__comment": "A recessed base, so the machine stands on the floor instead of growing out of it.",
+      "__comment": "A recessed base, so the machine stands on the floor instead of growing out of it. The up face is not optional: the cabinet above is narrower on all four sides, so a rim of this element's top is always visible, and without a face there you see straight through the machine.",
       "from": [1, 0, 1],
       "to": [15, 2, 14],
       "faces": {
@@ -20,12 +20,13 @@
         "south": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
         "east": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
         "west": { "texture": "#bottom", "uv": [0, 0, 16, 4] },
+        "up": { "texture": "#bottom", "uv": [0, 0, 16, 16] },
         "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
       }
     },
     {
       "name": "cabinet",
-      "__comment": "The body, from the plinth to the top of this block. Explicit UVs so each texture fills a whole face rather than being cropped to the element's slice of the block.",
+      "__comment": "The body, from the plinth to the top of this block. Explicit UVs so each texture fills a whole face rather than being cropped to the element's slice of the block. The up face is covered by the upper half's head today, but it is drawn anyway: a model that only looks solid because of what sits next to it becomes a hole the moment the other half is missing, which is exactly what happens while the machine is being placed.",
       "from": [1.5, 2, 2],
       "to": [14.5, 16, 13.5],
       "faces": {
@@ -33,6 +34,7 @@
         "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
         "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
         "west": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "up": { "texture": "#side", "uv": [0, 0, 16, 16] },
         "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
       }
     },

@@ -20,12 +20,31 @@ import java.util.UUID;
  */
 public final class WalletManager {
 
-    /** Result of an exchange: coins moved and the cash amount involved. */
-    public record Exchange(int coins, long cents) {
-        public static final Exchange NONE = new Exchange(0, 0L);
+    /**
+     * Result of an exchange: coins moved, the cash involved, and where that cash landed.
+     *
+     * <p>The split is carried out to the caller rather than kept internal so the machine can say which
+     * balance moved. Not knowing that was half of the original problem being hard to diagnose: money
+     * arrived somewhere, the card still read zero, and nothing on screen accounted for the difference.</p>
+     *
+     * @param toWallet  cash put on the spendable card.
+     * @param toAccount cash that did not fit on the card and went to the account instead.
+     */
+    public record Exchange(int coins, long cents, long toWallet, long toAccount) {
+        public static final Exchange NONE = new Exchange(0, 0L, 0L, 0L);
+
+        /** For the coins direction, where the money simply leaves the card. */
+        public Exchange(int coins, long cents) {
+            this(coins, cents, 0L, 0L);
+        }
 
         public boolean isEmpty() {
             return coins <= 0;
+        }
+
+        /** True when the card was full and part of the payout went to the account. */
+        public boolean overflowed() {
+            return toAccount > 0L;
         }
     }
 
@@ -156,19 +175,36 @@ public final class WalletManager {
             credited = Money.afterFee(gross, settings.exchangeToCashFeePercent);
         }
 
-        // ATM coin deposits settle into the principal account. Refund inventory on any failure.
-        boolean paid = com.athensmc.athenscoins.bank.BankManager.creditAccount(player.server,
-                player.getUUID(), credited,
-                com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_DEPOSIT,
-                type.id(), "atm");
-        if (!paid) {
+        // Coins settle onto the spendable card first, with any excess going to the account.
+        //
+        // This used to credit the principal account outright, which was the bug: buying coins back
+        // charges the card, so the two directions used different pockets. Handing in coins showed money
+        // in the bank and left the card at zero, and the coins could not be bought back because the
+        // card was empty - the machine appeared to swallow them and give nothing.
+        com.athensmc.athenscoins.bank.BankManager.Settlement settled =
+                com.athensmc.athenscoins.bank.BankManager.creditWalletFirst(player.server,
+                        player.getUUID(), credited,
+                        com.athensmc.athenscoins.bank.LedgerEntry.Kind.COIN_DEPOSIT,
+                        type.id(), "atm");
+        if (settled.isEmpty()) {
+            // Nothing could be credited anywhere, so the coins go back. Never keep both.
             giveCoins(player, type, taken);
             syncInventory(player);
             return Exchange.NONE;
         }
+        if (settled.total() < credited) {
+            // Only part of it fit. Refund the coins the shortfall paid for, so the player is never
+            // charged coins for money they did not receive.
+            long unpaid = credited - settled.total();
+            int refund = (int) Math.min(taken, unpaid / Math.max(1L, unitRate));
+            if (refund > 0) {
+                giveCoins(player, type, refund);
+                taken -= refund;
+            }
+        }
         syncInventory(player);
         pushBalance(player);
-        return new Exchange(taken, credited);
+        return new Exchange(taken, settled.total(), settled.toWallet(), settled.toAccount());
     }
 
     /**

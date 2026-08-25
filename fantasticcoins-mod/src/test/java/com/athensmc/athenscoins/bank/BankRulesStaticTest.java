@@ -58,6 +58,40 @@ public class BankRulesStaticTest {
         eq("full wallet detected", BankRules.walletFull(25_000_00L, 25_000_00L), true);
         eq("unlimited wallet is never full", BankRules.walletFull(999_999_999L, 0L), false);
 
+        // The ATM bug: handing coins in credited the account while buying them back charged the card,
+        // so the machine appeared to swallow coins and pay nothing. A coin deposit has to reach the
+        // card, because the card is where the next exchange takes it from.
+        System.out.println("-- coin deposits land on the card first --");
+        eq("an empty card takes the whole deposit",
+                BankRules.splitWalletFirst(5_000_00L, 0L, 25_000_00L)[0], 5_000_00L);
+        eq("and leaves nothing for the account",
+                BankRules.splitWalletFirst(5_000_00L, 0L, 25_000_00L)[1], 0L);
+        eq("an unlimited card takes everything",
+                BankRules.splitWalletFirst(9_999_999L, 500_00L, 0L)[0], 9_999_999L);
+
+        // A card near its ceiling splits rather than refusing, so the deposit is never lost.
+        eq("a nearly full card takes what fits",
+                BankRules.splitWalletFirst(5_000_00L, 24_000_00L, 25_000_00L)[0], 1_000_00L);
+        eq("and the rest goes to the account",
+                BankRules.splitWalletFirst(5_000_00L, 24_000_00L, 25_000_00L)[1], 4_000_00L);
+        eq("a full card sends it all to the account",
+                BankRules.splitWalletFirst(1_000_00L, 25_000_00L, 25_000_00L)[1], 1_000_00L);
+        eq("and puts nothing on the card",
+                BankRules.splitWalletFirst(1_000_00L, 25_000_00L, 25_000_00L)[0], 0L);
+
+        // Whatever the split, it must add up: money that vanishes in the arithmetic is money the
+        // player paid coins for and never received.
+        long[][] cases = {
+                {1L, 0L, 25_000_00L}, {5_000_00L, 24_999_99L, 25_000_00L},
+                {123_45L, 1_000_00L, 0L}, {25_000_00L, 0L, 25_000_00L},
+        };
+        for (long[] example : cases) {
+            long[] split = BankRules.splitWalletFirst(example[0], example[1], example[2]);
+            eq("split of " + example[0] + " adds up", split[0] + split[1], example[0]);
+        }
+        eq("nothing to pay splits to nothing", BankRules.splitWalletFirst(0L, 0L, 0L)[0], 0L);
+        eq("a negative payout splits to nothing", BankRules.splitWalletFirst(-5L, 0L, 0L)[1], 0L);
+
         System.out.println("-- commission, a fixed fee every N days --");
         long start = at("2026-03-02", 12);              // a Monday
         eq("nothing owed after 5 hours",

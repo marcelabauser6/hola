@@ -253,6 +253,15 @@ public class C2SAtmActionPacket {
                                 : "message.athens_coins.exchanged_to_coins",
                         result.coins(), type.shortName(), Money.format(result.cents(), symbol))
                 .withStyle(ChatFormatting.GREEN), true);
+        if (result.overflowed()) {
+            // Said explicitly, because a card at its ceiling is otherwise indistinguishable from the
+            // machine losing the money: the amount exchanged is right, and the card barely moved.
+            player.sendSystemMessage(Component.translatable(
+                            "message.athens_coins.exchange_overflow",
+                            Money.format(result.toWallet(), symbol),
+                            Money.format(result.toAccount(), symbol))
+                    .withStyle(ChatFormatting.YELLOW));
+        }
         chime(player, toCash ? 1.4F : 1.0F);
     }
 

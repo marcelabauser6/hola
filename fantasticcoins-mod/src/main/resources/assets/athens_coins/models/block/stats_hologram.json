@@ -12,40 +12,206 @@
   "elements": [
     {
       "name": "plinth",
-      "from": [2, 0, 2],
-      "to": [14, 4, 14],
+      "from": [
+        2,
+        0,
+        2
+      ],
+      "to": [
+        14,
+        4,
+        14
+      ],
       "faces": {
-        "north": { "texture": "#side", "uv": [0, 0, 16, 16] },
-        "south": { "texture": "#side", "uv": [0, 0, 16, 16] },
-        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
-        "west": { "texture": "#side", "uv": [0, 0, 16, 16] },
-        "up": { "texture": "#top", "uv": [0, 0, 16, 16] },
-        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+        "north": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
       }
     },
     {
       "name": "lens",
       "__comment": "A thin lit disc sitting a fraction above the plinth's top face, so the emitter reads as a separate part instead of a pattern painted on the lid.",
-      "from": [4, 4, 4],
-      "to": [12, 5, 12],
+      "from": [
+        4,
+        4,
+        4
+      ],
+      "to": [
+        12,
+        5,
+        12
+      ],
       "faces": {
-        "north": { "texture": "#top", "uv": [4, 6, 12, 8] },
-        "south": { "texture": "#top", "uv": [4, 6, 12, 8] },
-        "east": { "texture": "#top", "uv": [4, 6, 12, 8] },
-        "west": { "texture": "#top", "uv": [4, 6, 12, 8] },
-        "up": { "texture": "#top", "uv": [2, 2, 14, 14] }
+        "north": {
+          "texture": "#top",
+          "uv": [
+            4,
+            6,
+            12,
+            8
+          ]
+        },
+        "south": {
+          "texture": "#top",
+          "uv": [
+            4,
+            6,
+            12,
+            8
+          ]
+        },
+        "east": {
+          "texture": "#top",
+          "uv": [
+            4,
+            6,
+            12,
+            8
+          ]
+        },
+        "west": {
+          "texture": "#top",
+          "uv": [
+            4,
+            6,
+            12,
+            8
+          ]
+        },
+        "up": {
+          "texture": "#top",
+          "uv": [
+            2,
+            2,
+            14,
+            14
+          ]
+        }
       }
     },
     {
       "name": "brand_band",
-      "__comment": "A tinted skirt around the plinth, carrying the colour of the bank that issued the board. Same trick as the ATM's livery: drawn in greys and multiplied at render time, so a board tells you whose figures it is showing before you have read any of them. An unbranded board - the server-wide one - keeps the default steel.",
-      "from": [1.6, 0.4, 1.6],
-      "to": [14.4, 2.4, 14.4],
+      "__comment": "A tinted skirt around the plinth, carrying the colour of the bank that issued the board. Same trick as the ATM's livery: drawn in greys and multiplied at render time, so a board tells you whose figures it is showing before you have read any of them. An unbranded board - the server-wide one - keeps the default steel. Face present because nothing covers it: the element next to this one is narrower, so a rim of this side stays exposed and an absent face renders as a hole straight through the machine.",
+      "from": [
+        1.6,
+        0.4,
+        1.6
+      ],
+      "to": [
+        14.4,
+        2.4,
+        14.4
+      ],
       "faces": {
-        "north": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
-        "south": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
-        "east": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 },
-        "west": { "texture": "#accent", "uv": [0, 0, 16, 16], "tintindex": 0 }
+        "north": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#accent",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
       }
     }
   ]

@@ -270,6 +270,84 @@ public final class BankManager {
     /** Explicit wallet credit; rejects overflow and any amount beyond this bank's limit. */
     public static boolean creditWallet(MinecraftServer server,UUID owner,long amount,LedgerEntry.Kind kind,String note,String source){migrateLegacyWallets(server);BankData data=data(server);synchronized(data){BankAccount account=data.accountOf(owner);if(account==null||amount<=0L)return false;Bank bank=data.bank(account.bankId());if(bank==null||BankRules.fitIntoWallet(amount,account.walletBalance(),bank.walletLimit())!=amount||!account.creditWallet(amount))return false;account.recordExternal(kind,amount,account.walletBalance()-amount,account.walletBalance(),note,System.currentTimeMillis(),LedgerEntry.correlation(),owner.toString(),source);data.setDirty();return true;}}
 
+    /** How a payout was split between the spendable card and the principal account. */
+    public record Settlement(long toWallet, long toAccount) {
+        public static final Settlement NONE = new Settlement(0L, 0L);
+
+        public long total() {
+            return toWallet + toAccount;
+        }
+
+        public boolean isEmpty() {
+            return total() <= 0L;
+        }
+
+        /** True when the card could not take all of it and the rest went to the account. */
+        public boolean overflowed() {
+            return toAccount > 0L && toWallet > 0L;
+        }
+    }
+
+    /**
+     * Pays money in, filling the spendable card first and putting any excess in the account.
+     *
+     * <p>This exists because of a real bug: the ATM credited the principal account when coins were
+     * handed in, while buying coins back charged the card. The two directions therefore used different
+     * pockets, so inserting coins showed money in the bank and left the card reading zero, and the
+     * coins could never be bought back because the card was empty. From the outside it looked as
+     * though the machine swallowed the coins and gave nothing.</p>
+     *
+     * <p>Filling the card first is what makes the exchange symmetric - money goes to the same place it
+     * is later taken from. The overflow to the account matters just as much: a card has a ceiling, so a
+     * large deposit will not always fit, and refusing the whole thing would hand the coins back and
+     * look like another failure. Splitting keeps the money and reports where it landed.</p>
+     *
+     * <p>Both halves happen under one lock, and each is recorded separately in the ledger so a statement
+     * shows what actually moved rather than one lump that matches neither balance.</p>
+     */
+    public static Settlement creditWalletFirst(MinecraftServer server, UUID owner, long amount,
+                                               LedgerEntry.Kind kind, String note, String source) {
+        migrateLegacyWallets(server);
+        BankData data = data(server);
+        synchronized (data) {
+            BankAccount account = data.accountOf(owner);
+            if (account == null || amount <= 0L) {
+                return Settlement.NONE;
+            }
+            Bank bank = data.bank(account.bankId());
+            if (bank == null) {
+                return Settlement.NONE;
+            }
+
+            long now = System.currentTimeMillis();
+            String correlation = LedgerEntry.correlation();
+
+            long[] split = BankRules.splitWalletFirst(amount, account.walletBalance(),
+                    bank.walletLimit());
+            long forWallet = split[0];
+            long credited = 0L;
+            if (forWallet > 0L && account.creditWallet(forWallet)) {
+                account.recordExternal(kind, forWallet, account.walletBalance() - forWallet,
+                        account.walletBalance(), note, now, correlation, owner.toString(), source);
+                credited = forWallet;
+            }
+
+            long remainder = amount - credited;
+            long toAccount = 0L;
+            if (remainder > 0L && account.canCredit(remainder)
+                    && account.credit(remainder, kind, note, now, correlation, owner.toString(),
+                    source)) {
+                toAccount = remainder;
+            }
+
+            Settlement settlement = new Settlement(credited, toAccount);
+            if (!settlement.isEmpty()) {
+                data.setDirty();
+            }
+            return settlement;
+        }
+    }
+
     /**
      * Shop-compatible wallet charge: account required, all-or-nothing.
      *

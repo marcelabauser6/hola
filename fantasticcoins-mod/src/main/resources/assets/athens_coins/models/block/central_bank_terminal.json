@@ -16,61 +16,305 @@
   "elements": [
     {
       "name": "base",
-      "from": [0, 0, 1],
-      "to": [16, 1.5, 15],
+      "from": [
+        0,
+        0,
+        1
+      ],
+      "to": [
+        16,
+        1.5,
+        15
+      ],
       "faces": {
-        "north": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
-        "south": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
-        "east": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
-        "west": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
-        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
-      }
+        "north": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ]
+        },
+        "south": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ]
+        },
+        "east": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ]
+        },
+        "west": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ]
+        },
+        "up": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      },
+      "__comment": "Face present because nothing covers it: the element next to this one is narrower, so a rim of this side stays exposed and an absent face renders as a hole straight through the machine."
     },
     {
       "name": "cabinet",
-      "from": [0.5, 1.5, 2],
-      "to": [15.5, 8, 14],
+      "from": [
+        0.5,
+        1.5,
+        2
+      ],
+      "to": [
+        15.5,
+        8,
+        14
+      ],
       "faces": {
-        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
-        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
-        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
-        "west": { "texture": "#side", "uv": [0, 0, 16, 16] }
+        "north": {
+          "texture": "#front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#back",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
       }
     },
     {
       "name": "head",
-      "from": [0.5, 8, 2],
-      "to": [15.5, 14, 14],
+      "from": [
+        0.5,
+        8,
+        2
+      ],
+      "to": [
+        15.5,
+        14,
+        14
+      ],
       "faces": {
-        "north": { "texture": "#head_front", "uv": [0, 0, 16, 16] },
-        "south": { "texture": "#head_back", "uv": [0, 0, 16, 16] },
-        "east": { "texture": "#head_side", "uv": [0, 0, 16, 16] },
-        "west": { "texture": "#head_side", "uv": [0, 0, 16, 16] }
+        "north": {
+          "texture": "#head_front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#head_back",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
       }
     },
     {
       "name": "rate_board",
-      "from": [2, 9, 1.5],
-      "to": [14, 13, 2],
+      "from": [
+        2,
+        9,
+        1.5
+      ],
+      "to": [
+        14,
+        13,
+        2
+      ],
       "faces": {
-        "north": { "texture": "#screen", "uv": [0, 0, 16, 16] },
-        "east": { "texture": "#head_side", "uv": [0, 0, 2, 16] },
-        "west": { "texture": "#head_side", "uv": [0, 0, 2, 16] },
-        "up": { "texture": "#head_side", "uv": [0, 0, 16, 2] },
-        "down": { "texture": "#head_side", "uv": [0, 0, 16, 2] }
+        "north": {
+          "texture": "#screen",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            2,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            2,
+            16
+          ]
+        },
+        "up": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            16,
+            2
+          ]
+        },
+        "down": {
+          "texture": "#head_side",
+          "uv": [
+            0,
+            0,
+            16,
+            2
+          ]
+        }
       }
     },
     {
       "name": "pediment",
-      "from": [0, 14, 1],
-      "to": [16, 16, 15],
+      "from": [
+        0,
+        14,
+        1
+      ],
+      "to": [
+        16,
+        16,
+        15
+      ],
       "faces": {
-        "north": { "texture": "#top", "uv": [0, 0, 16, 4] },
-        "south": { "texture": "#top", "uv": [0, 0, 16, 4] },
-        "east": { "texture": "#top", "uv": [0, 0, 16, 4] },
-        "west": { "texture": "#top", "uv": [0, 0, 16, 4] },
-        "up": { "texture": "#top", "uv": [0, 0, 16, 16] }
-      }
+        "north": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "south": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "east": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "west": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "up": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#top",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      },
+      "__comment": "Face present because nothing covers it: the element next to this one is narrower, so a rim of this side stays exposed and an absent face renders as a hole straight through the machine."
     }
   ]
 }

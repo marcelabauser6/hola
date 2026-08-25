@@ -32,6 +32,7 @@
   "message.athens_coins.no_coins": "No llevas ninguna moneda de %s",
   "message.athens_coins.no_cash": "No te alcanza el saldo para comprar %s",
   "message.athens_coins.exchanged_to_cash": "Cambiaste %s x %s por %s",
+  "message.athens_coins.exchange_overflow": "%s a la cartera y %s a la cuenta: la cartera llego a su limite",
   "message.athens_coins.exchanged_to_coins": "Compraste %s x %s por %s",
   "message.athens_coins.amount_invalid": "Esa cantidad no es válida",
   "message.athens_coins.amount_decimals": "Solo se permiten dos decimales, por ejemplo 1.25",
