@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "fsshopkeepers:item/shop_wand"
+  }
+}

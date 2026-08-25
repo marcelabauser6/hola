@@ -1,0 +1,13 @@
+{
+  "item.fsshopkeepers.cash_note": "Fantastic Cash",
+  "menu.fsshopkeepers.shop_trade": "Tienda",
+  "menu.fsshopkeepers.editor": "Editor de tienda",
+  "fsshopkeepers.tab.trades": "Tratos",
+  "fsshopkeepers.tab.appearance": "Aspecto",
+  "fsshopkeepers.tab.settings": "Ajustes",
+  "fsshopkeepers.action.save": "Guardar cambios",
+  "fsshopkeepers.action.close": "Cerrar",
+  "fsshopkeepers.action.delete": "Borrar",
+  "fsshopkeepers.trade.trades": "Tratos",
+  "item.fsshopkeepers.shop_wand": "Varita del editor"
+}
