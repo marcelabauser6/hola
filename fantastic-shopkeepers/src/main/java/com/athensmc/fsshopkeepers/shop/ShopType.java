@@ -3,9 +3,9 @@ package com.athensmc.fsshopkeepers.shop;
 /**
  * What kind of shop an NPC runs.
  *
- * <p>The distinction that matters is where the goods come from. An {@link #ADMIN} shop invents them, so it never
- * runs out and never fills up. Every other kind is backed by a container the owning player stocks, so what it can
- * do is limited by what is in that chest at the moment a buyer clicks.</p>
+ * <p>The distinction that matters is which way goods and money move, and whether the shop has an owner to pay. Whether a
+ * shop runs out is not part of it: that depends on whether a chest was linked to the shop, which is a property of the shop
+ * and not of its kind. A shop with no chest never runs out, and that is the normal case.</p>
  *
  * <p>Kept as an enum with its rules attached, rather than as a class hierarchy, because the differences between
  * the kinds are a handful of yes/no answers - does it need an owner, does it need a chest, does it take money in
@@ -20,8 +20,8 @@ public enum ShopType {
      * as long as the shop exists.</p>
      */
     ADMIN("admin", "Tienda de administrador",
-            "Existencias infinitas. No necesita cofre ni dueño.",
-            false, false, Direction.SELLS),
+            "Existencias infinitas y sin dueño: el dinero sale de la economia.",
+            false, Direction.SELLS),
 
     /**
      * A player shop that sells the contents of its chest for money.
@@ -30,8 +30,8 @@ public enum ShopType {
      * rather than the shop selling items it does not have.</p>
      */
     PLAYER_SELL("venta", "Tienda de venta",
-            "Vende lo que hay en el cofre y te paga en Cash.",
-            true, true, Direction.SELLS),
+            "Vende y te paga en Cash. Con cofre vende solo lo que haya en el.",
+            true, Direction.SELLS),
 
     /**
      * A player shop that buys items from other players, paying out of the owner's balance.
@@ -40,8 +40,8 @@ public enum ShopType {
      * selling shop, and the owner's balance is a third limit on top.</p>
      */
     PLAYER_BUY("compra", "Tienda de compra",
-            "Compra articulos a otros jugadores y los guarda en el cofre.",
-            true, true, Direction.BUYS),
+            "Compra articulos a otros jugadores. Con cofre los guarda en el.",
+            true, Direction.BUYS),
 
     /**
      * A player shop that barters items for items.
@@ -50,8 +50,8 @@ public enum ShopType {
      * has to have room for what comes in as well as stock for what goes out.</p>
      */
     PLAYER_TRADE("trueque", "Tienda de trueque",
-            "Intercambia articulos por articulos usando el cofre.",
-            true, true, Direction.BARTERS),
+            "Intercambia articulos por articulos, con o sin cofre.",
+            true, Direction.BARTERS),
 
     /**
      * A player shop that sells copies of written books.
@@ -60,8 +60,8 @@ public enum ShopType {
      * sold many times. That is the whole reason it is its own kind.</p>
      */
     PLAYER_BOOK("libros", "Tienda de libros",
-            "Vende copias de los libros escritos que haya en el cofre.",
-            true, true, Direction.SELLS);
+            "Vende copias de libros escritos. Con cofre copia el original que haya.",
+            true, Direction.SELLS);
 
     /** Which way goods and money move, which decides what has to be checked before a trade. */
     public enum Direction {
@@ -77,16 +77,13 @@ public enum ShopType {
     private final String title;
     private final String description;
     private final boolean needsOwner;
-    private final boolean needsContainer;
     private final Direction direction;
 
-    ShopType(String id, String title, String description, boolean needsOwner, boolean needsContainer,
-            Direction direction) {
+    ShopType(String id, String title, String description, boolean needsOwner, Direction direction) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.needsOwner = needsOwner;
-        this.needsContainer = needsContainer;
         this.direction = direction;
     }
 
@@ -108,11 +105,6 @@ public enum ShopType {
     /** True when the shop belongs to a player rather than to staff. */
     public boolean isPlayerShop() {
         return needsOwner;
-    }
-
-    /** True when the shop draws its stock from a container. */
-    public boolean needsContainer() {
-        return needsContainer;
     }
 
     public Direction direction() {
