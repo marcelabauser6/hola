@@ -88,9 +88,10 @@ public final class TradeExecutor {
             return Result.no("El precio total es demasiado grande.");
         }
 
-        Container container = shop.type().needsContainer() ? ShopStock.container(level, shop) : null;
-        if (shop.type().needsContainer() && container == null) {
-            return Result.no("Esta tienda no tiene cofre. Avisa al dueño.");
+        // A shop without a chest has unlimited stock; one that was given a chest is limited by it.
+        Container container = shop.usesContainer() ? ShopStock.container(level, shop) : null;
+        if (shop.usesContainer() && container == null) {
+            return Result.no("El cofre de esta tienda ya no esta ahi. Avisa al dueño.");
         }
 
         boolean copiesGoods = shop.type() == ShopType.PLAYER_BOOK;
@@ -169,14 +170,14 @@ public final class TradeExecutor {
             return Result.no("El sistema de dinero no esta disponible ahora mismo.");
         }
 
-        Container container = ShopStock.container(level, shop);
-        if (container == null) {
-            return Result.no("Esta tienda no tiene cofre. Avisa al dueño.");
+        Container container = shop.usesContainer() ? ShopStock.container(level, shop) : null;
+        if (shop.usesContainer() && container == null) {
+            return Result.no("El cofre de esta tienda ya no esta ahi. Avisa al dueño.");
         }
         if (!hasItems(buyer, handedIn)) {
             return Result.no("No tienes los articulos que pide.");
         }
-        if (ShopStock.room(container, handedIn) < handedIn.getCount()) {
+        if (container != null && ShopStock.room(container, handedIn) < handedIn.getCount()) {
             return Result.no("El cofre de la tienda esta lleno.");
         }
         if (shop.owner() == null) {
@@ -193,7 +194,8 @@ public final class TradeExecutor {
             Cash.deposit(buyer.server, shop.owner(), payout);
             return Result.no("No se pudieron retirar tus articulos. No se ha movido dinero.");
         }
-        if (!ShopStock.add(container, handedIn)) {
+        // Without a chest the goods simply leave the world, which is what an unlimited buying shop means.
+        if (container != null && !ShopStock.add(container, handedIn)) {
             Cash.deposit(buyer.server, shop.owner(), payout);
             giveBack(buyer, handedIn);
             return Result.no("El cofre se lleno mientras vendias. No se ha movido dinero.");
@@ -215,9 +217,9 @@ public final class TradeExecutor {
     /** Items for items, with no money on either side. */
     private static Result barter(ServerPlayer buyer, ServerLevel level, Shopkeeper shop, TradeOffer offer,
             int times) {
-        Container container = ShopStock.container(level, shop);
-        if (container == null) {
-            return Result.no("Esta tienda no tiene cofre. Avisa al dueño.");
+        Container container = shop.usesContainer() ? ShopStock.container(level, shop) : null;
+        if (shop.usesContainer() && container == null) {
+            return Result.no("El cofre de esta tienda ya no esta ahi. Avisa al dueño.");
         }
         ItemStack payment1 = scaled(offer.cost1(), times);
         ItemStack payment2 = scaled(offer.cost2(), times);
@@ -227,16 +229,18 @@ public final class TradeExecutor {
         if (!hasItems(buyer, payment1) || !hasItems(buyer, payment2)) {
             return Result.no("No tienes los articulos de pago.");
         }
-        if (ShopStock.count(container, offer.result()) < goods.getCount()) {
+        if (container != null && ShopStock.count(container, offer.result()) < goods.getCount()) {
             return Result.no("La tienda no tiene existencias suficientes.");
         }
         if (!hasRoomFor(buyer, goods)) {
             return Result.no("No tienes espacio en el inventario.");
         }
-        if (!payment1.isEmpty() && ShopStock.room(container, payment1) < payment1.getCount()) {
+        if (container != null && !payment1.isEmpty()
+                && ShopStock.room(container, payment1) < payment1.getCount()) {
             return Result.no("El cofre de la tienda esta lleno.");
         }
-        if (!payment2.isEmpty() && ShopStock.room(container, payment2) < payment2.getCount()) {
+        if (container != null && !payment2.isEmpty()
+                && ShopStock.room(container, payment2) < payment2.getCount()) {
             return Result.no("El cofre de la tienda esta lleno.");
         }
         if (!takeItems(buyer, payment1) || !takeItems(buyer, payment2)) {
@@ -244,13 +248,15 @@ public final class TradeExecutor {
             giveBack(buyer, payment2);
             return Result.no("No se pudo retirar el pago.");
         }
-        if (!ShopStock.remove(container, offer.result(), goods.getCount())) {
+        if (container != null && !ShopStock.remove(container, offer.result(), goods.getCount())) {
             giveBack(buyer, payment1);
             giveBack(buyer, payment2);
             return Result.no("Las existencias cambiaron mientras cambiabas.");
         }
-        storeIfPresent(container, payment1);
-        storeIfPresent(container, payment2);
+        if (container != null) {
+            storeIfPresent(container, payment1);
+            storeIfPresent(container, payment2);
+        }
         give(buyer, goods);
         log(buyer, shop, offer, times, 0L);
         notifyOwner(buyer, shop, goods, 0L);

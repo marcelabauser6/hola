@@ -260,14 +260,11 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         Payment costB = paymentB(offer);
         boolean bothPayments = !costA.isEmpty() && !costB.isEmpty();
 
-        // With a single payment, vanilla's two baked-in wells are painted over and one well is drawn between them.
-        // An empty second well reads as a slot that failed to fill, and it stranded the price at the far left,
-        // away from the arrow.
+        // With a single payment the first well is painted out and the payment goes in the second, which is the one
+        // nearest the arrow. An empty well beside the price read as a slot that had failed to fill, and it left the
+        // price stranded at the far left.
         if (!bothPayments) {
             paintOverWell(graphics, TradeWindowGeometry.wellAround(slotPaymentARect()));
-            paintOverWell(graphics, TradeWindowGeometry.wellAround(slotPaymentBRect()));
-            drawWell(graphics, TradeWindowGeometry.wellAround(
-                    TradeWindowGeometry.slotPaymentSingle(leftPos, topPos)));
         }
 
         graphics.pose().pushPose();

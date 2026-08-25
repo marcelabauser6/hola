@@ -195,9 +195,20 @@ public final class Shopkeeper {
         this.entityId = entityId;
     }
 
-    /** The container this shop draws stock from, or null for an admin shop. */
+    /** The container this shop draws stock from, or null when it has none. */
     public BlockPos containerPos() {
         return containerPos;
+    }
+
+    /**
+     * Whether this shop is limited by a chest.
+     *
+     * <p>A shop without one has unlimited stock. That is the normal case: requiring a chest to exist before a shop can be
+     * created made the commonest thing anyone wants - a shop that just sells - the awkward one, and silently linking
+     * whatever chest happened to be nearby produced shops backed by a container their owner had never seen.</p>
+     */
+    public boolean usesContainer() {
+        return containerPos != null;
     }
 
     public void setContainerPos(BlockPos containerPos) {

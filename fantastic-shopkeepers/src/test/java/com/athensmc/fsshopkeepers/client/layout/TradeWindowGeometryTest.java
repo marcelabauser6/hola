@@ -125,11 +125,15 @@ public final class TradeWindowGeometryTest {
         Rect slotA = TradeWindowGeometry.slotPaymentA(leftPos, topPos);
         Rect slotB = TradeWindowGeometry.slotPaymentB(leftPos, topPos);
         Rect result = TradeWindowGeometry.slotResult(leftPos, topPos);
-        if (single.x() <= slotA.x() || single.x() >= slotB.x()) {
-            failures.add(at + ": el hueco unico no queda entre los dos de vanilla");
+        // The lone payment must be the slot nearest the arrow, never the far one, and never past the result.
+        if (single.x() <= slotA.x()) {
+            failures.add(at + ": el hueco unico quedo en el sitio lejano en vez del cercano a la flecha");
         }
-        if (single.x() - slotA.x() != slotB.x() - single.x()) {
-            failures.add(at + ": el hueco unico no queda centrado entre los dos");
+        if (single.x() != slotB.x()) {
+            failures.add(at + ": el hueco unico no coincide con el hueco que vanilla ya dibuja");
+        }
+        if (single.right() >= result.x()) {
+            failures.add(at + ": el hueco unico se pasa hasta el resultado");
         }
         if (single.overlaps(result)) {
             failures.add(at + ": el hueco unico se solapa con el resultado");

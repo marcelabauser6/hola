@@ -156,6 +156,17 @@ public final class Cash {
         return available;
     }
 
+    /**
+     * True when a purchase can reach the money in a player's bank account.
+     *
+     * <p>Reported so {@code /fskeepers saldo} can say whether an account balance is spendable here. Without this, a player
+     * with a full account and an empty wallet is refused with no way to tell whether the mod cannot see the money or
+     * cannot touch it.</p>
+     */
+    public static boolean canChargeAccount() {
+        return available && debitAccount != null;
+    }
+
     /** The currency symbol, or a neutral fallback when the currency mod is absent. */
     public static String symbol() {
         if (!available) {

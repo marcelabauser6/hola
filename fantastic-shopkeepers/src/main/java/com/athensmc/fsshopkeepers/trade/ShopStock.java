@@ -177,11 +177,13 @@ public final class ShopStock {
      * container to count.</p>
      */
     public static int availableTrades(ServerLevel level, Shopkeeper shop, com.athensmc.fsshopkeepers.shop.TradeOffer offer) {
-        if (!shop.type().needsContainer()) {
+        if (!shop.usesContainer()) {
+            // No chest, no limit. A shop only runs out of things if someone chose to back it with a container.
             return Integer.MAX_VALUE;
         }
         Container container = container(level, shop);
         if (container == null) {
+            // A chest was chosen and is now missing or unloaded, which is a real reason to refuse.
             return 0;
         }
         if (shop.type().buysFromBuyer()) {

@@ -77,10 +77,9 @@ public final class ShopCreation {
             }
         }
 
-        if (type.needsContainer()) {
-            if (containerPos == null) {
-                return Outcome.no("Primero haz clic derecho en un cofre con el objeto de creacion.");
-            }
+        // A chest is optional. A shop without one sells without running out, which is what almost every shop wants;
+        // requiring one up front made the commonest case the awkward one.
+        if (containerPos != null) {
             if (!isContainer(level, containerPos)) {
                 return Outcome.no("Ese bloque ya no es un contenedor valido.");
             }
@@ -105,9 +104,7 @@ public final class ShopCreation {
             shop.setOwner(creator.getUUID(), creator.getGameProfile().getName());
         }
         shop.setObjectKind(kind);
-        if (type.needsContainer()) {
-            shop.setContainerPos(containerPos);
-        }
+        shop.setContainerPos(containerPos);
         registry.put(shop);
 
         if (kind.hasEntity()) {

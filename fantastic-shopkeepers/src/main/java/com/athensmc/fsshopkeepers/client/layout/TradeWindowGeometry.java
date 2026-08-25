@@ -124,8 +124,9 @@ public final class TradeWindowGeometry {
      * midway between the two, which also brings it nearer the arrow instead of stranding it at the far left.</p>
      */
     public static Rect slotPaymentSingle(int leftPos, int topPos) {
-        int x = leftPos + (SLOT_PAYMENT_A_X + SLOT_PAYMENT_B_X) / 2;
-        return new Rect(x, topPos + SLOT_Y, ITEM, ITEM);
+        // Sat against the second slot's position rather than midway between the two, which still left a visible gap
+        // before the arrow. Here the payment reads as feeding straight into it.
+        return new Rect(leftPos + SLOT_PAYMENT_B_X, topPos + SLOT_Y, ITEM, ITEM);
     }
 
     /** The 18x18 well behind a slot, one pixel out from the item on every side. */
