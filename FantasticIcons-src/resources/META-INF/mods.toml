@@ -5,7 +5,7 @@ issueTrackerURL="https://github.com"
 
 [[mods]]
 modId="fantasticicons"
-version="1.0.0"
+version="1.0.1"
 displayName="Fantastic Icons"
 authors="Boxpix Studios (iconos)"
 description='''
@@ -13,9 +13,9 @@ Fantastic Icons: 90 iconos verificados que se muestran AL FINAL del nombre del j
 en el nombre flotante sobre la cabeza, en el chat y en la lista de tab. Forge 1.20.1.
 
 Comandos (solo OP, nivel 2):
-  /fsicons set <icono> <jugador>      pone el icono (ambos argumentos se autocompletan)
-  /fsicons change <jugador> <icono>   cambia el icono
-  /fsicons remove <jugador>           quita el icono (alias: /fsicons quitar)
+  /fsicons poner <icono> <jugador>    pone el icono (ambos argumentos se autocompletan)
+  /fsicons cambiar <jugador> <icono>  cambia el icono
+  /fsicons quitar <jugador>           quita el icono
   /fsicons lista [pagina]             catalogo con los 90 iconos y su nombre en español
   /fsicons ver <jugador>              icono actual de un jugador
   /fsicons jugadores                  todos los iconos asignados

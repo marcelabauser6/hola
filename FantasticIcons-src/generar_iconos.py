@@ -2,7 +2,8 @@
 """Genera IconRegistry.java, la fuente bitmap y copia las 90 texturas."""
 import json
 import os
-import shutil
+
+from PIL import Image
 
 SRC = "/projects/sandbox/work/icons_zip/Nexo/pack/assets/minecraft/textures/verified_mod_icons"
 ROOT = "/projects/sandbox/work/fsicons"
@@ -56,19 +57,34 @@ assert len({i["id"] for i in icons}) == 90
 assert len({i["glyph"] for i in icons}) == 90
 
 # --------------------------------------------------------------- texturas
+#
+# Se recorta SOLO en horizontal (el pack trae 1px transparente a los lados en 48
+# de los 90 iconos, que en el juego se ve como un hueco entre el nombre y el
+# icono). El alto se deja intacto: el contenido esta centrado en el lienzo de
+# 16px, asi que con ascent 8 / height 9 el icono queda centrado con el texto.
+#
+# Geometria: el glifo se dibuja entre baseline-ascent y baseline-ascent+height,
+# o sea -8..+1, cuyo centro es -3.5; el texto de Minecraft ocupa -7..0, centro
+# -3.5 tambien. Desvio: 0 px exactos (comprobado en los 90).
+ASCENT = 8
+HEIGHT = 9
+
 tex_dir = os.path.join(ROOT, "resources/assets", NS, "textures/font/iconos")
 os.makedirs(tex_dir, exist_ok=True)
 for icon in icons:
-    shutil.copyfile(os.path.join(SRC, icon["texture"] + ".png"),
-                    os.path.join(tex_dir, icon["texture"] + ".png"))
+    image = Image.open(os.path.join(SRC, icon["texture"] + ".png")).convert("RGBA")
+    box = image.getbbox()
+    if box is not None:
+        image = image.crop((box[0], 0, box[2], image.height))
+    image.save(os.path.join(tex_dir, icon["texture"] + ".png"))
 
 # ------------------------------------------------------------------ fuente
 font = {"providers": [
     {
         "type": "bitmap",
         "file": f"{NS}:font/iconos/{icon['texture']}.png",
-        "ascent": 7,
-        "height": 8,
+        "ascent": ASCENT,
+        "height": HEIGHT,
         "chars": [chr(icon["glyph"])],
     }
     for icon in icons

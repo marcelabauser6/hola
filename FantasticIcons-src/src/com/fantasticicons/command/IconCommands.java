@@ -65,7 +65,7 @@ public final class IconCommands {
             .requires(source -> source.hasPermission(2))
             .executes(context -> help(context.getSource()))
             .then(
-               Commands.literal("set")
+               Commands.literal("poner")
                   .then(
                      Commands.argument("icono", StringArgumentType.word())
                         .suggests(ICONOS)
@@ -77,7 +77,7 @@ public final class IconCommands {
                   )
             )
             .then(
-               Commands.literal("change")
+               Commands.literal("cambiar")
                   .then(
                      Commands.argument("jugador", StringArgumentType.word())
                         .suggests(JUGADORES)
@@ -86,14 +86,6 @@ public final class IconCommands {
                               .suggests(ICONOS)
                               .executes(context -> assign(context, StringArgumentType.getString(context, "icono"), StringArgumentType.getString(context, "jugador")))
                         )
-                  )
-            )
-            .then(
-               Commands.literal("remove")
-                  .then(
-                     Commands.argument("jugador", StringArgumentType.word())
-                        .suggests(JUGADORES)
-                        .executes(context -> clear(context, StringArgumentType.getString(context, "jugador")))
                   )
             )
             .then(
@@ -151,7 +143,7 @@ public final class IconCommands {
             );
       }
 
-      MutableComponent feedback = Component.literal("[OK] ")
+      MutableComponent feedback = Component.literal("[LISTO] ")
          .withStyle(ChatFormatting.GREEN)
          .append(Component.literal(target.name()).withStyle(ChatFormatting.WHITE))
          .append(Component.literal(" ahora usa ").withStyle(ChatFormatting.GRAY))
@@ -179,7 +171,7 @@ public final class IconCommands {
          target.online().sendSystemMessage(Component.literal("Te han quitado el icono.").withStyle(ChatFormatting.GRAY));
       }
 
-      MutableComponent feedback = Component.literal("[OK] ")
+      MutableComponent feedback = Component.literal("[LISTO] ")
          .withStyle(ChatFormatting.GREEN)
          .append(Component.literal("Icono quitado a " + target.name() + ".").withStyle(ChatFormatting.GRAY));
       source.sendSuccess(() -> feedback, true);
@@ -241,7 +233,7 @@ public final class IconCommands {
             .append(Component.literal("  " + icon.id()).withStyle(ChatFormatting.DARK_GRAY));
          message.append(
             line.withStyle(
-               style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/fsicons set " + icon.id() + " "))
+               style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/fsicons poner " + icon.id() + " "))
                   .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Clic para escribir el comando con " + icon.name())))
             )
          );
@@ -264,11 +256,11 @@ public final class IconCommands {
    private static int help(CommandSourceStack source) {
       MutableComponent message = Component.literal("=== Fantastic Icons ===")
          .withStyle(ChatFormatting.GOLD)
-         .append(Component.literal("\n /fsicons set <icono> <jugador>").withStyle(ChatFormatting.YELLOW))
+         .append(Component.literal("\n /fsicons poner <icono> <jugador>").withStyle(ChatFormatting.YELLOW))
          .append(Component.literal("  pone el icono").withStyle(ChatFormatting.GRAY))
-         .append(Component.literal("\n /fsicons change <jugador> <icono>").withStyle(ChatFormatting.YELLOW))
+         .append(Component.literal("\n /fsicons cambiar <jugador> <icono>").withStyle(ChatFormatting.YELLOW))
          .append(Component.literal("  cambia el icono").withStyle(ChatFormatting.GRAY))
-         .append(Component.literal("\n /fsicons remove <jugador>").withStyle(ChatFormatting.YELLOW))
+         .append(Component.literal("\n /fsicons quitar <jugador>").withStyle(ChatFormatting.YELLOW))
          .append(Component.literal("  quita el icono").withStyle(ChatFormatting.GRAY))
          .append(Component.literal("\n /fsicons lista [pagina]").withStyle(ChatFormatting.YELLOW))
          .append(Component.literal("  catalogo de los " + IconRegistry.count() + " iconos").withStyle(ChatFormatting.GRAY))
