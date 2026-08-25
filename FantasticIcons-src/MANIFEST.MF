@@ -1,0 +1,8 @@
+Manifest-Version: 1.0
+Specification-Title: fantasticicons
+Specification-Vendor: Fantastic Team
+Specification-Version: 1
+Implementation-Title: FantasticIcons
+Implementation-Version: 1.0.5
+Implementation-Vendor: Fantastic Team
+MixinConfigs: fantasticicons.mixins.json
