@@ -436,12 +436,13 @@ public final class TradeExecutor {
             return;
         }
         long net = price - ShopConfig.get().taxOn(price);
-        if (net <= 0L) {
+        long sellerCredit = SaleSettlement.sellerCredit(buyer.getUUID(), shop.owner(), net);
+        if (sellerCredit <= 0L) {
             return;
         }
-        if (!Cash.creditSale(buyer.server, shop.owner(), shop.linkedAccount(), net)) {
+        if (!Cash.creditSale(buyer.server, shop.owner(), shop.linkedAccount(), sellerCredit)) {
             FantasticShopkeepers.LOGGER.warn(
-                    "No se pudo abonar {} al dueño de la tienda {}. La venta ya se completo.", net, shop.id());
+                    "No se pudo abonar {} al dueño de la tienda {}. La venta ya se completo.", sellerCredit, shop.id());
         }
     }
 

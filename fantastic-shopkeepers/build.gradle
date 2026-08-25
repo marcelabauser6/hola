@@ -122,9 +122,19 @@ tasks.register('verifyTradeGate', JavaExec) {
     mainClass = 'com.athensmc.fsshopkeepers.trade.TradeGateTest'
 }
 
+/** Guard against returning a self-purchase payment to the same account that was just charged. */
+tasks.register('verifySaleSettlement', JavaExec) {
+    group = 'verification'
+    description = 'Comprueba que una compra propia se cobre y no se reembolse.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fsshopkeepers.trade.SaleSettlementTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyEditorGeometry')
     dependsOn tasks.named('verifyTradeWindow')
     dependsOn tasks.named('verifyTradeGate')
+    dependsOn tasks.named('verifySaleSettlement')
     dependsOn tasks.named('verifyMoney')
 }
