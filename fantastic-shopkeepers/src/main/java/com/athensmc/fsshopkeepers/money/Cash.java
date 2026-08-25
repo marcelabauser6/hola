@@ -281,13 +281,13 @@ public final class Cash {
         if (!takeFrom(server, player, cents)) {
             return false;
         }
-        // Confirms the money really left. An economy API that answered yes without deducting would otherwise be an
-        // unlimited supply of free goods, which is exactly the failure this guards.
+        // Confirms the whole amount really left, not merely that something changed. An economy that answered yes
+        // while deducting nothing, or less than asked, would be an unlimited supply of free goods.
         long after = spendable(server, player);
-        if (after >= before) {
+        if (after > before - cents) {
             FantasticShopkeepers.LOGGER.error(
-                    "Fantastic Currency dijo que cobro {} a {} pero su saldo sigue en {}. Compra anulada.",
-                    cents, player, after);
+                    "Fantastic Currency dijo que cobro {} a {} pero su saldo paso de {} a {}. Compra anulada.",
+                    cents, player, before, after);
             return false;
         }
         return true;
@@ -334,6 +334,11 @@ public final class Cash {
     /** Takes money straight from the bank principal, which is where a player's savings live. */
     private static boolean chargeAccount(MinecraftServer server, UUID player, long cents) {
         if (debitAccount == null || cents <= 0L) {
+            return false;
+        }
+        // Checked here as well, rather than relying on the bank to refuse. Depending on somebody else's return value
+        // for whether goods may leave the shop is how free purchases happened in the first place.
+        if (accountBalance(server, player) < cents) {
             return false;
         }
         try {

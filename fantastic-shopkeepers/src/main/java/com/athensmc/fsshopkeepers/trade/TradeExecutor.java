@@ -178,8 +178,10 @@ public final class TradeExecutor {
         }
         log(buyer, shop, offer, times, price);
         notifyOwner(buyer, shop, delivered, price);
-        return Result.ok(Component.literal("Has comprado " + wanted + " x " + delivered.getHoverName().getString()
-                + (offer.hasCashPrice() ? " por " + Cash.format(price) : "")).withStyle(ChatFormatting.GREEN));
+        return Result.ok(Component.literal("Has comprado " + wanted + " x "
+                + delivered.getHoverName().getString()
+                + (offer.hasCashPrice() ? " por " + Cash.format(price) : "") + remainingSuffix(buyer, price))
+                .withStyle(ChatFormatting.GREEN));
     }
 
     /** The buyer hands in goods and the shop pays them. */
@@ -305,7 +307,22 @@ public final class TradeExecutor {
         log(buyer, shop, offer, times, price);
         notifyOwner(buyer, shop, goods, price);
         return Result.ok(Component.literal("Has cambiado por " + goods.getCount() + " x "
-                + goods.getHoverName().getString()).withStyle(ChatFormatting.GREEN));
+                + goods.getHoverName().getString() + remainingSuffix(buyer, price))
+                .withStyle(ChatFormatting.GREEN));
+    }
+
+    /**
+     * What to add to a confirmation so the money is visibly moving.
+     *
+     * <p>Added because a shop takes its price from the bank principal while Fantastic Currency's own display shows the
+     * wallet float. A player watching that float sees it stay at zero purchase after purchase and reasonably concludes the
+     * shop is giving things away. Printing what is left after each purchase settles it without anyone reading a log.</p>
+     */
+    private static String remainingSuffix(ServerPlayer buyer, long price) {
+        if (price <= 0L || !Cash.available()) {
+            return "";
+        }
+        return ". Te queda " + Cash.format(Cash.spendable(buyer.server, buyer.getUUID()));
     }
 
     private static ItemStack scaled(ItemStack stack, int times) {
