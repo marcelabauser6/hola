@@ -1,4 +1,4 @@
-# Fantastic Icons 1.0.4 — Forge 1.20.1
+# Fantastic Icons 1.0.5 — Forge 1.20.1
 
 90 iconos verificados **al final del nombre** del jugador: `Adim Pewez ✔`
 
@@ -92,12 +92,13 @@ LuckPerms/Essentials. También detecta el glifo ya presente para no duplicarlo.
 
 ## Compatibilidad con el plugin TAB (NEZNAMY)
 
-Cuando `tablist-name-formatting.enabled` está activo, TAB reemplaza desde Bukkit
-el `tabListDisplayName` que Forge había calculado. Fantastic Icons 1.0.4 se
-inyecta al retorno de `PlayerTabOverlay.getNameForDisplay(PlayerInfo)`, el último
-punto común antes de que Minecraft mida y dibuje cada entrada. En ese momento ya
-están aplicados el prefijo, color y formato final de TAB; el mod agrega únicamente
-el glifo del UUID a la derecha.
+Cuando `tablist-name-formatting.enabled` está activo, TAB y LuckPerms construyen
+el rango, prefijo, color y nombre que debe mostrarse. Fantastic Icons 1.0.5 no
+escribe `tabListDisplayName` desde el servidor ni envía actualizaciones que puedan
+reemplazar ese resultado: se inyecta únicamente al retorno de
+`PlayerTabOverlay.getNameForDisplay(PlayerInfo)`, el último punto común antes de
+que Minecraft mida y dibuje cada entrada. Así recibe primero el componente final
+`DEVELOPER Pewez777` y agrega únicamente el glifo del UUID a la derecha.
 
 La decoración ocurre antes del cálculo de anchura de la columna, por lo que el
 icono no se superpone al ping ni al objetivo. Se comprueba el carácter existente

@@ -8,11 +8,11 @@ import net.minecraft.network.chat.Component;
 /**
  * Decora la entrada FINAL de la lista TAB del cliente.
  *
- * El plugin TAB reemplaza el tabListDisplayName desde Bukkit despues de que
- * Forge calcula PlayerEvent.TabListNameFormat. Por eso el icono del servidor se
- * pierde. PlayerTabOverlay#getNameForDisplay es el ultimo punto comun antes de
- * medir y dibujar cada entrada: aqui ya estan aplicados prefijo, colores y
- * formato de TAB, y solo agregamos el glifo correspondiente al UUID.
+ * TAB/LuckPerms construyen el componente del jugador en servidor, ya sea como
+ * tabListDisplayName o mediante el prefijo del equipo. PlayerTabOverlay#getNameForDisplay
+ * es el ultimo punto comun antes de medir y dibujar cada entrada: aqui ya estan
+ * aplicados rango, prefijo, colores y nombre final, y solo agregamos el glifo
+ * correspondiente al UUID sin escribir de vuelta sobre los datos de TAB.
  */
 public final class ClientTabDecorator {
    private ClientTabDecorator() {

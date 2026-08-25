@@ -18,7 +18,8 @@ set -euo pipefail
 
 WORK="${WORK:-$(cd "$(dirname "$0")/.." && pwd)}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
-CP="$WORK/mc_official.jar:$WORK/forge-universal.jar:$(ls "$WORK"/libs/*.jar | tr '\n' ':')"
+MIXIN="$WORK/mixin.jar"
+CP="$WORK/mc_official.jar:$WORK/forge-universal.jar:$MIXIN:$(ls "$WORK"/libs/*.jar | tr '\n' ':')"
 
 echo ">> compilando"
 rm -rf "$SRC/classes" && mkdir -p "$SRC/classes"
@@ -29,13 +30,13 @@ echo ">> reobfuscando a SRG"
 (cd "$SRC/classes" && jar --create --file "$SRC/classes_dev.jar" .)
 java -jar "$WORK/art.jar" --input "$SRC/classes_dev.jar" --output "$SRC/classes_srg.jar" \
    --map "$WORK/official2srg.tsrg" \
-   -e "$WORK/mc_official.jar" -e "$WORK/forge-universal.jar" \
+   -e "$WORK/mc_official.jar" -e "$WORK/forge-universal.jar" -e "$MIXIN" \
    $(for j in "$WORK"/libs/*.jar; do printf -- "-e %s " "$j"; done)
 
 echo ">> empaquetando"
 rm -rf "$SRC/pack" && mkdir -p "$SRC/pack"
 (cd "$SRC/pack" && unzip -oq "$SRC/classes_srg.jar" && rm -f META-INF/MANIFEST.MF)
 cp -r "$SRC/resources/." "$SRC/pack/"
-(cd "$SRC/pack" && jar --create --file "$WORK/Fantastic Icons-1.0.4.jar" --manifest "$SRC/MANIFEST.MF" .)
+(cd "$SRC/pack" && jar --create --file "$WORK/Fantastic Icons-1.0.5.jar" --manifest "$SRC/MANIFEST.MF" .)
 
-echo ">> listo: $WORK/Fantastic Icons-1.0.4.jar"
+echo ">> listo: $WORK/Fantastic Icons-1.0.5.jar"

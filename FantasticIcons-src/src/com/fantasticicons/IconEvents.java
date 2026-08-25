@@ -58,19 +58,4 @@ public final class IconEvents {
          event.setDisplayname(NameDecorator.decorate(base, icon));
       }
    }
-
-   /** Nombre de la lista de tab. */
-   @SubscribeEvent
-   public void onTabListNameFormat(PlayerEvent.TabListNameFormat event) {
-      Player player = event.getEntity();
-      if (player == null || player.level() == null || player.level().isClientSide()) {
-         return;
-      }
-
-      String icon = IconStore.get().iconOf(player.getUUID());
-      if (icon != null) {
-         Component base = event.getDisplayName() == null ? player.getName() : event.getDisplayName();
-         event.setDisplayName(NameDecorator.decorate(base, icon));
-      }
-   }
 }
