@@ -79,12 +79,14 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
      * server's config. Without them the note would be labelled with this mod's defaults on every client, whatever the
      * operator chose.</p>
      */
-    public record Data(UUID shopId, String shopName, ShopType type, String cashLabel, int cashColour,
-            int selectedOffer, List<OfferView> offers) {
+    public record Data(UUID shopId, String shopName, int shopNameColor, boolean shopNameBold,
+            ShopType type, String cashLabel, int cashColour, int selectedOffer, List<OfferView> offers) {
 
         public void write(FriendlyByteBuf buf) {
             buf.writeUUID(shopId);
             buf.writeUtf(shopName, 64);
+            buf.writeInt(shopNameColor & 0xFFFFFF);
+            buf.writeBoolean(shopNameBold);
             buf.writeEnum(type);
             buf.writeUtf(cashLabel, 32);
             buf.writeInt(cashColour);
@@ -98,6 +100,8 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         public static Data read(FriendlyByteBuf buf) {
             UUID shopId = buf.readUUID();
             String name = buf.readUtf(64);
+            int nameColor = buf.readInt() & 0xFFFFFF;
+            boolean nameBold = buf.readBoolean();
             ShopType type = buf.readEnum(ShopType.class);
             String cashLabel = buf.readUtf(32);
             int cashColour = buf.readInt();
@@ -107,12 +111,15 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
             for (int i = 0; i < count; i++) {
                 offers.add(OfferView.read(buf));
             }
-            return new Data(shopId, name, type, cashLabel, cashColour, selectedOffer, offers);
+            return new Data(shopId, name, nameColor, nameBold, type, cashLabel, cashColour,
+                    selectedOffer, offers);
         }
     }
 
     private final UUID shopId;
     private final String shopName;
+    private final int shopNameColor;
+    private final boolean shopNameBold;
     private final ShopType shopType;
     private final String cashLabel;
     private final int cashColour;
@@ -123,6 +130,8 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         super(ModMenus.SHOP_TRADE.get(), containerId);
         this.shopId = data.shopId();
         this.shopName = data.shopName();
+        this.shopNameColor = data.shopNameColor();
+        this.shopNameBold = data.shopNameBold();
         this.shopType = data.type();
         this.cashLabel = data.cashLabel();
         this.cashColour = data.cashColour();
@@ -150,6 +159,14 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
 
     public String shopName() {
         return shopName;
+    }
+
+    public int shopNameColor() {
+        return shopNameColor;
+    }
+
+    public boolean shopNameBold() {
+        return shopNameBold;
     }
 
     public ShopType shopType() {
@@ -196,8 +213,8 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         com.athensmc.fsshopkeepers.config.ShopConfig config =
                 com.athensmc.fsshopkeepers.config.ShopConfig.get();
         int keptSelection = views.isEmpty() ? 0 : Math.max(0, Math.min(selectedOffer, views.size() - 1));
-        return new Data(shop.id(), shop.displayName(), shop.type(), config.cashLabel,
-                config.cashColorRgb(), keptSelection, views);
+        return new Data(shop.id(), shop.displayName(), shop.nameColor(), shop.nameBold(), shop.type(),
+                config.cashLabel, config.cashColorRgb(), keptSelection, views);
     }
 
     /** Encodes a purchase as a menu button id. */

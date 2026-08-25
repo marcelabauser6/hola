@@ -20,6 +20,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
@@ -49,6 +50,21 @@ public final class ShopEditorScreen extends Screen {
 
     private static final int GUTTER = EditorGeometry.GUTTER;
     private static final int TITLE_HEIGHT = EditorGeometry.TITLE_HEIGHT;
+
+    /** Compact preset palette for shop names; each click advances to the next colour. */
+    private record NameColour(String label, int rgb) {
+    }
+
+    private static final List<NameColour> NAME_COLOURS = List.of(
+            new NameColour("Blanco", 0xFFFFFF),
+            new NameColour("Amarillo", 0xFFFF55),
+            new NameColour("Dorado", 0xFFAA00),
+            new NameColour("Verde", 0x55FF55),
+            new NameColour("Aqua", 0x55FFFF),
+            new NameColour("Azul", 0x5555FF),
+            new NameColour("Rosa", 0xFF55FF),
+            new NameColour("Rojo", 0xFF5555),
+            new NameColour("Morado", 0xAA00AA));
 
     /** Which detail block holds what, in the trades tab. */
     private static final int BLOCK_ITEM = 0;
@@ -127,6 +143,8 @@ public final class ShopEditorScreen extends Screen {
 
     private final List<Row> rows = new ArrayList<>();
     private String shopName;
+    private int shopNameColor;
+    private boolean shopNameBold;
     private ShopObjectKind kind;
     private ResourceLocation entityType;
     private CompoundTag entityData;
@@ -157,6 +175,8 @@ public final class ShopEditorScreen extends Screen {
         super(Component.literal("Editor de tienda"));
         this.source = view;
         this.shopName = view.name();
+        this.shopNameColor = view.nameColor();
+        this.shopNameBold = view.nameBold();
         this.kind = view.objectKind();
         this.entityType = view.entityType();
         this.entityData = view.entityData().copy();
@@ -239,6 +259,37 @@ public final class ShopEditorScreen extends Screen {
 
     private void button(Rect where, String text, Runnable action) {
         button(where, text, true, action);
+    }
+
+    /** A compact button whose component keeps its actual RGB/bold style. */
+    private void styledButton(Rect where, Component text, Runnable action) {
+        if (where.isEmpty()) {
+            return;
+        }
+        addRenderableWidget(Button.builder(text, pressed -> action.run())
+                .bounds(where.x(), where.y(), where.width(), where.height()).build());
+    }
+
+    private NameColour currentNameColour() {
+        for (NameColour colour : NAME_COLOURS) {
+            if (colour.rgb() == shopNameColor) {
+                return colour;
+            }
+        }
+        return new NameColour(String.format("#%06X", shopNameColor), shopNameColor);
+    }
+
+    private void cycleNameColour() {
+        int current = -1;
+        for (int i = 0; i < NAME_COLOURS.size(); i++) {
+            if (NAME_COLOURS.get(i).rgb() == shopNameColor) {
+                current = i;
+                break;
+            }
+        }
+        shopNameColor = NAME_COLOURS.get((current + 1) % NAME_COLOURS.size()).rgb();
+        focus = Focus.NONE;
+        rebuildWidgets();
     }
 
     /**
@@ -496,12 +547,24 @@ public final class ShopEditorScreen extends Screen {
     }
 
     private void initAppearance() {
-        addLabel("\u00a77Nombre de la tienda", geo.nameLabel());
+        addLabel("\u00a77Nombre de la tienda \u00a78· color y negrita", geo.nameLabel());
         EditBox name = field(geo.nameField(), Focus.NAME, shopName, "sin nombre",
                 SaveShopPacket.MAX_NAME, true);
         if (name != null) {
+            name.setTextColor(shopNameColor);
             name.setResponder(text -> shopName = text);
         }
+
+        NameColour colour = currentNameColour();
+        styledButton(geo.nameColorButton(), Component.literal("■ " + colour.label())
+                .withStyle(style -> style.withColor(TextColor.fromRgb(colour.rgb()))), this::cycleNameColour);
+        styledButton(geo.nameBoldButton(), Component.literal("B").withStyle(style -> style
+                .withBold(true)
+                .withColor(TextColor.fromRgb(shopNameBold ? 0xFFFFFF : 0x777777))), () -> {
+                    shopNameBold = !shopNameBold;
+                    focus = Focus.NONE;
+                    rebuildWidgets();
+                });
 
         ShopObjectKind[] kinds = ShopObjectKind.values();
         for (int i = 0; i < kinds.length; i++) {
@@ -1007,8 +1070,9 @@ public final class ShopEditorScreen extends Screen {
             offers.add(row.toOffer());
         }
         long hireCost = hireCostText.isBlank() ? 0L : Math.max(0L, Money.parseOrInvalid(hireCostText));
-        Net.saveShop(new SaveShopPacket(source.id(), shopName, kind, entityType, entityData, linkedAccount,
-                forHire, hireCost, permission, cashLabel, cashColor, offers));
+        Net.saveShop(new SaveShopPacket(source.id(), shopName, shopNameColor, shopNameBold,
+                kind, entityType, entityData, linkedAccount, forHire, hireCost, permission,
+                cashLabel, cashColor, offers));
         minecraft.setScreen(null);
     }
 

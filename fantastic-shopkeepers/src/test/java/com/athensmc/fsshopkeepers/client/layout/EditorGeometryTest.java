@@ -154,9 +154,24 @@ public final class EditorGeometryTest {
             failures.add(at + ": la columna de variantes se sale del cuerpo");
         }
         Rect nameField = geometry.nameField();
+        Rect nameColour = geometry.nameColorButton();
+        Rect nameBold = geometry.nameBoldButton();
         Rect firstKind = geometry.kindButton(0, 3);
-        if (nameField.overlaps(firstKind)) {
-            failures.add(at + ": el campo de nombre se solapa con los botones de cuerpo");
+        Map<String, Rect> nameControls = new LinkedHashMap<>();
+        nameControls.put("nombre", nameField);
+        nameControls.put("colorNombre", nameColour);
+        nameControls.put("negritaNombre", nameBold);
+        assertNoOverlaps(nameControls, at + " editor del nombre");
+        for (Map.Entry<String, Rect> control : nameControls.entrySet()) {
+            if (!control.getValue().within(geometry.body())) {
+                failures.add(at + ": " + control.getKey() + " se sale del cuerpo");
+            }
+            if (control.getValue().overlaps(firstKind)) {
+                failures.add(at + ": " + control.getKey() + " se solapa con los botones de cuerpo");
+            }
+        }
+        if (nameField.width() < 80) {
+            failures.add(at + ": el campo de nombre queda inutilizable (" + nameField.width() + "px)");
         }
         if (firstKind.overlaps(mobs) || firstKind.overlaps(variants)) {
             failures.add(at + ": los botones de cuerpo invaden las columnas");

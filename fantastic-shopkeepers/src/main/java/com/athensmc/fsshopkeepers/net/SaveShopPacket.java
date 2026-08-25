@@ -35,9 +35,10 @@ import java.util.function.Supplier;
  * admin chose - a mob that is not allowed - and the opposite for fields that are merely out of range, which are
  * clamped. The difference is whether silently changing the value would hide a decision the admin made.</p>
  */
-public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind, ResourceLocation entityType,
-        CompoundTag entityData, int linkedAccount, boolean forHire, long hireCost, String tradePermission,
-        String cashLabel, String cashColor, List<TradeOffer> offers) {
+public record SaveShopPacket(UUID shopId, String name, int nameColor, boolean nameBold,
+        ShopObjectKind objectKind, ResourceLocation entityType, CompoundTag entityData, int linkedAccount,
+        boolean forHire, long hireCost, String tradePermission, String cashLabel, String cashColor,
+        List<TradeOffer> offers) {
 
     /** Longest shop name accepted, matching what fits above a mob without covering the ones beside it. */
     public static final int MAX_NAME = 48;
@@ -45,6 +46,8 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
     public void encode(FriendlyByteBuf buf) {
         buf.writeUUID(shopId);
         buf.writeUtf(name, MAX_NAME);
+        buf.writeInt(nameColor & 0xFFFFFF);
+        buf.writeBoolean(nameBold);
         buf.writeEnum(objectKind);
         buf.writeResourceLocation(entityType);
         buf.writeNbt(entityData);
@@ -63,6 +66,8 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
     public static SaveShopPacket decode(FriendlyByteBuf buf) {
         UUID shopId = buf.readUUID();
         String name = buf.readUtf(MAX_NAME);
+        int nameColor = buf.readInt() & 0xFFFFFF;
+        boolean nameBold = buf.readBoolean();
         ShopObjectKind kind = buf.readEnum(ShopObjectKind.class);
         ResourceLocation entityType = buf.readResourceLocation();
         CompoundTag entityData = buf.readNbt();
@@ -83,7 +88,7 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
                 offers.add(offer);
             }
         }
-        return new SaveShopPacket(shopId, name, kind, entityType,
+        return new SaveShopPacket(shopId, name, nameColor, nameBold, kind, entityType,
                 entityData == null ? new CompoundTag() : entityData, account, forHire, hireCost, permission,
                 cashLabel, cashColor, offers);
     }
@@ -141,6 +146,7 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         ResourceLocation previousEntity = shop.entityType();
 
         shop.setName(trimName(name));
+        shop.setNameStyle(nameColor, nameBold);
         shop.setObjectKind(objectKind);
         shop.setEntityType(entityType);
         shop.setEntityData(entityData);
@@ -209,7 +215,7 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
     }
 
     private String trimName(String raw) {
-        String cleaned = raw == null ? "" : raw.strip();
+        String cleaned = raw == null ? "" : raw.replace("\u00a7", "").strip();
         return cleaned.length() <= MAX_NAME ? cleaned : cleaned.substring(0, MAX_NAME);
     }
 

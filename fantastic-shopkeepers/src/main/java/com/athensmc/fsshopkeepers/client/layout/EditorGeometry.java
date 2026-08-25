@@ -312,9 +312,26 @@ public final class EditorGeometry {
         return new Rect(body.x(), body.y(), body.width(), DETAIL_LABEL_HEIGHT);
     }
 
+    private static final int NAME_COLOR_WIDTH = 90;
+    private static final int NAME_BOLD_WIDTH = 28;
+    private static final int NAME_FORMAT_GAP = 3;
+
+    /** The name input leaves a compact colour selector and bold toggle on the same row. */
     public Rect nameField() {
         Rect body = body();
-        return new Rect(body.x(), body.y() + DETAIL_LABEL_HEIGHT + 1, body.width(), CONTROL_HEIGHT);
+        int controls = NAME_COLOR_WIDTH + NAME_BOLD_WIDTH + NAME_FORMAT_GAP * 2;
+        return new Rect(body.x(), body.y() + DETAIL_LABEL_HEIGHT + 1,
+                Math.max(0, body.width() - controls), CONTROL_HEIGHT);
+    }
+
+    public Rect nameColorButton() {
+        Rect field = nameField();
+        return new Rect(field.right() + NAME_FORMAT_GAP, field.y(), NAME_COLOR_WIDTH, CONTROL_HEIGHT);
+    }
+
+    public Rect nameBoldButton() {
+        Rect colour = nameColorButton();
+        return new Rect(colour.right() + NAME_FORMAT_GAP, colour.y(), NAME_BOLD_WIDTH, CONTROL_HEIGHT);
     }
 
     /** The row of body-kind buttons under the name. */

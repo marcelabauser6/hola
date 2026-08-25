@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -193,14 +194,26 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        String shopName = font.plainSubstrByWidth(menu.shopName(), imageWidth - 120);
-        graphics.drawString(font, shopName, 49 + imageWidth / 2 - font.width(shopName) / 2, LABEL_Y,
-                VANILLA_TEXT, false);
+        int maxNameWidth = imageWidth - 120;
+        String visibleName = menu.shopName();
+        Component styledName = styledShopName(visibleName);
+        while (!visibleName.isEmpty() && font.width(styledName) > maxNameWidth) {
+            visibleName = visibleName.substring(0, visibleName.length() - 1);
+            styledName = styledShopName(visibleName);
+        }
+        graphics.drawString(font, styledName, 49 + imageWidth / 2 - font.width(styledName) / 2, LABEL_Y,
+                0xFFFFFF, false);
         graphics.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, VANILLA_TEXT, false);
 
         Component tradesLabel = Component.translatable("fsshopkeepers.trade.trades");
         graphics.drawString(font, tradesLabel, TRADE_BUTTON_X - font.width(tradesLabel) / 2 + 48, LABEL_Y,
                 VANILLA_TEXT, false);
+    }
+
+    private Component styledShopName(String text) {
+        return Component.literal(text).withStyle(style -> style
+                .withColor(TextColor.fromRgb(menu.shopNameColor()))
+                .withBold(menu.shopNameBold()));
     }
 
     @Override

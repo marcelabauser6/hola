@@ -6,6 +6,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;
@@ -37,6 +39,8 @@ public final class Shopkeeper {
     private static final String OWNER = "Owner";
     private static final String OWNER_NAME = "OwnerName";
     private static final String NAME = "Name";
+    private static final String NAME_COLOR = "NameColor";
+    private static final String NAME_BOLD = "NameBold";
     private static final String OBJECT_KIND = "ObjectKind";
     private static final String ENTITY_TYPE = "EntityType";
     private static final String ENTITY_DATA = "EntityData";
@@ -56,11 +60,16 @@ public final class Shopkeeper {
     public static final ResourceLocation DEFAULT_ENTITY =
             new ResourceLocation("minecraft", "villager");
 
+    /** Default colour for an unformatted shop name. */
+    public static final int DEFAULT_NAME_COLOR = 0xFFFFFF;
+
     private final UUID id;
     private ShopType type;
     private UUID owner;
     private String ownerName = "";
     private String name = "";
+    private int nameColor = DEFAULT_NAME_COLOR;
+    private boolean nameBold;
     private ShopObjectKind objectKind = ShopObjectKind.LIVING;
     private ResourceLocation entityType = DEFAULT_ENTITY;
     private CompoundTag entityData = new CompoundTag();
@@ -132,6 +141,27 @@ public final class Shopkeeper {
 
     public void setName(String name) {
         this.name = name == null ? "" : name;
+    }
+
+    public int nameColor() {
+        return nameColor;
+    }
+
+    public boolean nameBold() {
+        return nameBold;
+    }
+
+    /** Applies the safe, structured style chosen in the editor; no legacy formatting codes enter the saved name. */
+    public void setNameStyle(int color, boolean bold) {
+        this.nameColor = color & 0xFFFFFF;
+        this.nameBold = bold;
+    }
+
+    /** The styled form used above the mob and as the trading-window title. */
+    public Component displayNameComponent() {
+        return Component.literal(displayName()).withStyle(style -> style
+                .withColor(TextColor.fromRgb(nameColor))
+                .withBold(nameBold));
     }
 
     public ShopObjectKind objectKind() {
@@ -292,6 +322,10 @@ public final class Shopkeeper {
         }
         tag.putString(OWNER_NAME, ownerName);
         tag.putString(NAME, name);
+        tag.putInt(NAME_COLOR, nameColor);
+        if (nameBold) {
+            tag.putBoolean(NAME_BOLD, true);
+        }
         tag.putString(OBJECT_KIND, objectKind.id());
         tag.putString(ENTITY_TYPE, entityType.toString());
         if (!entityData.isEmpty()) {
@@ -331,6 +365,8 @@ public final class Shopkeeper {
         }
         shop.ownerName = tag.getString(OWNER_NAME);
         shop.name = tag.getString(NAME);
+        shop.nameColor = tag.contains(NAME_COLOR) ? tag.getInt(NAME_COLOR) & 0xFFFFFF : DEFAULT_NAME_COLOR;
+        shop.nameBold = tag.getBoolean(NAME_BOLD);
         shop.objectKind = ShopObjectKind.byId(tag.getString(OBJECT_KIND));
         ResourceLocation entity = ResourceLocation.tryParse(tag.getString(ENTITY_TYPE));
         shop.entityType = entity == null ? DEFAULT_ENTITY : entity;
@@ -369,6 +405,8 @@ public final class Shopkeeper {
         buf.writeUUID(id);
         buf.writeEnum(type);
         buf.writeUtf(name, 64);
+        buf.writeInt(nameColor);
+        buf.writeBoolean(nameBold);
         buf.writeUtf(ownerName, 64);
         buf.writeEnum(objectKind);
         buf.writeResourceLocation(entityType);
@@ -388,8 +426,8 @@ public final class Shopkeeper {
     }
 
     /** The editable half of a shop as the client holds it. */
-    public record EditorView(UUID id, ShopType type, String name, String ownerName,
-            ShopObjectKind objectKind, ResourceLocation entityType, CompoundTag entityData,
+    public record EditorView(UUID id, ShopType type, String name, int nameColor, boolean nameBold,
+            String ownerName, ShopObjectKind objectKind, ResourceLocation entityType, CompoundTag entityData,
             int linkedAccount, boolean forHire, long hireCost, String tradePermission,
             String cashLabel, String cashColor, List<TradeOffer> offers) {
 
@@ -397,6 +435,8 @@ public final class Shopkeeper {
             UUID id = buf.readUUID();
             ShopType type = buf.readEnum(ShopType.class);
             String name = buf.readUtf(64);
+            int nameColor = buf.readInt() & 0xFFFFFF;
+            boolean nameBold = buf.readBoolean();
             String ownerName = buf.readUtf(64);
             ShopObjectKind kind = buf.readEnum(ShopObjectKind.class);
             ResourceLocation entityType = buf.readResourceLocation();
@@ -412,7 +452,7 @@ public final class Shopkeeper {
             for (int i = 0; i < count; i++) {
                 offers.add(TradeOffer.read(buf));
             }
-            return new EditorView(id, type, name, ownerName, kind, entityType,
+            return new EditorView(id, type, name, nameColor, nameBold, ownerName, kind, entityType,
                     entityData == null ? new CompoundTag() : entityData, account, forHire, hireCost,
                     permission, cashLabel, cashColor, offers);
         }

@@ -34,7 +34,7 @@ public final class ShopMenus {
         NetworkHooks.openScreen(customer, new MenuProvider() {
             @Override
             public Component getDisplayName() {
-                return Component.literal(shop.displayName());
+                return shop.displayNameComponent();
             }
 
             @Nullable

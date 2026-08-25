@@ -4,7 +4,6 @@ import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.config.ShopConfig;
 
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -178,7 +177,7 @@ public final class ShopSpawner {
             entity.setCustomName(null);
             entity.setCustomNameVisible(false);
         } else {
-            entity.setCustomName(Component.literal(name));
+            entity.setCustomName(shop.displayNameComponent());
             entity.setCustomNameVisible(config.alwaysShowNameplates);
         }
 

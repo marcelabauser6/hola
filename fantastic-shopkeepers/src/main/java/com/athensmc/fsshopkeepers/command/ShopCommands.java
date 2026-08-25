@@ -258,7 +258,7 @@ public final class ShopCommands {
         for (Shopkeeper shop : shops) {
             String dimension = shop.level().location().getPath();
             source.sendSuccess(() -> Component.literal("\u00b7 ").withStyle(ChatFormatting.YELLOW)
-                    .append(Component.literal(shop.displayName()).withStyle(ChatFormatting.WHITE))
+                    .append(shop.displayNameComponent())
                     .append(Component.literal("  " + shop.pos().toShortString() + " en " + dimension)
                             .withStyle(ChatFormatting.GRAY)), false);
         }
