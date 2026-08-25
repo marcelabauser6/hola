@@ -53,6 +53,7 @@ public final class Shopkeeper {
     private static final String FOR_HIRE = "ForHire";
     private static final String HIRE_COST = "HireCost";
     private static final String TRADE_PERMISSION = "TradePermission";
+    private static final String BODY_SPAWN_BLOCKED = "BodySpawnBlocked";
 
     private static final int TAG_COMPOUND = 10;
 
@@ -76,6 +77,7 @@ public final class Shopkeeper {
     private ResourceKey<Level> level = Level.OVERWORLD;
     private BlockPos pos = BlockPos.ZERO;
     private UUID entityId;
+    private boolean bodySpawnBlocked;
     private BlockPos containerPos;
     private int linkedAccount;
     private List<TradeOffer> offers = List.of();
@@ -225,6 +227,15 @@ public final class Shopkeeper {
         this.entityId = entityId;
     }
 
+    /** True after a deterministic spawn rejection, suppressing the three-second retry loop. */
+    public boolean bodySpawnBlocked() {
+        return bodySpawnBlocked;
+    }
+
+    public void setBodySpawnBlocked(boolean blocked) {
+        this.bodySpawnBlocked = blocked;
+    }
+
     /** The container this shop draws stock from, or null when it has none. */
     public BlockPos containerPos() {
         return containerPos;
@@ -336,6 +347,9 @@ public final class Shopkeeper {
         if (entityId != null) {
             tag.putUUID(ENTITY_ID, entityId);
         }
+        if (bodySpawnBlocked) {
+            tag.putBoolean(BODY_SPAWN_BLOCKED, true);
+        }
         if (containerPos != null) {
             tag.putLong(CONTAINER, containerPos.asLong());
         }
@@ -377,6 +391,7 @@ public final class Shopkeeper {
         if (tag.hasUUID(ENTITY_ID)) {
             shop.entityId = tag.getUUID(ENTITY_ID);
         }
+        shop.bodySpawnBlocked = tag.getBoolean(BODY_SPAWN_BLOCKED);
         if (tag.contains(CONTAINER)) {
             shop.containerPos = BlockPos.of(tag.getLong(CONTAINER));
         }

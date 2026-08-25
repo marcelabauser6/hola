@@ -144,6 +144,7 @@ public record SaveShopPacket(UUID shopId, String name, int nameColor, boolean na
 
         ShopObjectKind previousKind = shop.objectKind();
         ResourceLocation previousEntity = shop.entityType();
+        CompoundTag previousEntityData = shop.entityData();
 
         shop.setName(trimName(name));
         shop.setNameStyle(nameColor, nameBold);
@@ -164,14 +165,19 @@ public record SaveShopPacket(UUID shopId, String name, int nameColor, boolean na
 
         ServerLevel level = player.server.getLevel(shop.level());
         if (level != null) {
-            boolean bodyChanged = previousKind != objectKind || !previousEntity.equals(entityType);
+            boolean bodyChanged = previousKind != objectKind || !previousEntity.equals(entityType)
+                    || !previousEntityData.equals(shop.entityData());
             if (!objectKind.hasEntity()) {
                 ShopSpawner.despawn(level, shop, registry);
-            } else if (bodyChanged) {
-                ShopSpawner.despawn(level, shop, registry);
-                ShopSpawner.ensureSpawned(level, shop, registry);
             } else {
-                ShopSpawner.refreshAppearance(level, shop, registry);
+                // An explicit save is the recovery action for a spawn that Mohist previously rejected.
+                ShopSpawner.allowSpawnRetry(shop, registry);
+                if (bodyChanged) {
+                    ShopSpawner.despawn(level, shop, registry);
+                    ShopSpawner.ensureSpawned(level, shop, registry);
+                } else {
+                    ShopSpawner.refreshAppearance(level, shop, registry);
+                }
             }
         }
 

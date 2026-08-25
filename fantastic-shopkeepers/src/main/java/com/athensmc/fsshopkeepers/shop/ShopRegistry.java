@@ -223,6 +223,30 @@ public final class ShopRegistry extends SavedData {
         return shop;
     }
 
+    /**
+     * Atomically changes the body identity and spawn-suppression state.
+     *
+     * <p>The shop object is mutable and already stored in {@code byId}; changing its UUID before calling
+     * {@link #refresh(Shopkeeper)} makes the old UUID impossible to unindex. This method captures and removes the old
+     * mapping first, then publishes the new one, which also lets an in-flight spawn be recognised by the join event.</p>
+     */
+    public void updateBody(Shopkeeper shop, UUID entityId, boolean spawnBlocked) {
+        if (shop == null || byId.get(shop.id()) != shop) {
+            return;
+        }
+        UUID previous = shop.entityId();
+        if (previous != null) {
+            byEntity.remove(previous, shop.id());
+        }
+        shop.setEntityId(entityId);
+        shop.setBodySpawnBlocked(spawnBlocked);
+        if (entityId != null) {
+            byEntity.put(entityId, shop.id());
+        }
+        bodyVersion++;
+        setDirty();
+    }
+
     /** Marks the registry as needing a save after a field on a shop was changed directly. */
     public void touch() {
         setDirty();

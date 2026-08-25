@@ -89,7 +89,8 @@ public final class ShopSync {
      */
     private static void restoreMissingBodies(MinecraftServer server, ShopRegistry registry) {
         for (Shopkeeper shop : registry.all()) {
-            if (!shop.objectKind().hasEntity()) {
+            if (!shop.objectKind().hasEntity() || shop.bodySpawnBlocked()) {
+                // A deterministic rejection is persisted; only an explicit edit/move may grant another attempt.
                 misses.remove(shop.id());
                 continue;
             }
