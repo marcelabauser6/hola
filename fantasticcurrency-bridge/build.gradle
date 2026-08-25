@@ -1,0 +1,62 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.athensmc.fcbridge'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'spigotmc'
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+    maven {
+        name = 'jitpack'
+        url = 'https://jitpack.io'
+    }
+}
+
+dependencies {
+    // The server API. compileOnly, as every Bukkit plugin does: the server provides it.
+    compileOnly 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT'
+
+    // Vault's economy interface. The bridge implements it; Vault itself is the user's install.
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7'
+
+    // Shopkeepers, for its trade event and currency types. Its jar carries its own API.
+    compileOnly files('../Shopkeepers-2.17.2.jar')
+
+    // FantasticCurrency is deliberately NOT here. It is a Forge mod, reached by reflection at
+    // runtime, so this plugin loads and reports cleanly on a server where the mod is absent or has
+    // changed - rather than dying on a NoClassDefFoundError before it can say why.
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+
+    // The server APIs again for the tests. VaultEconomy implements Vault's interface, so loading the
+    // class at all needs it present - even for a test that only calls its arithmetic.
+    testCompileOnly 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT'
+    testCompileOnly 'com.github.MilkBowl:VaultAPI:1.7'
+    testRuntimeOnly 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT'
+    testRuntimeOnly 'com.github.MilkBowl:VaultAPI:1.7'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    filesMatching('plugin.yml') {
+        expand version: project.version
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
