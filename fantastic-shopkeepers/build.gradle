@@ -99,7 +99,17 @@ tasks.register('verifyMoney', JavaExec) {
     mainClass = 'com.athensmc.fsshopkeepers.money.MoneyTest'
 }
 
+/** Guard for the buying window: exact item hit areas, and a magnified window that still fits the screen. */
+tasks.register('verifyTradeWindow', JavaExec) {
+    group = 'verification'
+    description = 'Comprueba las hitboxes y el tamano de la ventana de compra.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fsshopkeepers.client.layout.TradeWindowGeometryTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyEditorGeometry')
+    dependsOn tasks.named('verifyTradeWindow')
     dependsOn tasks.named('verifyMoney')
 }

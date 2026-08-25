@@ -1,8 +1,9 @@
 package com.athensmc.fsshopkeepers.client.screen;
 
+import com.athensmc.fsshopkeepers.client.layout.Rect;
+import com.athensmc.fsshopkeepers.client.layout.TradeWindowGeometry;
 import com.athensmc.fsshopkeepers.item.ModItems;
 import com.athensmc.fsshopkeepers.menu.ShopTradeMenu;
-import com.athensmc.fsshopkeepers.money.Cash;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -12,22 +13,25 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.List;
+
 /**
- * The window a customer buys from: the vanilla villager trading window.
+ * The window a customer buys from: the vanilla villager trading window, enlarged.
  *
- * <p>Every coordinate, sprite and colour here is copied from vanilla's own {@code MerchantScreen}, read out of the
- * game's code rather than guessed: the 276-pixel window, the seven 88x20 trade buttons down the left starting at
- * {@code topPos + 18}, the payment items at {@code leftPos + 10} and {@code + 40}, the arrow sprite at u=15 (u=25 when
- * out of stock) on row v=171, the result at {@code leftPos + 73}, the scroller at {@code leftPos + 94} with its
- * disabled variant at u=6, and the 0x404040 grey vanilla uses for text on tan backgrounds.</p>
+ * <p>Every coordinate and sprite is vanilla's own, read out of {@code MerchantScreen} rather than guessed: the 276-pixel
+ * window, seven 88x20 trade rows from {@code topPos + 18}, payments at {@code leftPos + 10} and {@code + 40}, the arrow
+ * at u=15 with its barred variant at u=25 on row v=171, the result at {@code leftPos + 73}, the scroller at
+ * {@code leftPos + 94} with its disabled form at u=6, and 0x404040 for text.</p>
  *
- * <p>The trade rows are real vanilla {@link Button} widgets, which is what gives the list its familiar column-of-buttons
- * look, and the items are drawn over them afterwards exactly as vanilla does.</p>
+ * <p>Drawn through a scale transform, because the vanilla merchant window is 276x166 and looks lost on a modern screen.
+ * The scale applies to everything, including the slots, so the whole window grows rather than gaining empty margins. All
+ * mouse input is divided by the same factor before anything sees it, which is what keeps clicking a slot landing on the
+ * slot that was drawn there - {@link AbstractContainerScreen} finds slots by comparing raw mouse coordinates against
+ * {@code leftPos} and {@code slot.x}, so those have to agree about which space they are in.</p>
  *
- * <p>The one thing that cannot be copied is the payment. A villager wants emeralds; a Fantastic Cash price is a bank
- * balance with no object to put in the slot. So the slot shows the mod's Cash note with the amount in the corner, which
- * is the same shape of information a stack of emeralds carried, and the money is taken from the balance when the result
- * is clicked.</p>
+ * <p>Fantastic Cash is a balance, not an object, so the first payment slot shows the mod's note with the amount where a
+ * stack count would be. When a trade also asks for an item, that item takes the second slot: Cash and a coin side by
+ * side, the way two stacks of payment look in vanilla.</p>
  */
 public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu> {
 
@@ -57,11 +61,20 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
     private static final int RESULT_X = 220;
     private static final int SLOT_Y = 37;
 
-    /** The grey vanilla writes with on its tan container art. */
+    /** An item is 16 pixels. Tooltips must respect that and nothing wider. */
+    private static final int ITEM_SIZE = 16;
+
     private static final int VANILLA_TEXT = 0x404040;
+
+    /** How much larger than vanilla the window is drawn, at most. */
+    private static final float MAX_SCALE = 1.75F;
+
+    /** Breathing room left around the window when working out how large it can be. */
+    private static final int SCREEN_MARGIN = 20;
 
     private final Button[] tradeButtons = new Button[NUMBER_OF_OFFER_BUTTONS];
 
+    private float scale = 1.0F;
     private int selected;
     private int scrollOff;
     private boolean isDragging;
@@ -72,15 +85,31 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         this.inventoryLabelX = 107;
     }
 
+    /**
+     * How much to magnify the window.
+     *
+     * <p>Bounded by the screen so the window can never grow past its edges, and never below 1 so a small window is drawn
+     * at vanilla size rather than shrunk.</p>
+     */
+    private float computeScale() {
+        return TradeWindowGeometry.scaleFor(width, height);
+    }
+
     @Override
     protected void init() {
+        scale = computeScale();
         super.init();
+        // Re-centred in the scaled space the whole screen is drawn in, because super centred it in screen pixels.
+        leftPos = TradeWindowGeometry.leftPos(width, scale);
+        topPos = TradeWindowGeometry.topPos(height, scale);
+
+        clearWidgets();
         int y = topPos + SCROLL_BAR_TOP_POS_Y;
         for (int index = 0; index < NUMBER_OF_OFFER_BUTTONS; index++) {
             int row = index;
-            tradeButtons[index] = addRenderableWidget(Button.builder(Component.empty(), pressed -> {
-                selected = row + scrollOff;
-            }).bounds(leftPos + TRADE_BUTTON_X, y, TRADE_BUTTON_WIDTH, TRADE_BUTTON_HEIGHT).build());
+            tradeButtons[index] = addRenderableWidget(Button.builder(Component.empty(),
+                    pressed -> selected = row + scrollOff)
+                    .bounds(leftPos + TRADE_BUTTON_X, y, TRADE_BUTTON_WIDTH, TRADE_BUTTON_HEIGHT).build());
             y += TRADE_BUTTON_HEIGHT;
         }
     }
@@ -93,14 +122,79 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         return Math.max(0, menu.offers().size() - NUMBER_OF_OFFER_BUTTONS);
     }
 
+    // ------------------------------------------------------------ payments
+
+    /** A stack to show in a payment slot, and the text to draw where its count would go. */
+    private record Payment(ItemStack stack, String countOverride) {
+
+        boolean isEmpty() {
+            return stack.isEmpty();
+        }
+    }
+
+    /**
+     * The first payment: the Cash note when the trade has a price, otherwise the first payment item.
+     */
+    private Payment paymentA(ShopTradeMenu.OfferView offer) {
+        if (offer.priceCents() > 0L) {
+            return new Payment(ModItems.noteFor(offer.priceCents()),
+                    ModItems.shortAmount(offer.priceCents()));
+        }
+        return new Payment(offer.cost1(), null);
+    }
+
+    /**
+     * The second payment.
+     *
+     * <p>When the trade is priced in Cash, this is the payment item, so a trade that wants money <em>and</em> an item
+     * shows both: Cash in the first slot, the item in the second. That was the whole point of having two slots.</p>
+     */
+    private Payment paymentB(ShopTradeMenu.OfferView offer) {
+        if (offer.priceCents() > 0L) {
+            return new Payment(offer.cost1(), null);
+        }
+        return new Payment(offer.cost2(), null);
+    }
+
+    // ------------------------------------------------------------ geometry
+
+    private int rowItemY(int slot) {
+        return TradeWindowGeometry.rowItemY(topPos, slot);
+    }
+
+    private Rect rowPaymentARect(int slot) {
+        return TradeWindowGeometry.rowPaymentA(leftPos, topPos, slot);
+    }
+
+    private Rect rowPaymentBRect(int slot) {
+        return TradeWindowGeometry.rowPaymentB(leftPos, topPos, slot);
+    }
+
+    private Rect rowResultRect(int slot) {
+        return TradeWindowGeometry.rowResult(leftPos, topPos, slot);
+    }
+
+    private Rect slotPaymentARect() {
+        return TradeWindowGeometry.slotPaymentA(leftPos, topPos);
+    }
+
+    private Rect slotPaymentBRect() {
+        return TradeWindowGeometry.slotPaymentB(leftPos, topPos);
+    }
+
+    private Rect slotResultRect() {
+        return TradeWindowGeometry.slotResult(leftPos, topPos);
+    }
+
+    // ------------------------------------------------------------ drawing
+
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
         graphics.blit(VILLAGER_LOCATION, leftPos, topPos, 0, 0.0F, 0.0F, imageWidth, imageHeight,
                 TEXTURE_WIDTH, TEXTURE_HEIGHT);
 
-        var offers = menu.offers();
+        List<ShopTradeMenu.OfferView> offers = menu.offers();
         if (selected >= 0 && selected < offers.size() && !offers.get(selected).inStock()) {
-            // Vanilla's barred-arrow overlay over the big arrow between the slots.
             graphics.blit(VILLAGER_LOCATION, leftPos + 83 + MERCHANT_MENU_PART_X, topPos + 35, 0,
                     311.0F, 0.0F, 28, 21, TEXTURE_WIDTH, TEXTURE_HEIGHT);
         }
@@ -120,111 +214,88 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // The world dim stays unscaled: it covers the screen, not the window.
         renderBackground(graphics);
-        super.render(graphics, mouseX, mouseY, partialTick);
 
-        var offers = menu.offers();
-        // Buttons past the end of the list are hidden rather than drawn empty, as vanilla does.
+        int viewX = (int) (mouseX / scale);
+        int viewY = (int) (mouseY / scale);
+
+        graphics.pose().pushPose();
+        graphics.pose().scale(scale, scale, 1.0F);
+
+        super.render(graphics, viewX, viewY, partialTick);
+
+        List<ShopTradeMenu.OfferView> offers = menu.offers();
         for (int index = 0; index < NUMBER_OF_OFFER_BUTTONS; index++) {
             tradeButtons[index].visible = index + scrollOff < offers.size();
         }
-        if (offers.isEmpty()) {
-            renderTooltip(graphics, mouseX, mouseY);
-            return;
+        if (!offers.isEmpty()) {
+            selected = Math.max(0, Math.min(selected, offers.size() - 1));
+            scrollOff = Math.max(0, Math.min(scrollOff, maxScroll()));
+            renderScroller(graphics, offers.size());
+            renderTradeRows(graphics, offers);
+            renderSelectedTrade(graphics, offers.get(selected));
         }
-        selected = Math.max(0, Math.min(selected, offers.size() - 1));
-        scrollOff = Math.max(0, Math.min(scrollOff, maxScroll()));
 
-        renderScroller(graphics, offers.size());
-        renderTradeRows(graphics, offers);
-        renderSelectedTrade(graphics, offers.get(selected));
+        renderTooltip(graphics, viewX, viewY);
+        if (!offers.isEmpty()) {
+            renderItemTooltips(graphics, viewX, viewY, offers);
+        }
 
-        renderTooltip(graphics, mouseX, mouseY);
-        renderTradeTooltips(graphics, mouseX, mouseY, offers);
+        graphics.pose().popPose();
     }
 
-    /**
-     * The items on each trade row.
-     *
-     * <p>Pushed forward 100 in the matrix, the way vanilla does it, so the icons sit above the button faces rather than
-     * being hidden behind them.</p>
-     */
-    private void renderTradeRows(GuiGraphics graphics, java.util.List<ShopTradeMenu.OfferView> offers) {
-        int rowY = topPos + 16 + 1;
-        int costX = leftPos + TRADE_BUTTON_X + 5;
-        int shown = 0;
-        for (int index = 0; index < offers.size(); index++) {
-            if (canScroll(offers.size()) && (index < scrollOff || index >= NUMBER_OF_OFFER_BUTTONS + scrollOff)) {
-                continue;
-            }
-            ShopTradeMenu.OfferView offer = offers.get(index);
-            int itemY = rowY + 2;
-
-            graphics.pose().pushPose();
-            graphics.pose().translate(0.0F, 0.0F, 100.0F);
-
-            renderCost(graphics, offer, costX, itemY);
-            if (!offer.cost2().isEmpty()) {
-                graphics.renderFakeItem(offer.cost2(), leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X, itemY);
-                graphics.renderItemDecorations(font, offer.cost2(),
-                        leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X, itemY);
-            }
-            graphics.blit(VILLAGER_LOCATION, leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X + 20, itemY + 3, 0,
-                    offer.inStock() ? 15.0F : 25.0F, 171.0F, 10, 9, TEXTURE_WIDTH, TEXTURE_HEIGHT);
-            graphics.renderFakeItem(offer.result(), leftPos + TRADE_BUTTON_X + BUY_ITEM_X, itemY);
-            graphics.renderItemDecorations(font, offer.result(), leftPos + TRADE_BUTTON_X + BUY_ITEM_X, itemY);
-
-            graphics.pose().popPose();
-
-            rowY += TRADE_BUTTON_HEIGHT;
-            if (++shown >= NUMBER_OF_OFFER_BUTTONS) {
+    private void renderTradeRows(GuiGraphics graphics, List<ShopTradeMenu.OfferView> offers) {
+        for (int slot = 0; slot < NUMBER_OF_OFFER_BUTTONS; slot++) {
+            int index = slot + scrollOff;
+            if (index >= offers.size()) {
                 break;
             }
+            ShopTradeMenu.OfferView offer = offers.get(index);
+
+            graphics.pose().pushPose();
+            // Forward of the button faces, the way vanilla lifts its trade items.
+            graphics.pose().translate(0.0F, 0.0F, 100.0F);
+
+            drawPayment(graphics, paymentA(offer), rowPaymentARect(slot));
+            drawPayment(graphics, paymentB(offer), rowPaymentBRect(slot));
+
+            graphics.blit(VILLAGER_LOCATION, leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X + 20,
+                    rowItemY(slot) + 3, 0, offer.inStock() ? 15.0F : 25.0F, 171.0F, 10, 9,
+                    TEXTURE_WIDTH, TEXTURE_HEIGHT);
+
+            Rect result = rowResultRect(slot);
+            graphics.renderFakeItem(offer.result(), result.x(), result.y());
+            graphics.renderItemDecorations(font, offer.result(), result.x(), result.y());
+
+            graphics.pose().popPose();
         }
     }
 
-    /**
-     * The payment side of a row.
-     *
-     * <p>A Cash price becomes the note with a short amount in the corner where a stack count would be. An item price is
-     * drawn as the item, exactly as vanilla draws emeralds.</p>
-     */
-    private void renderCost(GuiGraphics graphics, ShopTradeMenu.OfferView offer, int x, int y) {
-        if (offer.priceCents() > 0L) {
-            ItemStack note = ModItems.noteFor(offer.priceCents());
-            graphics.renderFakeItem(note, x, y);
-            graphics.renderItemDecorations(font, note, x, y, ModItems.shortAmount(offer.priceCents()));
-            return;
-        }
-        if (!offer.cost1().isEmpty()) {
-            graphics.renderFakeItem(offer.cost1(), x, y);
-            graphics.renderItemDecorations(font, offer.cost1(), x, y);
-        }
-    }
-
-    /** The selected trade in the three slots on the right. */
     private void renderSelectedTrade(GuiGraphics graphics, ShopTradeMenu.OfferView offer) {
         graphics.pose().pushPose();
         graphics.pose().translate(0.0F, 0.0F, 100.0F);
-
-        if (offer.priceCents() > 0L) {
-            ItemStack note = ModItems.noteFor(offer.priceCents());
-            graphics.renderFakeItem(note, leftPos + COST_1_X, topPos + SLOT_Y);
-            graphics.renderItemDecorations(font, note, leftPos + COST_1_X, topPos + SLOT_Y,
-                    ModItems.shortAmount(offer.priceCents()));
-        } else if (!offer.cost1().isEmpty()) {
-            graphics.renderFakeItem(offer.cost1(), leftPos + COST_1_X, topPos + SLOT_Y);
-            graphics.renderItemDecorations(font, offer.cost1(), leftPos + COST_1_X, topPos + SLOT_Y);
-        }
-        if (!offer.cost2().isEmpty()) {
-            graphics.renderFakeItem(offer.cost2(), leftPos + COST_2_X, topPos + SLOT_Y);
-            graphics.renderItemDecorations(font, offer.cost2(), leftPos + COST_2_X, topPos + SLOT_Y);
-        }
+        drawPayment(graphics, paymentA(offer), slotPaymentARect());
+        drawPayment(graphics, paymentB(offer), slotPaymentBRect());
+        Rect result = slotResultRect();
         if (!offer.result().isEmpty()) {
-            graphics.renderFakeItem(offer.result(), leftPos + RESULT_X, topPos + SLOT_Y);
-            graphics.renderItemDecorations(font, offer.result(), leftPos + RESULT_X, topPos + SLOT_Y);
+            graphics.renderFakeItem(offer.result(), result.x(), result.y());
+            graphics.renderItemDecorations(font, offer.result(), result.x(), result.y());
         }
         graphics.pose().popPose();
+    }
+
+    private void drawPayment(GuiGraphics graphics, Payment payment, Rect where) {
+        if (payment.isEmpty()) {
+            return;
+        }
+        graphics.renderFakeItem(payment.stack(), where.x(), where.y());
+        if (payment.countOverride() == null) {
+            graphics.renderItemDecorations(font, payment.stack(), where.x(), where.y());
+        } else {
+            graphics.renderItemDecorations(font, payment.stack(), where.x(), where.y(),
+                    payment.countOverride());
+        }
     }
 
     private void renderScroller(GuiGraphics graphics, int count) {
@@ -240,93 +311,91 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
                 TEXTURE_WIDTH, TEXTURE_HEIGHT);
     }
 
-    /** Tooltips for the drawn items, which are pictures rather than real slots. */
-    private void renderTradeTooltips(GuiGraphics graphics, int mouseX, int mouseY,
-            java.util.List<ShopTradeMenu.OfferView> offers) {
-        for (int index = 0; index < NUMBER_OF_OFFER_BUTTONS; index++) {
-            int offerIndex = index + scrollOff;
-            if (offerIndex >= offers.size()) {
+    /**
+     * Tooltips for the items this screen draws itself.
+     *
+     * <p>Each test is against the item's own 16x16 square and nothing larger. Using the whole 88x20 trade row meant the
+     * tooltip appeared over the empty half of the row and over the arrow, covering the rest of the list while the cursor
+     * was nowhere near an item.</p>
+     */
+    private void renderItemTooltips(GuiGraphics graphics, int mouseX, int mouseY,
+            List<ShopTradeMenu.OfferView> offers) {
+        for (int slot = 0; slot < NUMBER_OF_OFFER_BUTTONS; slot++) {
+            int index = slot + scrollOff;
+            if (index >= offers.size()) {
                 break;
             }
-            if (!tradeButtons[index].isHoveredOrFocused()) {
-                continue;
+            ShopTradeMenu.OfferView offer = offers.get(index);
+            if (showTooltip(graphics, mouseX, mouseY, rowPaymentARect(slot), paymentA(offer).stack())
+                    || showTooltip(graphics, mouseX, mouseY, rowPaymentBRect(slot), paymentB(offer).stack())
+                    || showTooltip(graphics, mouseX, mouseY, rowResultRect(slot), offer.result())) {
+                return;
             }
-            ShopTradeMenu.OfferView offer = offers.get(offerIndex);
-            ItemStack hovered = hoveredRowItem(offer, mouseX, index);
-            if (!hovered.isEmpty()) {
-                graphics.renderTooltip(font, hovered, mouseX, mouseY);
-            }
-            return;
         }
 
         ShopTradeMenu.OfferView offer = offers.get(selected);
-        if (overResultSlot(mouseX, mouseY) && !offer.result().isEmpty()) {
-            graphics.renderTooltip(font, offer.result(), mouseX, mouseY);
+        if (showTooltip(graphics, mouseX, mouseY, slotPaymentARect(), paymentA(offer).stack())
+                || showTooltip(graphics, mouseX, mouseY, slotPaymentBRect(), paymentB(offer).stack())) {
+            return;
         }
+        showTooltip(graphics, mouseX, mouseY, slotResultRect(), offer.result());
     }
 
-    /** Which of a row's three item positions the cursor is over. */
-    private ItemStack hoveredRowItem(ShopTradeMenu.OfferView offer, int mouseX, int row) {
-        int costX = leftPos + TRADE_BUTTON_X + 5;
-        int resultX = leftPos + TRADE_BUTTON_X + BUY_ITEM_X;
-        if (mouseX >= resultX && mouseX < resultX + 16) {
-            return offer.result();
+    private boolean showTooltip(GuiGraphics graphics, int mouseX, int mouseY, Rect where, ItemStack stack) {
+        if (stack.isEmpty() || !where.contains(mouseX, mouseY)) {
+            return false;
         }
-        if (mouseX >= costX && mouseX < costX + 16) {
-            return offer.priceCents() > 0L ? ModItems.noteFor(offer.priceCents()) : offer.cost1();
-        }
-        return offer.result();
+        graphics.renderTooltip(font, stack, mouseX, mouseY);
+        return true;
     }
 
-    private boolean overResultSlot(double mouseX, double mouseY) {
-        int x = leftPos + RESULT_X;
-        int y = topPos + SLOT_Y;
-        return mouseX >= x - 1 && mouseX < x + 17 && mouseY >= y - 1 && mouseY < y + 17;
-    }
+    // ------------------------------------------------------------ input
 
     /**
      * Buying, on a click of the result slot.
      *
-     * <p>Where vanilla has the customer take the result out of a real slot, this sends the purchase to the server, which
-     * charges the balance and hands the goods over. The gesture is the same one; only what happens behind it differs.</p>
+     * <p>Coordinates are divided by the scale before anything, including {@code super}, sees them. Everything below this
+     * point works in the same space the window was drawn in.</p>
      */
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        var offers = menu.offers();
-        if (!offers.isEmpty() && overResultSlot(mouseX, mouseY)) {
+        double viewX = mouseX / scale;
+        double viewY = mouseY / scale;
+        List<ShopTradeMenu.OfferView> offers = menu.offers();
+
+        if (!offers.isEmpty() && slotResultRect().contains(viewX, viewY)) {
             if (offers.get(selected).inStock() && minecraft != null && minecraft.gameMode != null) {
                 minecraft.gameMode.handleInventoryButtonClick(menu.containerId,
                         ShopTradeMenu.buttonFor(selected, hasShiftDown()));
             }
             return true;
         }
-        if (canScroll(offers.size()) && mouseX >= leftPos + SCROLL_BAR_START_X
-                && mouseX < leftPos + SCROLL_BAR_START_X + SCROLLER_WIDTH
-                && mouseY >= topPos + SCROLL_BAR_TOP_POS_Y
-                && mouseY < topPos + SCROLL_BAR_TOP_POS_Y + SCROLL_BAR_HEIGHT) {
+        if (canScroll(offers.size())
+                && TradeWindowGeometry.scrollTrack(leftPos, topPos).contains(viewX, viewY)) {
             isDragging = true;
             return true;
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(viewX, viewY, button);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         isDragging = false;
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(mouseX / scale, mouseY / scale, button);
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        double viewY = mouseY / scale;
         int count = menu.offers().size();
         if (isDragging && canScroll(count)) {
             int top = topPos + SCROLL_BAR_TOP_POS_Y;
             int travel = SCROLL_BAR_HEIGHT - SCROLLER_HEIGHT;
-            double fraction = (mouseY - top - SCROLLER_HEIGHT / 2.0D) / travel;
+            double fraction = (viewY - top - SCROLLER_HEIGHT / 2.0D) / travel;
             scrollOff = Math.max(0, Math.min((int) Math.round(fraction * maxScroll()), maxScroll()));
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        return super.mouseDragged(mouseX / scale, viewY, button, dragX / scale, dragY / scale);
     }
 
     @Override
@@ -335,6 +404,11 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
             scrollOff = Math.max(0, Math.min(scrollOff - (int) Math.signum(delta), maxScroll()));
             return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX / scale, mouseY / scale, delta);
+    }
+
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
+        super.mouseMoved(mouseX / scale, mouseY / scale);
     }
 }

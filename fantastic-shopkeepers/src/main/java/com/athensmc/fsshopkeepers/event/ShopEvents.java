@@ -51,21 +51,43 @@ public final class ShopEvents {
      *
      * <p>A plain click trades, a sneaking click by someone allowed to edit opens the editor. Sneak-to-edit rather than a
      * command, because the shop you want to edit is the one you are standing in front of.</p>
+     *
+     * <p>At {@link EventPriority#HIGHEST} so that this decides what a click on a shopkeeper means before any other mod
+     * does. Easy Villagers turns a sneaking right-click on a villager into picking it up as an item, which on a shop
+     * would carry the trader off and leave the shop pointing at an entity that no longer exists. Cancelling first is what
+     * stops that; running at the default priority would leave it a race between two mods' handlers.</p>
      */
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) {
-            return;
-        }
-        Entity target = event.getTarget();
+        handleShopClick(event, event.getEntity(), event.getTarget());
+    }
+
+    /**
+     * The same, for the more specific variant.
+     *
+     * <p>Forge fires {@code EntityInteractSpecific} first, for clicks aimed at a precise point on an entity, and a mod may
+     * act on either. Both are covered, because a shopkeeper that could be picked up through whichever one this mod did
+     * not handle would not be protected at all.</p>
+     */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        handleShopClick(event, event.getEntity(), event.getTarget());
+    }
+
+    private static void handleShopClick(PlayerInteractEvent event, net.minecraft.world.entity.player.Player clicker,
+            Entity target) {
         UUID shopId = ShopSpawner.shopIdOf(target);
         if (shopId == null) {
             return;
         }
-        // Consumed either way: a shopkeeper must never respond as the mob it happens to be made of.
+        // Consumed on both sides and for every player: a shopkeeper must never respond as the mob it is made of, and
+        // must not be pickable, breedable, leashable or nameable by anything else.
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.SUCCESS);
 
+        if (!(clicker instanceof ServerPlayer player)) {
+            return;
+        }
         ShopRegistry registry = ShopRegistry.get(player.server);
         Shopkeeper shop = registry.byId(shopId);
         if (shop == null) {
