@@ -18,7 +18,7 @@ administrador monta la tienda.
   Objeto de creacion  - clic derecho en un cofre para elegir el almacen, luego clic derecho en el suelo.
   Agachate + clic     - abre el editor del tendero que tengas delante.
   Clic normal         - abre la ventana de compra.
-  /tienda ayuda       - todos los comandos.
+  /Fskeepers ayuda    - todos los comandos.
 
 Tipos de tienda: administrador (existencias infinitas), venta, compra, trueque y libros.
 Cuerpos: cualquier mob que el servidor conozca, un cartel, o ninguno (tienda virtual por comando).

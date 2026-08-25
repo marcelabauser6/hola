@@ -78,7 +78,7 @@ public final class FantasticShopkeepers {
         event.enqueueWork(() -> {
             ShopConfig.load();
             Cash.bind();
-            LOGGER.info("Fantastic Shopkeepers listo. Abre el editor con /tienda editar.");
+            LOGGER.info("Fantastic Shopkeepers listo. Abre el editor con /Fskeepers editar.");
         });
     }
 

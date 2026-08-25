@@ -23,7 +23,7 @@ funcional, más el editor rediseñado y el cobro en Fantastic Cash que se pidier
 | Comercio | Cobro en Fantastic Cash, pago con artículos, o ambos a la vez. Existencias leídas del cofre en vivo |
 | Economía | Impuesto configurable, abono a la cuenta bancaria enlazada, avisos al dueño |
 | Protección | Cofres de tienda cerrados a terceros, NPCs invulnerables, carteles no rompibles por otros |
-| Comandos | `/tienda` y `/shopkeeper`: crear, editar, info, borrar, lista, dar, traspasar, arreglar, recargar |
+| Comandos | `/Fskeepers` (y `/fskeepers`): crear, editar, info, borrar, lista, dar, traspasar, arreglar, recargar |
 | Permisos | Nodos `shopkeeper.*`, consultados a un plugin de permisos vía Bukkit en Mohist, con reserva a nivel de operador |
 | Persistencia | `SavedData` del mundo, así que las tiendas entran en las copias de seguridad y los rollbacks |
 
@@ -39,7 +39,7 @@ funcional, más el editor rediseñado y el cobro en Fantastic Cash que se pidier
 
 ## Uso
 
-1. Consigue el objeto de creación: `/tienda dar` (por defecto un huevo de aldeano).
+1. Consigue el objeto de creación: `/Fskeepers dar` (por defecto un huevo de aldeano).
 2. Clic derecho en un cofre → queda elegido como almacén.
 3. Clic derecho en el suelo → aparece el tendero.
 4. **Agáchate y haz clic derecho en el tendero** → se abre el editor.
@@ -53,7 +53,7 @@ Los clientes normales hacen clic sin agacharse y ven la ventana de compra.
 `maxShopsPerPlayer`, `maxContainerDistance`, `protectContainers`, `taxPercent`, `allowedShopEntities`
 (lista vacía = todos los mobs permitidos).
 
-Recarga en caliente con `/tienda recargar`.
+Recarga en caliente con `/Fskeepers recargar`.
 
 ## Compilar
 
@@ -79,7 +79,7 @@ Levantado en un servidor dedicado de Forge 1.20.1 real:
 Config creada en run/config/fantasticshopkeepers.json
 Fantastic Currency no esta instalado: los precios en Fantastic Cash quedan desactivados
   y las tiendas usaran items como moneda.
-Fantastic Shopkeepers listo. Abre el editor con /tienda editar.
+Fantastic Shopkeepers listo. Abre el editor con /Fskeepers editar.
 Done (5.752s)! For help, type "help"
 ```
 

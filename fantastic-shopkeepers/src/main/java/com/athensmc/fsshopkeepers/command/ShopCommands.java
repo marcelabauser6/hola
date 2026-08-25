@@ -35,12 +35,19 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.List;
 
 /**
- * The {@code /tienda} command and its subcommands.
+ * The {@code /Fskeepers} command and its subcommands.
  *
- * <p>Registered under {@code /tienda} with {@code /shopkeeper} as an alias, so a server migrating from the plugin keeps
- * the command its staff already type. Brigadier's own permission hook is not used for the staff checks: those go
- * through {@link FantasticShopkeepers#hasPermission}, which can answer from a permissions plugin, whereas Brigadier
- * only knows operator levels.</p>
+ * <p>Registered twice, as {@code Fskeepers} and as {@code fskeepers}. Brigadier matches literals case-sensitively, so a
+ * single capitalised registration would accept {@code /Fskeepers} and reject {@code /fskeepers} - and a command that
+ * fails depending on whether the shift key was held is a command people report as broken. Both spellings resolve to the
+ * same tree, so there is one implementation and no way for the two to drift.</p>
+ *
+ * <p>Deliberately not registered as {@code /shopkeeper}. On a hybrid server the original plugin may still be installed
+ * and would be competing for that name, and whichever registered last would silently win.</p>
+ *
+ * <p>Brigadier's own permission hook is not used for the staff checks: those go through
+ * {@link FantasticShopkeepers#hasPermission}, which can answer from a permissions plugin, whereas Brigadier only knows
+ * operator levels.</p>
  *
  * <p>Every subcommand that acts on "the shop in front of you" resolves it the same way, through
  * {@link #nearestShop}, so there is one definition of which shop is meant.</p>
@@ -51,13 +58,17 @@ public final class ShopCommands {
     /** How far away a shop may be to count as the one the player means. */
     private static final double PICK_RANGE = 8.0D;
 
+    /** The command as it is written in help text and log messages. */
+    public static final String LABEL = "/Fskeepers";
+
     private ShopCommands() {
     }
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        event.getDispatcher().register(build("tienda"));
-        event.getDispatcher().register(build("shopkeeper"));
+        event.getDispatcher().register(build("Fskeepers"));
+        // The same tree under the lowercase spelling, because Brigadier will not match it otherwise.
+        event.getDispatcher().register(build("fskeepers"));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> build(String name) {
@@ -106,16 +117,16 @@ public final class ShopCommands {
         CommandSourceStack source = context.getSource();
         source.sendSuccess(() -> Component.literal("Fantastic Shopkeepers")
                 .withStyle(ChatFormatting.GOLD), false);
-        line(source, "/tienda crear <admin|venta|compra|trueque|libros> [mob|cartel|virtual]",
+        line(source, LABEL + " crear <admin|venta|compra|trueque|libros> [mob|cartel|virtual]",
                 "Crea una tienda donde estas.");
-        line(source, "/tienda editar", "Abre el editor de la tienda que tengas delante.");
-        line(source, "/tienda info", "Muestra los datos de la tienda que tengas delante.");
-        line(source, "/tienda borrar", "Borra la tienda que tengas delante.");
-        line(source, "/tienda lista [jugador]", "Lista tus tiendas o las de otro jugador.");
-        line(source, "/tienda dar [jugador]", "Da el objeto para crear tiendas.");
-        line(source, "/tienda traspasar <jugador>", "Cambia el dueño de la tienda que tengas delante.");
-        line(source, "/tienda arreglar", "Vuelve a poner los tenderos que falten.");
-        line(source, "/tienda recargar", "Recarga la configuracion.");
+        line(source, LABEL + " editar", "Abre el editor de la tienda que tengas delante.");
+        line(source, LABEL + " info", "Muestra los datos de la tienda que tengas delante.");
+        line(source, LABEL + " borrar", "Borra la tienda que tengas delante.");
+        line(source, LABEL + " lista [jugador]", "Lista tus tiendas o las de otro jugador.");
+        line(source, LABEL + " dar [jugador]", "Da el objeto para crear tiendas.");
+        line(source, LABEL + " traspasar <jugador>", "Cambia el dueño de la tienda que tengas delante.");
+        line(source, LABEL + " arreglar", "Vuelve a poner los tenderos que falten.");
+        line(source, LABEL + " recargar", "Recarga la configuracion.");
         source.sendSuccess(() -> Component.literal(
                 "Truco: agachate y haz clic derecho en un tendero para abrir su editor.")
                 .withStyle(ChatFormatting.GRAY), false);
