@@ -72,13 +72,22 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         }
     }
 
-    /** Everything the client needs to draw the window. */
-    public record Data(UUID shopId, String shopName, ShopType type, List<OfferView> offers) {
+    /**
+     * Everything the client needs to draw the window.
+     *
+     * <p>The money's name and colour travel with it because they are server settings and the client has no copy of the
+     * server's config. Without them the note would be labelled with this mod's defaults on every client, whatever the
+     * operator chose.</p>
+     */
+    public record Data(UUID shopId, String shopName, ShopType type, String cashLabel, int cashColour,
+            List<OfferView> offers) {
 
         public void write(FriendlyByteBuf buf) {
             buf.writeUUID(shopId);
             buf.writeUtf(shopName, 64);
             buf.writeEnum(type);
+            buf.writeUtf(cashLabel, 32);
+            buf.writeInt(cashColour);
             buf.writeVarInt(offers.size());
             for (OfferView offer : offers) {
                 offer.write(buf);
@@ -89,18 +98,22 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
             UUID shopId = buf.readUUID();
             String name = buf.readUtf(64);
             ShopType type = buf.readEnum(ShopType.class);
+            String cashLabel = buf.readUtf(32);
+            int cashColour = buf.readInt();
             int count = buf.readVarInt();
             List<OfferView> offers = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 offers.add(OfferView.read(buf));
             }
-            return new Data(shopId, name, type, offers);
+            return new Data(shopId, name, type, cashLabel, cashColour, offers);
         }
     }
 
     private final UUID shopId;
     private final String shopName;
     private final ShopType shopType;
+    private final String cashLabel;
+    private final int cashColour;
     private final List<OfferView> offers;
 
     public ShopTradeMenu(int containerId, Inventory inventory, Data data) {
@@ -108,6 +121,8 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         this.shopId = data.shopId();
         this.shopName = data.shopName();
         this.shopType = data.type();
+        this.cashLabel = data.cashLabel();
+        this.cashColour = data.cashColour();
         this.offers = List.copyOf(data.offers());
         addInventorySlots(inventory);
     }
@@ -140,6 +155,16 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         return offers;
     }
 
+    /** What the server calls its money, for the note in the payment slot. */
+    public String cashLabel() {
+        return cashLabel;
+    }
+
+    /** The colour the server chose for that name. */
+    public int cashColour() {
+        return cashColour;
+    }
+
     /**
      * Builds the view of a shop for one customer.
      *
@@ -153,7 +178,10 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
             int available = ShopStock.availableTrades(viewer.serverLevel(), shop, offer);
             views.add(new OfferView(offer.result(), offer.priceCents(), offer.cost1(), offer.cost2(), available));
         }
-        return new Data(shop.id(), shop.displayName(), shop.type(), views);
+        com.athensmc.fsshopkeepers.config.ShopConfig config =
+                com.athensmc.fsshopkeepers.config.ShopConfig.get();
+        return new Data(shop.id(), shop.displayName(), shop.type(), config.cashLabel,
+                config.cashColorRgb(), views);
     }
 
     /** Encodes a purchase as a menu button id. */

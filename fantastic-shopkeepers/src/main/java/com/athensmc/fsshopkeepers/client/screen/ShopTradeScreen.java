@@ -125,7 +125,7 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
      */
     private Payment paymentA(ShopTradeMenu.OfferView offer) {
         if (offer.priceCents() > 0L) {
-            return new Payment(ModItems.noteFor(offer.priceCents()),
+            return new Payment(ModItems.noteFor(offer.priceCents(), menu.cashLabel(), menu.cashColour()),
                     ModItems.shortAmount(offer.priceCents()));
         }
         return new Payment(offer.cost1(), null);
@@ -243,8 +243,10 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
                 drawPlus(graphics, TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot));
             }
 
-            graphics.blit(VILLAGER_LOCATION, leftPos + TRADE_BUTTON_X + SELL_ITEM_2_X + 20,
-                    rowItemY(slot) + 3, 0, offer.inStock() ? 15.0F : 25.0F, 171.0F, 10, 9,
+            Rect arrow = TradeWindowGeometry.rowArrow(leftPos, topPos, slot,
+                    !costA.isEmpty() && !costB.isEmpty());
+            graphics.blit(VILLAGER_LOCATION, arrow.x(), arrow.y(), 0,
+                    offer.inStock() ? 15.0F : 25.0F, 171.0F, arrow.width(), arrow.height(),
                     TEXTURE_WIDTH, TEXTURE_HEIGHT);
 
             Rect result = rowResultRect(slot);

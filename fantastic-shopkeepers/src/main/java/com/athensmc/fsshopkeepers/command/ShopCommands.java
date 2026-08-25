@@ -12,9 +12,11 @@ import com.athensmc.fsshopkeepers.shop.ShopRegistry;
 import com.athensmc.fsshopkeepers.shop.ShopSpawner;
 import com.athensmc.fsshopkeepers.shop.ShopType;
 import com.athensmc.fsshopkeepers.shop.Shopkeeper;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -29,7 +31,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * The {@code /fskeepers} command.
@@ -72,9 +77,10 @@ public final class ShopCommands {
                 .then(Commands.literal("editar").executes(ShopCommands::edit))
                 .then(Commands.literal("mover")
                         .executes(ShopCommands::moveList)
-                        .then(Commands.argument("numero", IntegerArgumentType.integer(1))
+                        .then(Commands.argument("tienda", StringArgumentType.greedyString())
+                                .suggests(ShopCommands::suggestShopNames)
                                 .executes(context -> move(context,
-                                        IntegerArgumentType.getInteger(context, "numero")))))
+                                        StringArgumentType.getString(context, "tienda")))))
                 .then(Commands.literal("saldo").executes(ShopCommands::balance))
                 .then(Commands.literal("borrar").executes(ShopCommands::remove))
                 .then(Commands.literal("lista").executes(ShopCommands::list))
@@ -95,7 +101,7 @@ public final class ShopCommands {
         line(source, LABEL + " crear admin", "Crea una tienda de staff con existencias infinitas.");
         line(source, LABEL + " editor", "Te da la varita del editor.");
         line(source, LABEL + " editar", "Abre el editor de la tienda que tengas delante.");
-        line(source, LABEL + " mover", "Lista tus tiendas; con un numero, trae esa aqui.");
+        line(source, LABEL + " mover", "Lista tus tiendas; con un nombre, trae esa aqui.");
         line(source, LABEL + " saldo", "Muestra el dinero que la tienda ve en tu cuenta.");
         line(source, LABEL + " borrar", "Borra la tienda que tengas delante.");
         line(source, LABEL + " lista", "Lista tus tiendas y donde estan.");
@@ -208,11 +214,33 @@ public final class ShopCommands {
     }
 
     /**
-     * Lists the shops that can be moved.
+     * Completes the names of shops the player may move.
      *
-     * <p>Printed with a number rather than asked for by name, because shop names repeat, may be blank, and may contain
-     * spaces. A number is unambiguous and short to type.</p>
+     * <p>A greedy string argument, so a name with spaces needs no quoting and the completion fills in the rest of it.
+     * Duplicates are collapsed: two shops called the same thing offer one suggestion, and the nearer one is chosen when it
+     * is used.</p>
      */
+    private static CompletableFuture<Suggestions> suggestShopNames(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        ServerPlayer player = context.getSource().getPlayer();
+        if (player == null) {
+            return builder.buildFuture();
+        }
+        String typed = builder.getRemaining().toLowerCase();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Shopkeeper shop : movableShops(player)) {
+            String name = shop.displayName();
+            if (!name.isBlank() && name.toLowerCase().startsWith(typed)) {
+                seen.add(name);
+            }
+        }
+        for (String name : seen) {
+            builder.suggest(name);
+        }
+        return builder.buildFuture();
+    }
+
+    /** Lists the shops that can be moved, with the name to type and where each one is. */
     private static int moveList(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = player(context);
         if (player == null) {
@@ -227,16 +255,15 @@ public final class ShopCommands {
         }
         source.sendSuccess(() -> Component.literal("Tiendas que puedes mover:")
                 .withStyle(ChatFormatting.GOLD), false);
-        for (int i = 0; i < shops.size(); i++) {
-            Shopkeeper shop = shops.get(i);
-            int number = i + 1;
+        for (Shopkeeper shop : shops) {
             String dimension = shop.level().location().getPath();
-            source.sendSuccess(() -> Component.literal(number + ". ").withStyle(ChatFormatting.YELLOW)
+            source.sendSuccess(() -> Component.literal("\u00b7 ").withStyle(ChatFormatting.YELLOW)
                     .append(Component.literal(shop.displayName()).withStyle(ChatFormatting.WHITE))
                     .append(Component.literal("  " + shop.pos().toShortString() + " en " + dimension)
                             .withStyle(ChatFormatting.GRAY)), false);
         }
-        source.sendSuccess(() -> Component.literal("Usa " + LABEL + " mover <numero> para traerla donde estas.")
+        source.sendSuccess(() -> Component.literal("Usa " + LABEL
+                + " mover <nombre> para traerla donde estas. El nombre se autocompleta con el tabulador.")
                 .withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
@@ -248,7 +275,7 @@ public final class ShopCommands {
      * standing in. Re-created rather than teleported, so the mob arrives with its variant and its flags applied the way a
      * fresh one would, and the registry is re-indexed so the shop stops being protected at its old position.</p>
      */
-    private static int move(CommandContext<CommandSourceStack> context, int number) {
+    private static int move(CommandContext<CommandSourceStack> context, String wanted) {
         ServerPlayer player = player(context);
         if (player == null) {
             return 0;
@@ -258,12 +285,49 @@ public final class ShopCommands {
             context.getSource().sendFailure(Component.literal("No tienes ninguna tienda que mover."));
             return 0;
         }
-        if (number < 1 || number > shops.size()) {
-            context.getSource().sendFailure(Component.literal("No hay una tienda con el numero " + number
-                    + ". Usa " + LABEL + " mover para ver la lista."));
+
+        String needle = wanted == null ? "" : wanted.strip();
+        List<Shopkeeper> matches = new ArrayList<>();
+        for (Shopkeeper shop : shops) {
+            if (shop.displayName().equalsIgnoreCase(needle)) {
+                matches.add(shop);
+            }
+        }
+        if (matches.isEmpty()) {
+            // Nothing matched exactly, so try it as a prefix before giving up.
+            for (Shopkeeper shop : shops) {
+                if (shop.displayName().toLowerCase().startsWith(needle.toLowerCase()) && !needle.isBlank()) {
+                    matches.add(shop);
+                }
+            }
+        }
+        if (matches.isEmpty()) {
+            context.getSource().sendFailure(Component.literal("No tienes ninguna tienda que se llame \""
+                    + needle + "\". Usa " + LABEL + " mover para ver la lista."));
             return 0;
         }
-        Shopkeeper shop = shops.get(number - 1);
+
+        // Several shops can share a name, so the nearest one is the one meant.
+        Shopkeeper chosen = matches.get(0);
+        if (matches.size() > 1) {
+            double best = Double.MAX_VALUE;
+            for (Shopkeeper candidate : matches) {
+                double distance = candidate.level().equals(player.level().dimension())
+                        ? player.distanceToSqr(candidate.pos().getX() + 0.5D, candidate.pos().getY() + 0.5D,
+                                candidate.pos().getZ() + 0.5D)
+                        : Double.MAX_VALUE / 2.0D;
+                if (distance < best) {
+                    best = distance;
+                    chosen = candidate;
+                }
+            }
+            int count = matches.size();
+            context.getSource().sendSuccess(() -> Component.literal("Hay " + count
+                    + " tiendas con ese nombre; se mueve la mas cercana.")
+                    .withStyle(ChatFormatting.YELLOW), false);
+        }
+        // Fixed from here on, because the messages below capture it in a lambda.
+        final Shopkeeper shop = chosen;
 
         ServerLevel destination = player.serverLevel();
         BlockPos target = player.blockPosition();

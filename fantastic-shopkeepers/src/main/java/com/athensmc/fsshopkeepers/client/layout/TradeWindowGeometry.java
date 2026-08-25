@@ -88,11 +88,29 @@ public final class TradeWindowGeometry {
         return item(leftPos + TRADE_BUTTON_X + ROW_RESULT, rowItemY(topPos, slot), slot);
     }
 
-    public static Rect rowArrow(int leftPos, int topPos, int slot) {
+    /** Width and height of vanilla's little arrow sprite. */
+    public static final int ARROW_WIDTH = 10;
+    public static final int ARROW_HEIGHT = 9;
+
+    /**
+     * The arrow between a row's payments and its result.
+     *
+     * <p>Centred in whatever gap is actually left, which is not where vanilla puts it. Vanilla assumes two payment stacks
+     * and places the arrow just past the second, so with a single payment - the normal case here - it sat hard against the
+     * result with a wide empty space behind it.</p>
+     *
+     * @param twoPayments true when the row shows two payments, so the gap starts further right.
+     */
+    public static Rect rowArrow(int leftPos, int topPos, int slot, boolean twoPayments) {
         if (slot < 0 || slot >= VISIBLE_TRADES) {
             return Rect.EMPTY;
         }
-        return new Rect(leftPos + TRADE_BUTTON_X + ROW_ARROW, rowItemY(topPos, slot) + 3, 10, 9);
+        int gapStart = twoPayments
+                ? rowPaymentB(leftPos, topPos, slot).right()
+                : rowPaymentA(leftPos, topPos, slot).right();
+        int gapEnd = rowResult(leftPos, topPos, slot).x();
+        int x = gapStart + (gapEnd - gapStart - ARROW_WIDTH) / 2;
+        return new Rect(x, rowItemY(topPos, slot) + 3, ARROW_WIDTH, ARROW_HEIGHT);
     }
 
     /**

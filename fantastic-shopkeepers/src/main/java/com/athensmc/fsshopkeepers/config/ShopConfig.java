@@ -77,11 +77,28 @@ public final class ShopConfig {
     /** Whether every trade is written to the server log. */
     public boolean logTrades = false;
 
-    /** Whether a player may trade with a shop they own, which is usually a mistake rather than an intent. */
-    public boolean preventTradingWithOwnShop = true;
+    /**
+     * Whether a player is stopped from buying at a shop they own.
+     *
+     * <p>Off by default. On a server where the shops are the server's own, the person who set one up is also a customer of
+     * it, and refusing them is just an obstacle. Turn it on if shops are meant to be private businesses and buying from
+     * yourself would be a way to launder money.</p>
+     */
+    public boolean preventTradingWithOwnShop = false;
 
     /** How many rows of trades one shop may hold. */
     public int maxTradesPerShop = 45;
+
+    /** What the money shown in a trade's payment slot is called. */
+    public String cashLabel = "Fantastic Cash";
+
+    /**
+     * The colour of that name, as six hex digits.
+     *
+     * <p>Text rather than a number so the file stays readable: {@code "55FF55"} says green to anyone, {@code 5635925} says
+     * nothing.</p>
+     */
+    public String cashColor = "55FF55";
 
     /**
      * Which mobs may be shopkeepers.
@@ -133,6 +150,29 @@ public final class ShopConfig {
 
     public static ShopConfig get() {
         return current;
+    }
+
+    /** The note's colour as packed RGB, falling back to green when the text is not six hex digits. */
+    public int cashColorRgb() {
+        return parseColour(cashColor);
+    }
+
+    /**
+     * Reads six hex digits into a colour.
+     *
+     * <p>A bad value falls back rather than throwing: a typo in a colour should leave the money the wrong shade, not stop
+     * the shops from working.</p>
+     */
+    public static int parseColour(String hex) {
+        String cleaned = hex == null ? "" : hex.trim().replace("#", "");
+        if (cleaned.length() != 6) {
+            return 0x55FF55;
+        }
+        try {
+            return Integer.parseInt(cleaned, 16);
+        } catch (NumberFormatException notHex) {
+            return 0x55FF55;
+        }
     }
 
     /** True when this mob is allowed to be a shopkeeper. An empty allow-list permits everything. */

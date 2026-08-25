@@ -4,6 +4,9 @@ import com.athensmc.fsshopkeepers.FantasticShopkeepers;
 import com.athensmc.fsshopkeepers.money.Cash;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -70,10 +73,32 @@ public final class ModItems {
      * writing it as one would render as a four-digit smear across a 16-pixel slot.</p>
      */
     public static ItemStack noteFor(long priceCents) {
+        return noteFor(priceCents, "Fantastic Cash", 0x55FF55);
+    }
+
+    /**
+     * A note stack standing for a price, named and coloured as the server chose.
+     *
+     * <p>The name is the currency, not the amount, and the amount goes on a line under it. Naming it after the amount made
+     * the tooltip read "23,00" with no clue what twenty-three of anything was.</p>
+     *
+     * <p>Italics are switched off explicitly. Minecraft italicises any renamed item, which made the money look like a
+     * placeholder rather than a label.</p>
+     */
+    public static ItemStack noteFor(long priceCents, String label, int colourRgb) {
         ItemStack note = new ItemStack(CASH_NOTE.get());
-        note.setHoverName(Component.literal(Cash.format(priceCents))
-                .withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD));
+        note.setHoverName(Component.literal(label == null || label.isBlank() ? "Fantastic Cash" : label)
+                .withStyle(style -> style.withColor(TextColor.fromRgb(colourRgb)).withItalic(false)));
+        setLore(note, Component.literal(Cash.format(priceCents))
+                .withStyle(style -> style.withColor(TextColor.fromRgb(colourRgb)).withItalic(false)));
         return note;
+    }
+
+    /** Writes a single line of lore, the way vanilla stores it. */
+    private static void setLore(ItemStack stack, Component line) {
+        ListTag lore = new ListTag();
+        lore.add(StringTag.valueOf(Component.Serializer.toJson(line)));
+        stack.getOrCreateTagElement("display").put("Lore", lore);
     }
 
     /**

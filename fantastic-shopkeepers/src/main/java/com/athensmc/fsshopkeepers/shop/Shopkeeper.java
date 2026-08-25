@@ -377,6 +377,10 @@ public final class Shopkeeper {
         buf.writeBoolean(forHire);
         buf.writeVarLong(hireCost);
         buf.writeUtf(tradePermission, 128);
+        // The money's name and colour are server-wide settings, not the shop's, but the editor is where staff change
+        // them so they travel with the shop being edited.
+        buf.writeUtf(com.athensmc.fsshopkeepers.config.ShopConfig.get().cashLabel, 32);
+        buf.writeUtf(com.athensmc.fsshopkeepers.config.ShopConfig.get().cashColor, 8);
         buf.writeVarInt(offers.size());
         for (TradeOffer offer : offers) {
             offer.write(buf);
@@ -387,7 +391,7 @@ public final class Shopkeeper {
     public record EditorView(UUID id, ShopType type, String name, String ownerName,
             ShopObjectKind objectKind, ResourceLocation entityType, CompoundTag entityData,
             int linkedAccount, boolean forHire, long hireCost, String tradePermission,
-            List<TradeOffer> offers) {
+            String cashLabel, String cashColor, List<TradeOffer> offers) {
 
         public static EditorView read(FriendlyByteBuf buf) {
             UUID id = buf.readUUID();
@@ -401,6 +405,8 @@ public final class Shopkeeper {
             boolean forHire = buf.readBoolean();
             long hireCost = buf.readVarLong();
             String permission = buf.readUtf(128);
+            String cashLabel = buf.readUtf(32);
+            String cashColor = buf.readUtf(8);
             int count = buf.readVarInt();
             List<TradeOffer> offers = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
@@ -408,7 +414,7 @@ public final class Shopkeeper {
             }
             return new EditorView(id, type, name, ownerName, kind, entityType,
                     entityData == null ? new CompoundTag() : entityData, account, forHire, hireCost,
-                    permission, offers);
+                    permission, cashLabel, cashColor, offers);
         }
 
         /** The mob type as a readable label for the appearance tab. */

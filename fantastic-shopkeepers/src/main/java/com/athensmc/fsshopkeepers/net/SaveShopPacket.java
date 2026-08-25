@@ -37,7 +37,7 @@ import java.util.function.Supplier;
  */
 public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind, ResourceLocation entityType,
         CompoundTag entityData, int linkedAccount, boolean forHire, long hireCost, String tradePermission,
-        List<TradeOffer> offers) {
+        String cashLabel, String cashColor, List<TradeOffer> offers) {
 
     /** Longest shop name accepted, matching what fits above a mob without covering the ones beside it. */
     public static final int MAX_NAME = 48;
@@ -52,6 +52,8 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         buf.writeBoolean(forHire);
         buf.writeVarLong(hireCost);
         buf.writeUtf(tradePermission, 128);
+        buf.writeUtf(cashLabel, 32);
+        buf.writeUtf(cashColor, 8);
         buf.writeVarInt(offers.size());
         for (TradeOffer offer : offers) {
             offer.write(buf);
@@ -68,6 +70,8 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         boolean forHire = buf.readBoolean();
         long hireCost = buf.readVarLong();
         String permission = buf.readUtf(128);
+        String cashLabel = buf.readUtf(32);
+        String cashColor = buf.readUtf(8);
         int count = buf.readVarInt();
         // Bounded before allocating: a hostile client claiming a million rows should not be able to make the
         // server reserve the memory for them before the cap is checked.
@@ -81,7 +85,7 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         }
         return new SaveShopPacket(shopId, name, kind, entityType,
                 entityData == null ? new CompoundTag() : entityData, account, forHire, hireCost, permission,
-                offers);
+                cashLabel, cashColor, offers);
     }
 
     public void handle(Supplier<NetworkEvent.Context> context) {
@@ -146,6 +150,7 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         // rejected, so an owner saving an unchanged form does not get an error about a field they never saw.
         if (staff) {
             shop.setTradePermission(tradePermission);
+            applyMoneyAppearance(player);
         }
         shop.setOffers(sanitiseOffers());
 
@@ -169,6 +174,38 @@ public record SaveShopPacket(UUID shopId, String name, ShopObjectKind objectKind
         String note = usable == total ? "" : " (" + (total - usable) + " sin terminar)";
         player.sendSystemMessage(Component.literal("Tienda guardada: " + usable + " tratos activos" + note + ".")
                 .withStyle(ChatFormatting.GREEN));
+    }
+
+    /**
+     * Saves the money's name and colour, which are server-wide rather than the shop's.
+     *
+     * <p>Edited from the shop editor because that is where staff already are, but written to the config so every shop shows
+     * the same money. Only written when something actually changed, so an admin saving a shop's prices does not rewrite the
+     * config file for nothing.</p>
+     */
+    private void applyMoneyAppearance(ServerPlayer player) {
+        ShopConfig config = ShopConfig.get();
+        String label = cashLabel == null ? "" : cashLabel.strip();
+        String colour = cashColor == null ? "" : cashColor.strip().replace("#", "");
+        boolean changed = false;
+
+        if (!label.isBlank() && !label.equals(config.cashLabel)) {
+            config.cashLabel = label;
+            changed = true;
+        }
+        if (colour.length() == 6 && !colour.equalsIgnoreCase(config.cashColor)) {
+            config.cashColor = colour;
+            changed = true;
+        } else if (colour.length() != 6 && !colour.isEmpty()) {
+            player.sendSystemMessage(Component.literal(
+                    "El color del dinero se deja como estaba: hacen falta seis digitos hexadecimales, "
+                            + "por ejemplo 55FF55.").withStyle(ChatFormatting.YELLOW));
+        }
+        if (changed) {
+            ShopConfig.save();
+            player.sendSystemMessage(Component.literal("Dinero: \"" + config.cashLabel + "\" en #"
+                    + config.cashColor + ".").withStyle(ChatFormatting.GREEN));
+        }
     }
 
     private String trimName(String raw) {

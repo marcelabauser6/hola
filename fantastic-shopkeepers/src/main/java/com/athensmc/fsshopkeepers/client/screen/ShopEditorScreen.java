@@ -77,7 +77,7 @@ public final class ShopEditorScreen extends Screen {
 
     /** Which text field the keyboard belongs to, remembered across rebuilds. */
     private enum Focus {
-        NONE, MOB_SEARCH, PRICE, NAME, ACCOUNT, HIRE, PERMISSION
+        NONE, MOB_SEARCH, PRICE, NAME, ACCOUNT, HIRE, PERMISSION, CASH_LABEL, CASH_COLOR
     }
 
     /** One editable trade row. The price stays as typed text until the shop is saved. */
@@ -134,6 +134,8 @@ public final class ShopEditorScreen extends Screen {
     private boolean forHire;
     private String hireCostText;
     private String permission;
+    private String cashLabel;
+    private String cashColor;
 
     private Tab activeTab = Tab.TRADES;
     private int selectedRow;
@@ -162,6 +164,8 @@ public final class ShopEditorScreen extends Screen {
         this.forHire = view.forHire();
         this.hireCostText = view.hireCost() > 0L ? Money.plain(view.hireCost()) : "";
         this.permission = view.tradePermission();
+        this.cashLabel = view.cashLabel();
+        this.cashColor = view.cashColor();
         for (TradeOffer offer : view.offers()) {
             rows.add(Row.from(offer));
         }
@@ -613,12 +617,37 @@ public final class ShopEditorScreen extends Screen {
                 geo.settingNote(block));
         block++;
 
+        // Server-wide, not this shop's, but this is where staff already are.
+        if (block < geo.settingBlocks()) {
+            addLabel("\u00a77Nombre del dinero \u00a78(para todo el servidor)", geo.settingLabel(block));
+            EditBox label = field(geo.settingControl(block), Focus.CASH_LABEL, cashLabel,
+                    "Fantastic Cash", 32, true);
+            if (label != null) {
+                label.setResponder(text -> cashLabel = text);
+            }
+            addNote("Lo que se lee al pasar el raton por el billete de una tienda.",
+                    geo.settingNote(block));
+            block++;
+        }
+
+        if (block < geo.settingBlocks()) {
+            addLabel("\u00a77Color del dinero \u00a78(hexadecimal)", geo.settingLabel(block));
+            EditBox colour = field(geo.settingControl(block), Focus.CASH_COLOR, cashColor, "55FF55", 6, true);
+            if (colour != null) {
+                colour.setFilter(text -> text.matches("[0-9a-fA-F]{0,6}"));
+                colour.setResponder(text -> cashColor = text);
+            }
+            addNote("Seis digitos, como 55FF55 para verde o FFD54A para dorado.",
+                    geo.settingNote(block));
+            block++;
+        }
+
         if (block < geo.settingBlocks()) {
             addLabel(Cash.available()
-                    ? "\u00a7aFantastic Currency detectado: los precios se cobran en " + Cash.currencyName()
+                    ? "\u00a7aFantastic Currency detectado: se cobra en " + Cash.currencyName()
                     : "\u00a7cFantastic Currency no esta instalado", geo.settingLabel(block));
             addNote(Cash.available()
-                    ? "El dinero sale y entra de las cuentas del banco."
+                    ? "Se gasta la cartera y, si no llega, la cuenta del banco."
                     : "Sin el, solo funcionan los pagos con articulos.", geo.settingControl(block));
         }
     }
@@ -977,7 +1006,7 @@ public final class ShopEditorScreen extends Screen {
         }
         long hireCost = hireCostText.isBlank() ? 0L : Math.max(0L, Money.parseOrInvalid(hireCostText));
         Net.saveShop(new SaveShopPacket(source.id(), shopName, kind, entityType, entityData, linkedAccount,
-                forHire, hireCost, permission, offers));
+                forHire, hireCost, permission, cashLabel, cashColor, offers));
         minecraft.setScreen(null);
     }
 

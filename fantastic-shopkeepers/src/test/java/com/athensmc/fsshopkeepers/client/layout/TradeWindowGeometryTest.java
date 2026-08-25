@@ -56,33 +56,42 @@ public final class TradeWindowGeometryTest {
 
         for (int slot = 0; slot < TradeWindowGeometry.VISIBLE_TRADES; slot++) {
             Rect row = TradeWindowGeometry.row(leftPos, topPos, slot);
-            Map<String, Rect> pieces = new LinkedHashMap<>();
-            pieces.put("pagoA", TradeWindowGeometry.rowPaymentA(leftPos, topPos, slot));
-            pieces.put("pagoB", TradeWindowGeometry.rowPaymentB(leftPos, topPos, slot));
-            pieces.put("mas", TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot));
-            pieces.put("flecha", TradeWindowGeometry.rowArrow(leftPos, topPos, slot));
-            pieces.put("resultado", TradeWindowGeometry.rowResult(leftPos, topPos, slot));
-            assertNoOverlaps(pieces, at + " fila " + slot);
-
-            // The plus has to exist and land between the two payments, not on either of them.
-            Rect plus = TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot);
             Rect payA = TradeWindowGeometry.rowPaymentA(leftPos, topPos, slot);
             Rect payB = TradeWindowGeometry.rowPaymentB(leftPos, topPos, slot);
-            if (plus.isEmpty()) {
-                failures.add(at + ": la fila " + slot + " no tiene sitio para el mas entre los pagos");
-            } else if (plus.x() < payA.right() || plus.right() > payB.x()) {
-                failures.add(at + ": el mas de la fila " + slot + " se sale del hueco entre los pagos");
-            }
+            Rect resultRect = TradeWindowGeometry.rowResult(leftPos, topPos, slot);
 
-            for (Map.Entry<String, Rect> piece : pieces.entrySet()) {
+            // The two layouts are checked separately, because they never appear together: with one payment there is
+            // no second square and the arrow moves left into that space. Checking them as one set flagged an overlap
+            // between a payment that is not drawn and an arrow that is.
+            Map<String, Rect> onePayment = new LinkedHashMap<>();
+            onePayment.put("pagoA", payA);
+            onePayment.put("flecha", TradeWindowGeometry.rowArrow(leftPos, topPos, slot, false));
+            onePayment.put("resultado", resultRect);
+            assertNoOverlaps(onePayment, at + " fila " + slot + " con un pago");
+
+            Map<String, Rect> twoPayments = new LinkedHashMap<>();
+            twoPayments.put("pagoA", payA);
+            twoPayments.put("mas", TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot));
+            twoPayments.put("pagoB", payB);
+            twoPayments.put("flecha", TradeWindowGeometry.rowArrow(leftPos, topPos, slot, true));
+            twoPayments.put("resultado", resultRect);
+            assertNoOverlaps(twoPayments, at + " fila " + slot + " con dos pagos");
+
+            Map<String, Rect> everything = new LinkedHashMap<>(twoPayments);
+            everything.putAll(onePayment);
+            for (Map.Entry<String, Rect> piece : everything.entrySet()) {
                 Rect rect = piece.getValue();
+                if (rect.isEmpty()) {
+                    failures.add(at + ": falta " + piece.getKey() + " en la fila " + slot);
+                    continue;
+                }
                 if (!rect.within(window)) {
                     failures.add(at + ": " + piece.getKey() + " de la fila " + slot
                             + " se sale de la ventana " + rect);
                 }
                 // Every item hit area must be exactly one item, never the whole row.
-                if (!piece.getKey().equals("flecha") && !piece.getKey().equals("mas")
-                        && (rect.width() != TradeWindowGeometry.ITEM
+                boolean isItem = piece.getKey().startsWith("pago") || piece.getKey().equals("resultado");
+                if (isItem && (rect.width() != TradeWindowGeometry.ITEM
                         || rect.height() != TradeWindowGeometry.ITEM)) {
                     failures.add(at + ": " + piece.getKey() + " de la fila " + slot + " mide "
                             + rect.width() + "x" + rect.height() + " y debe medir 16x16");
@@ -92,12 +101,32 @@ public final class TradeWindowGeometryTest {
                 }
             }
 
-            // Rows must not overlap each other.
-            if (slot > 0) {
-                Rect previous = TradeWindowGeometry.row(leftPos, topPos, slot - 1);
-                if (previous.overlaps(row)) {
-                    failures.add(at + ": las filas " + (slot - 1) + " y " + slot + " se solapan");
+            // The plus has to land between the two payments, not on either of them.
+            Rect plus = TradeWindowGeometry.rowPaymentPlus(leftPos, topPos, slot);
+            if (!plus.isEmpty() && (plus.x() < payA.right() || plus.right() > payB.x())) {
+                failures.add(at + ": el mas de la fila " + slot + " se sale del hueco entre los pagos");
+            }
+
+            // The arrow must be centred in whatever gap is actually left, in both layouts.
+            for (boolean two : new boolean[] {false, true}) {
+                Rect arrow = TradeWindowGeometry.rowArrow(leftPos, topPos, slot, two);
+                Rect lastPayment = two ? payB : payA;
+                if (arrow.x() < lastPayment.right() || arrow.right() > resultRect.x()) {
+                    failures.add(at + ": la flecha de la fila " + slot + " con "
+                            + (two ? "dos pagos" : "un pago") + " se sale del hueco");
+                    continue;
                 }
+                int before = arrow.x() - lastPayment.right();
+                int after = resultRect.x() - arrow.right();
+                if (Math.abs(before - after) > 1) {
+                    failures.add(at + ": la flecha de la fila " + slot + " con "
+                            + (two ? "dos pagos" : "un pago") + " no queda centrada ("
+                            + before + " antes, " + after + " despues)");
+                }
+            }
+
+            if (slot > 0 && TradeWindowGeometry.row(leftPos, topPos, slot - 1).overlaps(row)) {
+                failures.add(at + ": las filas " + (slot - 1) + " y " + slot + " se solapan");
             }
             if (!row.within(window)) {
                 failures.add(at + ": la fila " + slot + " se sale de la ventana");
