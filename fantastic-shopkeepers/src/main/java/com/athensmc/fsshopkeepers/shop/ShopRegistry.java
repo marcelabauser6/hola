@@ -46,6 +46,15 @@ public final class ShopRegistry extends SavedData {
     private static final String SHOPS = "Shops";
     private static final int TAG_COMPOUND = 10;
 
+    /**
+     * Bumped whenever the set of live shop bodies could have changed.
+     *
+     * <p>The client needs to know which entities are shopkeepers, and the only cheap way to keep it up to date is to
+     * notice when the answer changes. A counter compared once a second costs nothing; broadcasting the set on every
+     * chunk load would send it hundreds of times for no reason.</p>
+     */
+    private int bodyVersion;
+
     private final Map<UUID, Shopkeeper> byId = new LinkedHashMap<>();
     private final Map<UUID, UUID> byEntity = new HashMap<>();
     private final Map<PlacedAt, UUID> byPosition = new HashMap<>();
@@ -73,6 +82,28 @@ public final class ShopRegistry extends SavedData {
 
     public int count() {
         return byId.size();
+    }
+
+    /** The current version of the set of shop bodies. */
+    public int bodyVersion() {
+        return bodyVersion;
+    }
+
+    /**
+     * The uuids of every entity that is a shopkeeper right now.
+     *
+     * <p>Sent to clients so they can recognise a shopkeeper without reading server-side data. Entity NBT is not synced, so
+     * a client has no other way to tell a shop villager from an ordinary one - which is exactly why another mod could pick
+     * one up before this mod had a chance to refuse.</p>
+     */
+    public List<UUID> bodyIds() {
+        List<UUID> ids = new ArrayList<>();
+        for (Shopkeeper shop : byId.values()) {
+            if (shop.entityId() != null) {
+                ids.add(shop.entityId());
+            }
+        }
+        return ids;
     }
 
     /** Every shop, in the order they were created. */
@@ -167,6 +198,7 @@ public final class ShopRegistry extends SavedData {
         }
         byId.put(shop.id(), shop);
         index(shop);
+        bodyVersion++;
         setDirty();
     }
 
@@ -185,6 +217,7 @@ public final class ShopRegistry extends SavedData {
         Shopkeeper shop = byId.remove(shopId);
         if (shop != null) {
             unindex(shop);
+            bodyVersion++;
             setDirty();
         }
         return shop;

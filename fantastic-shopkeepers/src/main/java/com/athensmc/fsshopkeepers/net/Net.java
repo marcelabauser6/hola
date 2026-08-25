@@ -43,6 +43,10 @@ public final class Net {
                 SaveShopPacket::encode, SaveShopPacket::decode, SaveShopPacket::handle);
         CHANNEL.registerMessage(id++, DeleteShopPacket.class,
                 DeleteShopPacket::encode, DeleteShopPacket::decode, DeleteShopPacket::handle);
+        CHANNEL.registerMessage(id++, ShopBodiesPacket.class,
+                ShopBodiesPacket::encode, ShopBodiesPacket::decode, ShopBodiesPacket::handle);
+        CHANNEL.registerMessage(id++, RequestEditorPacket.class,
+                RequestEditorPacket::encode, RequestEditorPacket::decode, RequestEditorPacket::handle);
     }
 
     /** Sends a shop to an administrator's client so the editor can open. */
@@ -58,5 +62,20 @@ public final class Net {
     /** Asks the server to delete a shop. Client side. */
     public static void deleteShop(DeleteShopPacket packet) {
         CHANNEL.sendToServer(packet);
+    }
+
+    /** Asks the server to open an editor for a shopkeeper whose click the client swallowed. Client side. */
+    public static void requestEditor(RequestEditorPacket packet) {
+        CHANNEL.sendToServer(packet);
+    }
+
+    /** Tells one player which entities are shopkeepers. */
+    public static void sendShopBodies(ServerPlayer player, java.util.List<java.util.UUID> bodies) {
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new ShopBodiesPacket(bodies));
+    }
+
+    /** Tells every player which entities are shopkeepers. */
+    public static void sendShopBodiesToAll(java.util.List<java.util.UUID> bodies) {
+        CHANNEL.send(PacketDistributor.ALL.noArg(), new ShopBodiesPacket(bodies));
     }
 }
