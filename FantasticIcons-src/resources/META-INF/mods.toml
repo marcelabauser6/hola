@@ -1,0 +1,42 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="MIT"
+issueTrackerURL="https://github.com"
+
+[[mods]]
+modId="fantasticicons"
+version="1.0.0"
+displayName="Fantastic Icons"
+authors="Boxpix Studios (iconos)"
+description='''
+Fantastic Icons: 90 iconos verificados que se muestran AL FINAL del nombre del jugador,
+en el nombre flotante sobre la cabeza, en el chat y en la lista de tab. Forge 1.20.1.
+
+Comandos (solo OP, nivel 2):
+  /fsicons set <icono> <jugador>      pone el icono (ambos argumentos se autocompletan)
+  /fsicons change <jugador> <icono>   cambia el icono
+  /fsicons remove <jugador>           quita el icono (alias: /fsicons quitar)
+  /fsicons lista [pagina]             catalogo con los 90 iconos y su nombre en español
+  /fsicons ver <jugador>              icono actual de un jugador
+  /fsicons jugadores                  todos los iconos asignados
+
+Los iconos son glifos de una fuente bitmap propia (fantasticicons:iconos), asi que el
+cliente necesita tener el mod instalado para verlos; los clientes sin el mod pueden
+conectarse igual, solo veran el nombre sin icono. Funciona con jugadores desconectados y
+con servidores offline-mode (UUID offline). Los datos se guardan en
+<mundo>/data/fantasticicons.json.
+'''
+
+[[dependencies.fantasticicons]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.fantasticicons]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.20.2)"
+    ordering="NONE"
+    side="BOTH"

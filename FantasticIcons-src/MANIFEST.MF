@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Specification-Title: fantasticicons
+Specification-Vendor: Fantastic Team
+Specification-Version: 1
+Implementation-Title: FantasticIcons
+Implementation-Version: 1.0.0
+Implementation-Vendor: Fantastic Team
