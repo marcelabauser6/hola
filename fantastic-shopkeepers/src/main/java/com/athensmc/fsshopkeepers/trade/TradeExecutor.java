@@ -76,15 +76,54 @@ public final class TradeExecutor {
         };
     }
 
+    /**
+     * Runs the one payment rule and takes the money.
+     *
+     * <p>Both selling and bartering come through here, so neither can be left without a payment check the way bartering was.
+     * The money is taken last, after every reason to refuse has been ruled out, and a caller that gets {@code null} back may
+     * deliver.</p>
+     *
+     * @return the refusal to send back, or null when the buyer has paid and delivery may proceed.
+     */
+    private static Result chargeBuyer(ServerPlayer buyer, TradeOffer offer, int times) {
+        boolean hasItemCost = offer.hasItemCost();
+        long spendable = Cash.available() ? Cash.spendable(buyer.server, buyer.getUUID()) : 0L;
+        TradeGate.Verdict verdict = TradeGate.check(offer.priceCents(), times, hasItemCost,
+                Cash.available(), spendable);
+
+        switch (verdict) {
+            case NOTHING_ASKED -> {
+                return Result.no("Ese trato no pide nada a cambio. Avisa a un administrador.");
+            }
+            case PRICE_TOO_LARGE -> {
+                return Result.no("El precio total es demasiado grande.");
+            }
+            case NO_ECONOMY -> {
+                return Result.no("El sistema de dinero no esta disponible ahora mismo.");
+            }
+            case TOO_EXPENSIVE -> {
+                long total = TradeGate.totalPrice(offer.priceCents(), times);
+                return Result.no("Cuesta " + Cash.format(total) + " y solo tienes "
+                        + Cash.format(spendable) + ".");
+            }
+            case ALLOWED -> {
+                // Falls through to the charge below.
+            }
+        }
+
+        long total = TradeGate.totalPrice(offer.priceCents(), times);
+        if (total > 0L && !Cash.charge(buyer.server, buyer.getUUID(), total)) {
+            return Result.no("No se pudo cobrar el importe. Revisa tu cuenta bancaria.");
+        }
+        return null;
+    }
+
     /** The shop hands over goods and the buyer pays in Cash, items, or both. */
     private static Result sell(ServerPlayer buyer, ServerLevel level, Shopkeeper shop, TradeOffer offer,
             int times) {
         ItemStack goods = offer.result().copy();
         int perTrade = goods.getCount();
-        long price = offer.priceCents() * times;
-        if (offer.hasCashPrice() && price / times != offer.priceCents()) {
-            return Result.no("El precio total es demasiado grande.");
-        }
+        long price = Math.max(0L, TradeGate.totalPrice(offer.priceCents(), times));
 
         // A shop without a chest has unlimited stock; one that was given a chest is limited by it.
         Container container = shop.usesContainer() ? ShopStock.container(level, shop) : null;
@@ -113,18 +152,9 @@ public final class TradeExecutor {
             return Result.no("No tienes espacio en el inventario.");
         }
 
-        if (offer.hasCashPrice()) {
-            if (!Cash.available()) {
-                return Result.no("El sistema de dinero no esta disponible ahora mismo.");
-            }
-            long available = Cash.spendable(buyer.server, buyer.getUUID());
-            if (available < price) {
-                return Result.no("Cuesta " + Cash.format(price) + " y solo tienes "
-                        + Cash.format(available) + ".");
-            }
-            if (!Cash.charge(buyer.server, buyer.getUUID(), price)) {
-                return Result.no("No se pudo cobrar el importe. Revisa tu cuenta bancaria.");
-            }
+        Result refusal = chargeBuyer(buyer, offer, times);
+        if (refusal != null) {
+            return refusal;
         }
 
         // Past this point the buyer has paid, so every remaining step must succeed or be undone.
@@ -248,22 +278,10 @@ public final class TradeExecutor {
             return Result.no("El cofre de la tienda esta lleno.");
         }
 
-        long price = offer.priceCents() * times;
-        if (offer.hasCashPrice()) {
-            if (price / times != offer.priceCents()) {
-                return Result.no("El precio total es demasiado grande.");
-            }
-            if (!Cash.available()) {
-                return Result.no("El sistema de dinero no esta disponible ahora mismo.");
-            }
-            long available = Cash.spendable(buyer.server, buyer.getUUID());
-            if (available < price) {
-                return Result.no("Cuesta " + Cash.format(price) + " y solo tienes "
-                        + Cash.format(available) + ".");
-            }
-            if (!Cash.charge(buyer.server, buyer.getUUID(), price)) {
-                return Result.no("No se pudo cobrar el importe. Revisa tu cuenta bancaria.");
-            }
+        long price = Math.max(0L, TradeGate.totalPrice(offer.priceCents(), times));
+        Result refusal = chargeBuyer(buyer, offer, times);
+        if (refusal != null) {
+            return refusal;
         }
 
         if (!takeItems(buyer, payment1) || !takeItems(buyer, payment2)) {

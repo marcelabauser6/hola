@@ -108,8 +108,23 @@ tasks.register('verifyTradeWindow', JavaExec) {
     mainClass = 'com.athensmc.fsshopkeepers.client.layout.TradeWindowGeometryTest'
 }
 
+/**
+ * The guard on paying for things.
+ *
+ * <p>Free purchases escaped this mod twice, both times because the rule about paying lived in one code path and another had
+ * none. This exercises the rule itself across every combination of price, quantity and balance.</p>
+ */
+tasks.register('verifyTradeGate', JavaExec) {
+    group = 'verification'
+    description = 'Comprueba que nada se entrega sin haberse pagado.'
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.athensmc.fsshopkeepers.trade.TradeGateTest'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('verifyEditorGeometry')
     dependsOn tasks.named('verifyTradeWindow')
+    dependsOn tasks.named('verifyTradeGate')
     dependsOn tasks.named('verifyMoney')
 }
