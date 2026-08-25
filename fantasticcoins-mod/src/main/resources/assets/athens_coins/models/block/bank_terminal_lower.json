@@ -1,0 +1,53 @@
+{
+  "credit": "FantasticCurrency bank terminal, lower half - the teller counter",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/bank_terminal_side",
+    "front": "athens_coins:block/bank_terminal_front",
+    "side": "athens_coins:block/bank_terminal_side",
+    "back": "athens_coins:block/bank_terminal_back",
+    "top": "athens_coins:block/bank_terminal_top",
+    "bottom": "athens_coins:block/bank_terminal_bottom"
+  },
+  "elements": [
+    {
+      "name": "kick_plate",
+      "__comment": "A recessed strip at the floor. A counter that meets the floor flush looks like a painted wall.",
+      "from": [0.5, 0, 3.5],
+      "to": [15.5, 1.5, 12.5],
+      "faces": {
+        "north": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
+        "south": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
+        "east": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
+        "west": { "texture": "#bottom", "uv": [0, 0, 16, 3] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "counter",
+      "__comment": "The desk itself, full width: this is the surface a customer stands at.",
+      "from": [0, 1.5, 3],
+      "to": [16, 14, 13],
+      "faces": {
+        "north": { "texture": "#front", "uv": [0, 0, 16, 16] },
+        "south": { "texture": "#back", "uv": [0, 0, 16, 16] },
+        "east": { "texture": "#side", "uv": [0, 0, 16, 16] },
+        "west": { "texture": "#side", "uv": [0, 0, 16, 16] }
+      }
+    },
+    {
+      "name": "worktop",
+      "__comment": "A lip overhanging the counter front and back, so the desk has an edge instead of a corner.",
+      "from": [0, 14, 2],
+      "to": [16, 16, 14],
+      "faces": {
+        "north": { "texture": "#top", "uv": [0, 0, 16, 4] },
+        "south": { "texture": "#top", "uv": [0, 0, 16, 4] },
+        "east": { "texture": "#top", "uv": [0, 0, 16, 4] },
+        "west": { "texture": "#top", "uv": [0, 0, 16, 4] },
+        "up": { "texture": "#top", "uv": [0, 0, 16, 16] },
+        "down": { "texture": "#bottom", "uv": [0, 0, 16, 16] }
+      }
+    }
+  ]
+}

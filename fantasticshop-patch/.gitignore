@@ -1,0 +1,7 @@
+# tools/rebuild.sh extracts the base jar here and compiles into out/, then jars the result.
+# Both are regenerated on every build; only src/ and lang-overlay/ are sources.
+original/
+out/
+
+# The rebuild writes the jar next to the sources; the copy at the repository root is the deliverable.
+FantasticShop-*.jar

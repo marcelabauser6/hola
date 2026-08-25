@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "athens_coins:block/stats_hologram" },
+    "facing=east": { "model": "athens_coins:block/stats_hologram", "y": 90 },
+    "facing=south": { "model": "athens_coins:block/stats_hologram", "y": 180 },
+    "facing=west": { "model": "athens_coins:block/stats_hologram", "y": 270 }
+  }
+}

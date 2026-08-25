@@ -1,0 +1,143 @@
+{
+  "credit": "FantasticCurrency central bank, lower half - the console base",
+  "parent": "block/block",
+  "textures": {
+    "particle": "athens_coins:block/central_bank_side",
+    "front": "athens_coins:block/central_bank_front",
+    "side": "athens_coins:block/central_bank_side",
+    "back": "athens_coins:block/central_bank_back",
+    "bottom": "athens_coins:block/central_bank_bottom"
+  },
+  "elements": [
+    {
+      "name": "base",
+      "__comment": "A stepped plinth. The central bank is the one machine that should look like a building, and a plinth is the cheapest way to say so. Face present because nothing covers it: the element next to this one is narrower, so a rim of this side stays exposed and an absent face renders as a hole straight through the machine.",
+      "from": [
+        0,
+        0,
+        1
+      ],
+      "to": [
+        16,
+        2,
+        15
+      ],
+      "faces": {
+        "north": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "south": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "east": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "west": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            4
+          ]
+        },
+        "up": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "name": "cabinet",
+      "from": [
+        0.5,
+        2,
+        2
+      ],
+      "to": [
+        15.5,
+        16,
+        14
+      ],
+      "faces": {
+        "north": {
+          "texture": "#front",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#back",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#side",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        },
+        "down": {
+          "texture": "#bottom",
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ]
+        }
+      }
+    }
+  ]
+}
