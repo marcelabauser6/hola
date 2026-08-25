@@ -419,9 +419,8 @@ public final class ShopCommands {
      * Prints exactly what the shops see of a player's money.
      *
      * <p>Here because "it does not recognise my Cash" is impossible to diagnose from the outside. Fantastic Currency keeps
-     * two pots - a bank principal and a small spendable wallet float drawn from it - and a shop can be looking at one while
-     * the player is looking at the other. This prints both, the total, and whether the bridge to the bank is even
-     * connected, so the answer stops being a guess.</p>
+     * two pots: the wallet/card balance that shops may spend, and protected bank principal. This command displays both
+     * separately so there is no ambiguity about which amount can be used for a purchase.</p>
      */
     private static int balance(CommandContext<CommandSourceStack> context) {
         ServerPlayer player = player(context);
@@ -434,28 +433,18 @@ public final class ShopCommands {
                     "Fantastic Currency no esta conectado, asi que las tiendas no pueden cobrar dinero."));
             return 0;
         }
-        long wallet = Cash.balance(player.server, player.getUUID());
+        long wallet = Cash.spendable(player.server, player.getUUID());
         long account = Cash.accountBalance(player.server, player.getUUID());
-        long total = Cash.spendable(player.server, player.getUUID());
         int number = Cash.accountNumber(player.server, player.getUUID());
 
-        source.sendSuccess(() -> Component.literal("Lo que las tiendas ven de tu dinero")
+        source.sendSuccess(() -> Component.literal("Saldo de Fantastic Cash")
                 .withStyle(ChatFormatting.GOLD), false);
-        detail(source, "Cartera", Cash.format(wallet));
-        detail(source, "Cuenta del banco", Cash.format(account));
-        detail(source, "Total que puedes gastar", Cash.format(total));
+        detail(source, "Disponible en wallet/tarjeta", Cash.format(wallet));
+        detail(source, "Cuenta del banco (no gastable aqui)", Cash.format(account));
         detail(source, "Numero de cuenta", number > 0 ? String.valueOf(number) : "sin cuenta");
-        detail(source, "Puede cobrar de la cuenta", Cash.canChargeAccount() ? "si" : "no");
-        if (number <= 0) {
-            source.sendSuccess(() -> Component.literal(
-                    "No tienes cuenta en ningun banco, y sin cuenta Fantastic Currency deja el saldo en cero. "
-                            + "Abre una en un cajero.").withStyle(ChatFormatting.RED), false);
-        } else if (!Cash.canChargeAccount() && account > 0L) {
-            source.sendSuccess(() -> Component.literal(
-                    "Tienes dinero en la cuenta pero este mod no puede tocarla en esta version de Fantastic "
-                            + "Currency, asi que solo podras gastar la cartera.")
-                    .withStyle(ChatFormatting.RED), false);
-        }
+        source.sendSuccess(() -> Component.literal(
+                "Las tiendas solo cobran la wallet/tarjeta. Nunca retiran dinero de la cuenta bancaria.")
+                .withStyle(ChatFormatting.GRAY), false);
         return 1;
     }
 

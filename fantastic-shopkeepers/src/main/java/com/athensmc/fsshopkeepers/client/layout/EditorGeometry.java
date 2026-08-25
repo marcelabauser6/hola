@@ -357,6 +357,19 @@ public final class EditorGeometry {
         return Math.max(0, column.height() / ROW_PITCH);
     }
 
+    /** Number of rows whose frame should be visible for the current filtered result count. */
+    public int mobDisplayedRows(int itemCount) {
+        return Math.min(mobVisibleRows(), Math.max(1, itemCount));
+    }
+
+    /**
+     * The framed part of the mob list. It shrinks to its actual results instead of drawing empty fake rows below them.
+     */
+    public Rect mobListViewport(int itemCount) {
+        Rect column = mobListColumn();
+        return new Rect(column.x(), column.y(), column.width(), mobDisplayedRows(itemCount) * ROW_PITCH);
+    }
+
     public Rect mobRow(int slot) {
         if (slot < 0 || slot >= mobVisibleRows()) {
             return Rect.EMPTY;
@@ -367,8 +380,12 @@ public final class EditorGeometry {
     }
 
     public Rect mobScrollbar() {
-        Rect column = mobListColumn();
-        return new Rect(column.right() - 6, column.y(), 5, mobVisibleRows() * ROW_PITCH);
+        return mobScrollbar(Integer.MAX_VALUE);
+    }
+
+    public Rect mobScrollbar(int itemCount) {
+        Rect viewport = mobListViewport(itemCount);
+        return new Rect(viewport.right() - 6, viewport.y(), 5, viewport.height());
     }
 
     public Rect variantsColumn() {

@@ -80,7 +80,7 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
      * operator chose.</p>
      */
     public record Data(UUID shopId, String shopName, ShopType type, String cashLabel, int cashColour,
-            List<OfferView> offers) {
+            int selectedOffer, List<OfferView> offers) {
 
         public void write(FriendlyByteBuf buf) {
             buf.writeUUID(shopId);
@@ -88,6 +88,7 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
             buf.writeEnum(type);
             buf.writeUtf(cashLabel, 32);
             buf.writeInt(cashColour);
+            buf.writeVarInt(selectedOffer);
             buf.writeVarInt(offers.size());
             for (OfferView offer : offers) {
                 offer.write(buf);
@@ -100,12 +101,13 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
             ShopType type = buf.readEnum(ShopType.class);
             String cashLabel = buf.readUtf(32);
             int cashColour = buf.readInt();
+            int selectedOffer = buf.readVarInt();
             int count = buf.readVarInt();
             List<OfferView> offers = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 offers.add(OfferView.read(buf));
             }
-            return new Data(shopId, name, type, cashLabel, cashColour, offers);
+            return new Data(shopId, name, type, cashLabel, cashColour, selectedOffer, offers);
         }
     }
 
@@ -114,6 +116,7 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
     private final ShopType shopType;
     private final String cashLabel;
     private final int cashColour;
+    private final int selectedOffer;
     private final List<OfferView> offers;
 
     public ShopTradeMenu(int containerId, Inventory inventory, Data data) {
@@ -124,6 +127,8 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         this.cashLabel = data.cashLabel();
         this.cashColour = data.cashColour();
         this.offers = List.copyOf(data.offers());
+        this.selectedOffer = this.offers.isEmpty() ? 0
+                : Math.max(0, Math.min(data.selectedOffer(), this.offers.size() - 1));
         addInventorySlots(inventory);
     }
 
@@ -155,6 +160,11 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         return offers;
     }
 
+    /** The offer the server asks a freshly opened screen to keep selected. */
+    public int selectedOffer() {
+        return selectedOffer;
+    }
+
     /** What the server calls its money, for the note in the payment slot. */
     public String cashLabel() {
         return cashLabel;
@@ -172,6 +182,11 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
      * out and the customer is not invited to click it.</p>
      */
     public static Data dataFor(ServerPlayer viewer, Shopkeeper shop) {
+        return dataFor(viewer, shop, 0);
+    }
+
+    /** Builds a refreshed view while preserving the offer the customer just used. */
+    public static Data dataFor(ServerPlayer viewer, Shopkeeper shop, int selectedOffer) {
         List<TradeOffer> tradable = shop.tradableOffers();
         List<OfferView> views = new ArrayList<>(tradable.size());
         for (TradeOffer offer : tradable) {
@@ -180,8 +195,9 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         }
         com.athensmc.fsshopkeepers.config.ShopConfig config =
                 com.athensmc.fsshopkeepers.config.ShopConfig.get();
+        int keptSelection = views.isEmpty() ? 0 : Math.max(0, Math.min(selectedOffer, views.size() - 1));
         return new Data(shop.id(), shop.displayName(), shop.type(), config.cashLabel,
-                config.cashColorRgb(), views);
+                config.cashColorRgb(), keptSelection, views);
     }
 
     /** Encodes a purchase as a menu button id. */
@@ -228,7 +244,7 @@ public final class ShopTradeMenu extends AbstractContainerMenu {
         if (result.success()) {
             // Reopen so stock counts and the player's inventory redraw from the server's new truth rather than
             // from what the client remembers.
-            ShopMenus.openTrade(buyer, shop);
+            ShopMenus.openTrade(buyer, shop, offerIndex);
         }
         return result.success();
     }

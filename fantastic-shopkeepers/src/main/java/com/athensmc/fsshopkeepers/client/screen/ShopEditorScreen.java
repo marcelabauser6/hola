@@ -647,7 +647,7 @@ public final class ShopEditorScreen extends Screen {
                     ? "\u00a7aFantastic Currency detectado: se cobra en " + Cash.currencyName()
                     : "\u00a7cFantastic Currency no esta instalado", geo.settingLabel(block));
             addNote(Cash.available()
-                    ? "Se gasta la cartera y, si no llega, la cuenta del banco."
+                    ? "Solo se gasta la wallet/tarjeta disponible; la cuenta bancaria nunca se toca."
                     : "Sin el, solo funcionan los pagos con articulos.", geo.settingControl(block));
         }
     }
@@ -701,8 +701,9 @@ public final class ShopEditorScreen extends Screen {
             drawScrollbar(graphics, geo.tradeScrollbar(), rows.size(), geo.tradeVisibleRows(), tradeScroll,
                     mouseX, mouseY, draggingTradeBar);
         } else if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
-            drawMobRows(graphics, mouseX, mouseY);
-            drawScrollbar(graphics, geo.mobScrollbar(), mobChoices().size(), geo.mobVisibleRows(), mobScroll,
+            List<ResourceLocation> choices = mobChoices();
+            drawMobRows(graphics, mouseX, mouseY, choices);
+            drawScrollbar(graphics, geo.mobScrollbar(choices.size()), choices.size(), geo.mobVisibleRows(), mobScroll,
                     mouseX, mouseY, draggingMobBar);
         }
 
@@ -750,10 +751,9 @@ public final class ShopEditorScreen extends Screen {
         }
     }
 
-    private void drawMobRows(GuiGraphics graphics, int mouseX, int mouseY) {
-        Rect column = geo.mobListColumn();
-        FSGui.inset(graphics, column.x(), column.y(), column.width() - 2, column.height());
-        List<ResourceLocation> choices = mobChoices();
+    private void drawMobRows(GuiGraphics graphics, int mouseX, int mouseY, List<ResourceLocation> choices) {
+        Rect viewport = geo.mobListViewport(choices.size());
+        FSGui.inset(graphics, viewport.x(), viewport.y(), viewport.width() - 2, viewport.height());
         int visible = geo.mobVisibleRows();
         mobScroll = Math.max(0, Math.min(mobScroll, Math.max(0, choices.size() - visible)));
         if (choices.isEmpty()) {
@@ -911,9 +911,10 @@ public final class ShopEditorScreen extends Screen {
         }
         if (activeTab == Tab.APPEARANCE && kind == ShopObjectKind.LIVING) {
             List<ResourceLocation> choices = mobChoices();
-            if (startBarDrag(geo.mobScrollbar(), choices.size(), geo.mobVisibleRows(), mouseX, mouseY)) {
+            Rect mobTrack = geo.mobScrollbar(choices.size());
+            if (startBarDrag(mobTrack, choices.size(), geo.mobVisibleRows(), mouseX, mouseY)) {
                 draggingMobBar = true;
-                scrollBarTo(mouseY, geo.mobScrollbar(), choices.size(), geo.mobVisibleRows(), false);
+                scrollBarTo(mouseY, mobTrack, choices.size(), geo.mobVisibleRows(), false);
                 return true;
             }
         }
@@ -967,7 +968,8 @@ public final class ShopEditorScreen extends Screen {
             return true;
         }
         if (draggingMobBar) {
-            scrollBarTo(mouseY, geo.mobScrollbar(), mobChoices().size(), geo.mobVisibleRows(), false);
+            List<ResourceLocation> choices = mobChoices();
+            scrollBarTo(mouseY, geo.mobScrollbar(choices.size()), choices.size(), geo.mobVisibleRows(), false);
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);

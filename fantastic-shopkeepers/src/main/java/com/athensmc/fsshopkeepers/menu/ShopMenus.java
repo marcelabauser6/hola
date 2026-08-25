@@ -25,7 +25,12 @@ public final class ShopMenus {
      * appears instead of filling in a moment later.</p>
      */
     public static void openTrade(ServerPlayer customer, Shopkeeper shop) {
-        ShopTradeMenu.Data data = ShopTradeMenu.dataFor(customer, shop);
+        openTrade(customer, shop, 0);
+    }
+
+    /** Reopens a refreshed trading window without jumping back to the first offer. */
+    public static void openTrade(ServerPlayer customer, Shopkeeper shop, int selectedOffer) {
+        ShopTradeMenu.Data data = ShopTradeMenu.dataFor(customer, shop, selectedOffer);
         NetworkHooks.openScreen(customer, new MenuProvider() {
             @Override
             public Component getDisplayName() {

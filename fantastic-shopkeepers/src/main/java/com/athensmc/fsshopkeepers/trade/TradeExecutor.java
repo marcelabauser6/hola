@@ -221,12 +221,12 @@ public final class TradeExecutor {
             return Result.no("No se pudo cobrar al dueño. Intentalo mas tarde.");
         }
         if (!takeItems(buyer, handedIn)) {
-            Cash.deposit(buyer.server, shop.owner(), payout);
+            Cash.refundWallet(buyer.server, shop.owner(), payout);
             return Result.no("No se pudieron retirar tus articulos. No se ha movido dinero.");
         }
         // Without a chest the goods simply leave the world, which is what an unlimited buying shop means.
         if (container != null && !ShopStock.add(container, handedIn)) {
-            Cash.deposit(buyer.server, shop.owner(), payout);
+            Cash.refundWallet(buyer.server, shop.owner(), payout);
             giveBack(buyer, handedIn);
             return Result.no("El cofre se lleno mientras vendias. No se ha movido dinero.");
         }
@@ -420,8 +420,10 @@ public final class TradeExecutor {
     }
 
     private static void refund(ServerPlayer buyer, Shopkeeper shop, long price) {
-        if (price > 0L) {
-            Cash.deposit(buyer.server, buyer.getUUID(), price);
+        if (price > 0L && !Cash.refundWallet(buyer.server, buyer.getUUID(), price)) {
+            FantasticShopkeepers.LOGGER.error(
+                    "No se pudo devolver {} a la wallet de {} tras cancelar la compra en {}.",
+                    price, buyer.getUUID(), shop.id());
         }
     }
 

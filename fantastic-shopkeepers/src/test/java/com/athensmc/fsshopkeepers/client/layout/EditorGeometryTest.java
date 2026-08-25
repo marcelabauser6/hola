@@ -179,6 +179,7 @@ public final class EditorGeometryTest {
                 failures.add(at + ": " + row.getKey() + " queda bajo la barra de desplazamiento");
             }
         }
+        checkMobViewport(at, geometry);
         Map<String, Rect> variantRows = new LinkedHashMap<>();
         variantRows.put("cabecera", geometry.variantsHeader());
         for (int slot = 0; slot < geometry.variantVisibleRows(); slot++) {
@@ -188,6 +189,38 @@ public final class EditorGeometryTest {
 
         checkDetailBlocks(at, geometry);
         checkSettingBlocks(at, geometry);
+    }
+
+    private static void checkMobViewport(String at, EditorGeometry geometry) {
+        int capacity = geometry.mobVisibleRows();
+        Rect fullColumn = geometry.mobListColumn();
+
+        Rect threeResults = geometry.mobListViewport(3);
+        int expectedThreeRows = Math.min(capacity, 3);
+        if (threeResults.height() != expectedThreeRows * EditorGeometry.ROW_PITCH) {
+            failures.add(at + ": el marco de 3 mobs mide " + threeResults.height()
+                    + "px en vez de " + (expectedThreeRows * EditorGeometry.ROW_PITCH));
+        }
+        if (!threeResults.isEmpty() && !threeResults.within(fullColumn)) {
+            failures.add(at + ": el marco ajustado de mobs se sale de su columna");
+        }
+        if (capacity > 3 && threeResults.height() >= fullColumn.height()) {
+            failures.add(at + ": una busqueda de 3 mobs conserva espacio de filas vacias");
+        }
+
+        Rect noResults = geometry.mobListViewport(0);
+        int expectedEmptyRows = Math.min(capacity, 1);
+        if (noResults.height() != expectedEmptyRows * EditorGeometry.ROW_PITCH) {
+            failures.add(at + ": el mensaje sin resultados no conserva exactamente una fila");
+        }
+
+        Rect manyResults = geometry.mobListViewport(Integer.MAX_VALUE);
+        if (manyResults.height() != capacity * EditorGeometry.ROW_PITCH) {
+            failures.add(at + ": la lista llena no usa toda su capacidad de filas");
+        }
+        if (!manyResults.equals(geometry.mobListViewport(capacity + 10))) {
+            failures.add(at + ": el marco cambia aunque los resultados excedan la capacidad");
+        }
     }
 
     /**

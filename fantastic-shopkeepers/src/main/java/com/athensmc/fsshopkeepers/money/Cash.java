@@ -31,23 +31,13 @@ public final class Cash {
 
     private static final String API_CLASS = "com.athensmc.athenscoins.api.FantasticCurrencyAPI";
 
-    /**
-     * The bank's own manager, for the one thing the public API does not offer.
-     *
-     * <p>Fantastic Currency keeps a player's money as a bank principal and lends a small spendable float to their wallet.
-     * {@code FantasticCurrencyAPI.charge} only ever debits that float, so a player with eighteen thousand on their card and
-     * an empty wallet was told they could not afford anything. {@code BankManager.debitAccount} takes it from the principal,
-     * which is what a shop should do, and it is public even though the API does not re-export it.</p>
-     */
-    private static final String BANK_MANAGER_CLASS = "com.athensmc.athenscoins.bank.BankManager";
-    private static final String LEDGER_KIND_CLASS = "com.athensmc.athenscoins.bank.LedgerEntry$Kind";
-
     /** The currency mod's id, for the dependency notice in the logs. */
     public static final String CURRENCY_MOD_ID = "athens_coins";
 
     private static MethodHandle getBalance;
     private static MethodHandle charge;
     private static MethodHandle depositToAccount;
+    private static MethodHandle depositToWallet;
     private static MethodHandle creditSaleToAccount;
     private static MethodHandle accountNumber;
     private static MethodHandle ownsAccount;
@@ -56,10 +46,6 @@ public final class Cash {
     private static MethodHandle formatCents;
     private static MethodHandle displayBalance;
     private static MethodHandle getAccountBalance;
-
-    /** {@code BankManager.debitAccount}, and the ledger reason to record against it. */
-    private static MethodHandle debitAccount;
-    private static Object shopPurchaseKind;
 
     private static boolean available;
 
@@ -94,6 +80,8 @@ public final class Cash {
                     MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, long.class));
             depositToAccount = lookup.findStatic(api, "depositToAccount",
                     MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, long.class));
+            depositToWallet = lookup.findStatic(api, "depositToWallet",
+                    MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, long.class));
             creditSaleToAccount = lookup.findStatic(api, "creditSaleToAccount",
                     MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, int.class,
                             long.class));
@@ -112,8 +100,8 @@ public final class Cash {
             getAccountBalance = lookup.findStatic(api, "getAccountBalance",
                     MethodType.methodType(long.class, MinecraftServer.class, UUID.class));
             available = true;
-            bindBankManager(lookup);
-            FantasticShopkeepers.LOGGER.info("Fantastic Currency detectado: precios en {} activados.",
+            FantasticShopkeepers.LOGGER.info(
+                    "Fantastic Currency detectado: precios en {} activados; las compras usan solo la wallet.",
                     currencyName());
         } catch (ReflectiveOperationException apiChanged) {
             available = false;
@@ -124,47 +112,9 @@ public final class Cash {
         }
     }
 
-    /**
-     * Binds the bank manager, which is optional.
-     *
-     * <p>Failure here is not fatal: without it the shops fall back to spending only the wallet float, which is what they did
-     * before. It is logged as a warning because that fallback is a worse experience, not a broken one.</p>
-     */
-    private static void bindBankManager(MethodHandles.Lookup lookup) {
-        try {
-            Class<?> bankManager = Class.forName(BANK_MANAGER_CLASS);
-            Class<?> kindClass = Class.forName(LEDGER_KIND_CLASS);
-            debitAccount = lookup.findStatic(bankManager, "debitAccount",
-                    MethodType.methodType(boolean.class, MinecraftServer.class, UUID.class, long.class,
-                            kindClass, String.class, String.class));
-            @SuppressWarnings({"unchecked", "rawtypes"})
-            Object kind = Enum.valueOf((Class<Enum>) kindClass, "SHOP_PURCHASE");
-            shopPurchaseKind = kind;
-            FantasticShopkeepers.LOGGER.info(
-                    "Fantastic Currency: las compras podran cobrarse de la cuenta del banco y no solo de la cartera.");
-        } catch (ReflectiveOperationException | RuntimeException notThere) {
-            debitAccount = null;
-            shopPurchaseKind = null;
-            FantasticShopkeepers.LOGGER.warn(
-                    "Fantastic Currency: no se encontro BankManager.debitAccount ({}), asi que las compras solo "
-                            + "podran gastar el saldo de la cartera.", notThere.toString());
-        }
-    }
-
     /** True when prices may be set in Fantastic Cash. */
     public static boolean available() {
         return available;
-    }
-
-    /**
-     * True when a purchase can reach the money in a player's bank account.
-     *
-     * <p>Reported so {@code /fskeepers saldo} can say whether an account balance is spendable here. Without this, a player
-     * with a full account and an empty wallet is refused with no way to tell whether the mod cannot see the money or
-     * cannot touch it.</p>
-     */
-    public static boolean canChargeAccount() {
-        return available && debitAccount != null;
     }
 
     /** The currency symbol, or a neutral fallback when the currency mod is absent. */
@@ -239,20 +189,13 @@ public final class Cash {
     }
 
     /**
-     * Everything a player can actually spend: the wallet float plus the bank principal.
+     * What a shop may spend from a player: only the wallet/card balance exposed by Fantastic Currency.
      *
-     * <p>This is the figure a shop must compare a price against. The wallet alone is a small withdrawal limit, and judging
-     * affordability by it tells a player with a full account that they are broke.</p>
+     * <p>The bank principal is deliberately excluded. Money must be withdrawn to the wallet first; a shop purchase
+     * never reaches into savings to complete a payment.</p>
      */
     public static long spendable(MinecraftServer server, UUID player) {
-        // Every value is floored at zero and the sum is capped, so an odd reading can only ever make a player look
-        // poorer. The first version answered MAX_CENTS when the two balances would not add cleanly, which meant a
-        // negative or unreadable balance reported as "can afford anything" - a fail-open on money.
-        long wallet = balance(server, player);
-        if (debitAccount == null) {
-            return Money.addSpendable(wallet, 0L);
-        }
-        return Money.addSpendable(wallet, accountBalance(server, player));
+        return Math.max(0L, balance(server, player));
     }
 
     public static long spendable(ServerPlayer player) {
@@ -260,103 +203,58 @@ public final class Cash {
     }
 
     /**
-     * Takes money from a buyer.
+     * Takes money from the buyer's wallet/card balance only.
      *
-     * <p>Returns false when the money was not taken, for any reason: no currency mod, not enough balance, no
-     * bank account. The caller must treat false as "the trade did not happen" and hand nothing over. Charging
-     * first and delivering only on success is the ordering that cannot give goods away for free.</p>
+     * <p>Returns false when the available wallet balance cannot cover the complete price. The bank principal is never
+     * considered and never debited; players must withdraw money to the wallet before shopping.</p>
      */
     public static boolean charge(MinecraftServer server, UUID player, long cents) {
         if (!available || server == null || player == null || cents <= 0L) {
             return false;
         }
-        // The gate lives here, not only in the callers. Any path that reaches a charge without having checked the
-        // balance is refused rather than trusted, so no future caller can hand goods over for free by forgetting.
         long before = spendable(server, player);
         if (before < cents) {
-            FantasticShopkeepers.LOGGER.warn("Cobro rechazado: {} necesita {} y solo tiene {}.",
+            FantasticShopkeepers.LOGGER.warn("Cobro rechazado: {} necesita {} en wallet y solo tiene {}.",
                     player, cents, before);
             return false;
         }
-        if (!takeFrom(server, player, cents)) {
+        if (!chargeWallet(server, player, cents)) {
             return false;
         }
-        // Confirms the whole amount really left, not merely that something changed. An economy that answered yes
-        // while deducting nothing, or less than asked, would be an unlimited supply of free goods.
+        // Confirm the whole amount really left the same wallet that was checked.
         long after = spendable(server, player);
         if (after > before - cents) {
             FantasticShopkeepers.LOGGER.error(
-                    "Fantastic Currency dijo que cobro {} a {} pero su saldo paso de {} a {}. Compra anulada.",
+                    "Fantastic Currency dijo que cobro {} a {} pero su wallet paso de {} a {}. Compra anulada.",
                     cents, player, before, after);
             return false;
         }
         return true;
     }
 
-    /** Takes the amount from the wallet, the account, or both. */
-    private static boolean takeFrom(MinecraftServer server, UUID player, long cents) {
-        long wallet = Math.max(0L, balance(server, player));
-        if (wallet >= cents) {
-            return chargeWallet(server, player, cents);
-        }
-        if (debitAccount == null) {
-            // No way to reach the principal, so the wallet is all there is.
-            return chargeWallet(server, player, cents);
-        }
-        if (wallet <= 0L) {
-            return chargeAccount(server, player, cents);
-        }
-        // Split across both. The wallet goes first because it is the smaller pot, and if the account refuses the
-        // remainder the wallet is put back rather than leaving the player short of goods and money.
-        if (!chargeWallet(server, player, wallet)) {
-            return chargeAccount(server, player, cents);
-        }
-        if (chargeAccount(server, player, cents - wallet)) {
-            return true;
-        }
-        if (!depositToWalletOrAccount(server, player, wallet)) {
-            FantasticShopkeepers.LOGGER.error(
-                    "Se cobraron {} de la cartera de {} y el resto fallo, y la devolucion tambien. Revisar a mano.",
-                    wallet, player);
-        }
-        return false;
-    }
-
     private static boolean chargeWallet(MinecraftServer server, UUID player, long cents) {
         try {
             return (boolean) charge.invokeExact(server, player, cents);
         } catch (Throwable failed) {
-            logCallFailure("cobrar de la cartera", failed);
+            logCallFailure("cobrar de la wallet", failed);
             return false;
         }
     }
 
-    /** Takes money straight from the bank principal, which is where a player's savings live. */
-    private static boolean chargeAccount(MinecraftServer server, UUID player, long cents) {
-        if (debitAccount == null || cents <= 0L) {
-            return false;
-        }
-        // Checked here as well, rather than relying on the bank to refuse. Depending on somebody else's return value
-        // for whether goods may leave the shop is how free purchases happened in the first place.
-        if (accountBalance(server, player) < cents) {
+    /** Returns a cancelled purchase to the wallet it was charged from. */
+    public static boolean refundWallet(MinecraftServer server, UUID player, long cents) {
+        if (!available || server == null || player == null || cents <= 0L) {
             return false;
         }
         try {
-            Object result = debitAccount.invoke(server, player, cents, shopPurchaseKind,
-                    "compra en tienda", "fsshopkeepers");
-            return result instanceof Boolean ok && ok;
+            return (boolean) depositToWallet.invokeExact(server, player, cents);
         } catch (Throwable failed) {
-            logCallFailure("cobrar de la cuenta", failed);
+            logCallFailure("devolver a la wallet", failed);
             return false;
         }
     }
 
-    /** Puts money back after a half-completed charge, preferring the account so no ceiling can refuse it. */
-    private static boolean depositToWalletOrAccount(MinecraftServer server, UUID player, long cents) {
-        return deposit(server, player, cents);
-    }
-
-    /** Pays money to a player's bank account, used for admin payouts and refunds. */
+    /** Pays money to a player's bank account, used for sale income and payouts. */
     public static boolean deposit(MinecraftServer server, UUID player, long cents) {
         if (!available || server == null || player == null || cents <= 0L) {
             return false;

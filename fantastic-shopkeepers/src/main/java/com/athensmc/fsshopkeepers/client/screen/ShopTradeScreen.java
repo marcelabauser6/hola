@@ -86,6 +86,9 @@ public final class ShopTradeScreen extends AbstractContainerScreen<ShopTradeMenu
         super(menu, inventory, title);
         this.imageWidth = 276;
         this.inventoryLabelX = 107;
+        this.selected = menu.selectedOffer();
+        this.scrollOff = Math.max(0,
+                Math.min(selected - NUMBER_OF_OFFER_BUTTONS + 1, maxScroll()));
     }
 
     @Override
